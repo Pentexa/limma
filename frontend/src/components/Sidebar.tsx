@@ -47,6 +47,7 @@ export function Sidebar() {
                 alt="Limma Logo"
                 width={36}
                 height={36}
+                priority
                 className="object-contain drop-shadow-[0_0_12px_rgba(0,240,255,0.3)]"
               />
             </motion.div>

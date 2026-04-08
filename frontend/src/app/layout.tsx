@@ -25,8 +25,8 @@ export default function RootLayout({
         <LanguageProvider>
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-accent-blue/5 rounded-full blur-3xl pointer-events-none -z-10 translate-x-1/2 -translate-y-1/2"></div>
           <Sidebar />
-          <div className="pl-64 flex flex-col min-h-screen">
-            <main className="flex-1 max-w-7xl mx-auto w-full p-8 pt-10 relative">
+          <div className="md:ml-64 flex flex-col min-h-screen">
+            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 py-10 relative">
               {children}
             </main>
           </div>

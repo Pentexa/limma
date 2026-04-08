@@ -7,7 +7,7 @@ import {
   ServerCrash, CheckCircle2, Server, Lock, ChevronDown, ChevronRight,
   Shield, Zap, RotateCcw, ArrowDownRight, AlertTriangle, Eye, Brain,
 } from "lucide-react";
-import { reportApi } from "@/utils/api";
+import { extractApiError, reportApi } from "@/utils/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { CertaintyBadge } from "@/components/CertaintyBadge";
 
@@ -183,7 +183,7 @@ export default function CollectServicesPage() {
       const result = await reportApi.collectServices(targetUrl);
       setData(result as CollectorSnapshot);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "An error occurred.");
+      setError(extractApiError(err));
     } finally {
       setIsLoading(false);
     }
@@ -369,6 +369,8 @@ export default function CollectServicesPage() {
           <Globe className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
         </div>
         <input
+          id="urlInput"
+          name="url"
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}

@@ -1,13 +1,153 @@
 {
   "patterns": {
-    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-missing-hsts-exploitable-surface_[WebScanner]": {
+    "https://example.com-http-securitymisconfiguration-missing-xframe-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://www.havelsan.com/tr-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
       "total_observations": 1,
       "successful_verifications": 1,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
+    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-missing-xframe-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://example.com-http-informationdisclosure-missing-hsts-exploitable-surface_[WebScanner]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://example.com-no-protocol-insecuretransport-permissive-mime-sniffing-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr/-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-permissive-mime-sniffing-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-http-informationdisclosure-missing-hsts-exploitable-surface_[WebScanner]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-missing-frame-options-exploitable-surface_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
+      "total_observations": 7,
+      "successful_verifications": 7,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://pentexa.com.tr/-http-informationdisclosure-server-banner-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr-http-informationdisclosure-server-banner-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 7,
+      "successful_verifications": 7,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://example.com-no-protocol-insecuretransport-server-banner-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr-no-protocol-insecuretransport-server-banner-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr/-http-authenticationbypass-potentially-unauthenticated-api-endpoint-https-pentexa-com-tr-api-login-exploitable-surface_[ApiDiscoverer]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://pentexa.com.tr/-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
     "https://www.havelsan.com/tr-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-missing-hsts-exploitable-surface_[ServerInvestigator]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://pentexa.com.tr-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
@@ -28,7 +168,14 @@
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+    "https://www.havelsan.com/tr-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://example.com-no-protocol-insecuretransport-missing-frame-options-exploitable-surface_[ServerInvestigator]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
@@ -42,49 +189,14 @@
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
-    "https://pentexa.com.tr/-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
-      "total_observations": 0,
-      "successful_verifications": 0,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 0.0
-    },
-    "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
+    "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
       "total_observations": 3,
       "successful_verifications": 3,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
-    "https://pentexa.com.tr/-no-protocol-insecuretransport-permissive-cors-exploitable-surface_[ServerInvestigator]": {
-      "total_observations": 0,
-      "successful_verifications": 0,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 0.0
-    },
-    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-missing-frame-options-exploitable-surface_[ServerInvestigator]": {
-      "total_observations": 0,
-      "successful_verifications": 0,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 0.0
-    },
-    "https://www.havelsan.com/tr-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
-      "total_observations": 1,
-      "successful_verifications": 1,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 100.0
-    },
-    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-missing-xframe-standard-hygiene_[WebScanner]": {
-      "total_observations": 0,
-      "successful_verifications": 0,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 0.0
-    },
-    "https://pentexa.com.tr/-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+    "https://pentexa.com.tr-http-authenticationbypass-potentially-unauthenticated-api-endpoint-https-pentexa-com-tr-api-login-exploitable-surface_[ApiDiscoverer]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
@@ -98,44 +210,72 @@
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://aijetbigg.havelsan.com.tr/-http-informationdisclosure-missing-hsts-exploitable-surface_[WebScanner]": {
+    "https://example.com-http-securitymisconfiguration-missing-hsts-exploitable-surface_[WebScanner]": {
       "total_observations": 1,
       "successful_verifications": 1,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
-    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
+    "https://pentexa.com.tr-no-protocol-insecuretransport-permissive-cors-exploitable-surface_[ServerInvestigator]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://www.havelsan.com/tr-http-authenticationbypass-potentially-unauthenticated-api-endpoint-https-www-havelsan-com-tr-ara-exploitable-surface_[ApiDiscoverer]": {
+    "https://example.com-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://pentexa.com.tr/-http-informationdisclosure-server-banner-standard-hygiene_[WebScanner]": {
+    "https://pentexa.com.tr-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-missing-hsts-exploitable-surface_[ServerInvestigator]": {
+    "https://example.com-no-protocol-insecuretransport-missing-hsts-exploitable-surface_[ServerInvestigator]": {
       "total_observations": 1,
       "successful_verifications": 1,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
-    "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
-      "total_observations": 3,
-      "successful_verifications": 3,
+    "https://example.com-http-securitymisconfiguration-insecure-cookie-exploitable-surface_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://aijetbigg.havelsan.com.tr/-http-securitymisconfiguration-missing-hsts-exploitable-surface_[WebScanner]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://pentexa.com.tr-http-informationdisclosure-permissive-cors-exploitable-surface_[WebScanner]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://www.havelsan.com/tr-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://example.com-http-securitymisconfiguration-missing-csp-exploitable-surface_[WebScanner]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
       "failed_verifications": 0,
       "partial_verifications": 0,
       "average_reproducibility": 100.0
@@ -147,21 +287,7 @@
       "partial_verifications": 0,
       "average_reproducibility": 0.0
     },
-    "https://www.havelsan.com/tr-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
-      "total_observations": 1,
-      "successful_verifications": 1,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 100.0
-    },
-    "https://www.havelsan.com/tr-http-securitymisconfiguration-insecure-cookie-standard-hygiene_[WebScanner]": {
-      "total_observations": 0,
-      "successful_verifications": 0,
-      "failed_verifications": 0,
-      "partial_verifications": 0,
-      "average_reproducibility": 0.0
-    },
-    "https://aijetbigg.havelsan.com.tr/-no-protocol-insecuretransport-permissive-mime-sniffing-standard-hygiene_[ServerInvestigator]": {
+    "https://example.com-http-informationdisclosure-server-banner-standard-hygiene_[WebScanner]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,
@@ -175,7 +301,28 @@
       "partial_verifications": 0,
       "average_reproducibility": 100.0
     },
-    "https://pentexa.com.tr/-http-authenticationbypass-potentially-unauthenticated-api-endpoint-https-pentexa-com-tr-api-login-exploitable-surface_[ApiDiscoverer]": {
+    "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 3,
+      "successful_verifications": 3,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://example.com-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]": {
+      "total_observations": 1,
+      "successful_verifications": 1,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 100.0
+    },
+    "https://pentexa.com.tr/-no-protocol-insecuretransport-permissive-cors-exploitable-surface_[ServerInvestigator]": {
+      "total_observations": 0,
+      "successful_verifications": 0,
+      "failed_verifications": 0,
+      "partial_verifications": 0,
+      "average_reproducibility": 0.0
+    },
+    "https://www.havelsan.com/tr-http-authenticationbypass-potentially-unauthenticated-api-endpoint-https-www-havelsan-com-tr-ara-exploitable-surface_[ApiDiscoverer]": {
       "total_observations": 0,
       "successful_verifications": 0,
       "failed_verifications": 0,

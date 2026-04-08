@@ -4,6 +4,28 @@ const api = axios.create({
   baseURL: 'http://localhost:8900',
 });
 
+export function extractApiError(error: any): string {
+  const responseData = error?.response?.data;
+
+  if (typeof responseData?.error === "string") {
+    return responseData.error;
+  }
+
+  if (typeof responseData?.error?.message === "string") {
+    return responseData.error.message;
+  }
+
+  if (typeof responseData?.message === "string") {
+    return responseData.message;
+  }
+
+  if (typeof error?.message === "string" && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "An error occurred.";
+}
+
 export const reportApi = {
   analyzeWebsite: (url: string) => api.post('/analyze', { url }).then(res => res.data),
   analyzeWebsiteStreamUrl: (url: string) => `http://localhost:8900/analyze/stream?url=${encodeURIComponent(url)}`,

@@ -199,6 +199,8 @@ export default function InvestigatePage() {
           <Globe className="h-5 w-5 text-gray-400 group-focus-within:text-accent-blue transition-colors" />
         </div>
         <input
+          id="urlInput"
+          name="url"
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}

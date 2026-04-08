@@ -2,12 +2,19 @@ mod domain;
 mod application;
 mod infrastructure;
 mod api;
+mod error;
 
 use axum::{
     routing::post,
     Router,
 };
 use std::sync::Arc;
+use std::time::Duration;
+use anyhow::Context;
+use tower_governor::{
+    governor::GovernorConfigBuilder,
+    GovernorLayer,
+};
 use crate::infrastructure::persistence::InMemoryUserRepository;
 use crate::infrastructure::scanner::HttpWebsiteScanner;
 use crate::infrastructure::investigator::HttpInvestigator;
@@ -18,11 +25,11 @@ use crate::infrastructure::mapper::HttpFormMapper;
 use crate::api::handlers::{register_user, analyze_website, analyze_website_stream, investigate_server, investigate_server_stream, discover_apis, collect_services, audit_security, map_forms, generate_master_report, proxy_request, verify_port, submit_feedback, AppState};
 
 #[tokio::main]
-async fn main() {
-    // Install ring as the default TLS crypto provider (required when both ring + aws-lc-rs are linked)
+async fn main() -> anyhow::Result<()> {
+    // Install ring as the default TLS crypto provider
     rustls::crypto::ring::default_provider()
         .install_default()
-        .expect("Failed to install rustls CryptoProvider");
+        .map_err(|_| anyhow::anyhow!("Failed to install rustls CryptoProvider"))?;
 
     // Initializing tracing
     tracing_subscriber::fmt::init();
@@ -46,11 +53,18 @@ async fn main() {
         form_mapper,
     });
 
-    // Configure CORS
+    // Configure middleware layers
     let cors = tower_http::cors::CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any)
         .allow_methods(tower_http::cors::Any);
+    let governor_config = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(20)
+            .burst_size(40)
+            .finish()
+            .context("Failed to build rate limit configuration")?,
+    );
 
     // Build our application with routes
     let app = Router::new()
@@ -68,11 +82,21 @@ async fn main() {
         .route("/verify-port", post(verify_port))
         .route("/api/feedback", post(submit_feedback))
         .with_state(shared_state)
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(300)))
+        .layer(GovernorLayer {
+            config: governor_config,
+        })
         .layer(cors);
 
     // Run our app
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8900").await.unwrap();
-    println!("[Server]: Limma Rust Backend (Clean Architecture) listening on 8900");
-    println!("- POST /master-report (Full Website Intelligence Report)");
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8900")
+        .await
+        .context("Failed to bind to 0.0.0.0:8900")?;
+    tracing::info!("[Server]: Limma Rust Backend listening on 8900");
+    tracing::info!("- POST /master-report (Full Website Intelligence Report)");
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .await
+        .context("Server exited unexpectedly")?;
+
+    Ok(())
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Network, Loader2, Globe, ShieldAlert, Code, Play, Send, Activity, CheckCircle2, XCircle } from "lucide-react";
-import { reportApi } from "@/utils/api";
+import { extractApiError, reportApi } from "@/utils/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { CertaintyBadge } from "@/components/CertaintyBadge";
 
@@ -26,7 +26,7 @@ export default function DiscoverApisPage() {
       const result = await reportApi.discoverApis(targetUrl);
       setData(result);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "An error occurred.");
+      setError(extractApiError(err));
     } finally {
       setIsLoading(false);
     }
@@ -47,6 +47,8 @@ export default function DiscoverApisPage() {
           <Globe className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-400 transition-colors" />
         </div>
         <input
+          id="urlInput"
+          name="url"
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}

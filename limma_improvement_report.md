@@ -10,17 +10,6 @@ Bu rapor, Limma güvenlik denetim platformunun mevcut durumunu analiz eder ve pr
     *   **PostgreSQL Entegrasyonu:** Kullanıcı verileri, tarama geçmişi ve denetim bulguları için ilişkisel bir veritabanına geçilmelidir. Rust tarafında `sqlx` kullanılması önerilir.
     *   **Redis Caching:** Uzun süren tarama sonuçlarının geçici olarak tutulması ve performans artışı için Redis entegrasyonu eklenmelidir.
 
-### 1.2 Backend Konsolidasyonu
-*   **Mevcut Durum:** Projede hem Node.js/Express hem de Rust/Axum backendleri bulunmaktadır. Bu durum kod tekrarına ve yönetim zorluğuna neden olmaktadır.
-*   **Öneri:** 
-    *   Tüm iş mantığının tek bir dilde (tercihen performans avantajı nedeniyle Rust) toplanması veya Node.js tarafının sadece bir "API Gateway/Auth Service" olarak net bir sınırla ayrılması gerekir.
-
-### 1.3 Hata Yönetimi ve Dayanıklılık
-*   **Mevcut Durum:** Rust tarafında yoğun `unwrap()` kullanımı görülmektedir. Bu, beklenmedik hatalarda sunucunun çökmesine neden olur.
-*   **Öneri:** 
-    *   `anyhow` veya `thiserror` kütüphaneleri ile yapısal hata yönetimine geçilmeli.
-    *   `tower-http` üzerinden `Timeout` ve `RateLimiting` katmanları eklenerek servis dayanıklılığı artırılmalıdır.
-
 ---
 
 ## 2. Güvenlik ve Tarama Motoru İyileştirmeleri
@@ -30,12 +19,7 @@ Bu rapor, Limma güvenlik denetim platformunun mevcut durumunu analiz eder ve pr
 *   **Öneri:** 
     *   Kuralların YAML veya JSON dosyalarından dinamik olarak yüklenmesi sağlanmalıdır. Bu, engine'i yeniden derlemeden yeni güvenlik kuralları eklemeyi mümkün kılar.
 
-### 2.2 Gerçek Zamanlı Akış (Streaming) Yaygınlaştırma
-*   **Mevcut Durum:** Master Report şu an tek bir blok olarak döner.
-*   **Öneri:** 
-    *   Master Report sürecinde her modülün (Web, Server, API) sonucu tamamlandığında **Server-Sent Events (SSE)** üzerinden frontend'e anlık akıtılmalıdır.
-
-### 2.3 Harici Araç Entegrasyonu (Plugin System)
+### 2.2 Harici Araç Entegrasyonu (Plugin System)
 *   **Öneri:** 
     *   Nmap, Nuclei, Burp Suite veya Zap sonuçlarını "import" edebilen veya bu araçları tetikleyebilen bir plugin mimarisi geliştirilmelidir.
 
