@@ -1,0 +1,90 @@
+﻿cargo :     Checking limma v0.1.0 (C:\limma\backend)
+At line:1 char:1
++ cargo check 2>&1 | Out-File -Encoding utf8 check_p3b.txt
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo              : NotSpecified    : (    Checking li.    ..\limma\backend):S    tring) [], RemoteEx    ception
+    + FullyQualifiedErr    orId : NativeComman    dError
+ 
+warning: unused import: `DetectedTechnology`
+ --> src\infrastructure\scanner\crawler.rs:1:75
+  |
+1 | use crate::domain::entities::{ScannedPage, ScanEvent, RedirectChainEntry, DetectedTechnology};
+  |                                                                           ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `RedirectChainEntry`
+ --> src\infrastructure\scanner.rs:7:46
+  |
+7 | use crate::domain::entities::{WebScanResult, RedirectChainEntry};
+  |                                              ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashSet`
+ --> src\infrastructure\discoverer\html_analyzer.rs:3:5
+  |
+3 | use std::collections::HashSet;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+  --> src\infrastructure\collector\mod.rs:16:5
+   |
+16 | use std::time::Duration;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `shop`
+   --> src\infrastructure\investigator.rs:328:25
+    |
+328 |             if let Some(shop) = raw_headers.get("x-shopid") {
+    |                         ^^^^ help: if this is intentional, prefix it with an underscore: `_shop`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pp`
+   --> src\infrastructure\investigator.rs:616:21
+    |
+616 |         if let Some(pp) = raw_headers.get("permissions-policy") {
+    |                     ^^ help: if this is intentional, prefix it with an underscore: `_pp`
+
+warning: unused variable: `base_url`
+  --> src\infrastructure\discoverer\html_analyzer.rs:19:35
+   |
+19 |     pub fn parse(html_body: &str, base_url: &Url) -> HtmlAnalysisRes {
+   |                                   ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_url`
+
+warning: variable does not need to be mutable
+  --> src\infrastructure\collector\mod.rs:32:13
+   |
+32 |         let mut errors = Vec::new();
+   |             ----^^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `is_minified` and `has_sourcemap` are never read
+ --> src\infrastructure\discoverer\js_collector.rs:5:9
+  |
+4 | pub struct JsFileAnalysis {
+  |            -------------- fields in this struct
+5 |     pub is_minified: bool,
+  |         ^^^^^^^^^^^
+6 |     pub has_sourcemap: bool,
+  |         ^^^^^^^^^^^^^
+  |
+  = note: `JsFileAnalysis` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `service_hint_from_banner` is never used
+  --> src\infrastructure\collector\banner_probe.rs:62:8
+   |
+62 | pub fn service_hint_from_banner(evidence: &ProbeEvidence) -> Option<&'static str> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `UserResponse` is never constructed
+  --> src\api\models.rs:10:12
+   |
+10 | pub struct UserResponse {
+   |            ^^^^^^^^^^^^
+
+warning: `limma` (bin "limma") generated 11 warnings (run `cargo fix --bin "limma" -p limma` to apply 8 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 34.10s
