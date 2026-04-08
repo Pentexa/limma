@@ -1,0 +1,162 @@
+﻿cargo :     Checking lim
+ma v0.1.0 (C:\limma\back
+end)
+At line:1 char:1
++ cargo check 2>&1 | Out
+-File -Encoding utf8 che
+ck_p3.txt
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+(        Checking li...\
+limma\    backend):Strin
+g) [], R    emoteExcepti
+on
+    + FullyQualifiedErro
+rI    d : NativeCommandE
+rror
+ 
+warning: unused import: 
+`DetectedTechnology`
+ --> src\infrastructure\
+scanner\crawler.rs:1:75
+  |
+1 | use crate::domain::e
+ntities::{ScannedPage, S
+canEvent, RedirectChainE
+ntry, DetectedTechnology
+};
+  |                     
+                        
+                        
+      ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused
+_imports)]` (part of `#[
+warn(unused)]`) on by de
+fault
+
+warning: unused import: 
+`RedirectChainEntry`
+ --> src\infrastructure\
+scanner.rs:7:46
+  |
+7 | use crate::domain::e
+ntities::{WebScanResult,
+ RedirectChainEntry};
+  |                     
+                        
+ ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: 
+`std::collections::HashS
+et`
+ --> src\infrastructure\
+discoverer\html_analyzer
+.rs:3:5
+  |
+3 | use std::collections
+::HashSet;
+  |     ^^^^^^^^^^^^^^^^
+^^^^^^^^^
+
+warning: unused import: 
+`std::time::Duration`
+  --> src\infrastructure
+\collector\mod.rs:16:5
+   |
+16 | use std::time::Dura
+tion;
+   |     ^^^^^^^^^^^^^^^
+^^^^
+
+error[E0063]: missing fi
+eld `all_evidence` in in
+itializer of `PortProbeR
+esult`
+  --> src\infrastructure
+\collector\fallback_rout
+er.rs:90:17
+   |
+90 |                 Por
+tProbeResult {
+   |                 ^^^
+^^^^^^^^^^^^ missing `al
+l_evidence`
+
+warning: unused variable
+: `shop`
+   --> src\infrastructur
+e\investigator.rs:328:25
+    |
+328 |             if let
+ Some(shop) = raw_header
+s.get("x-shopid") {
+    |                   
+      ^^^^ help: if this
+ is intentional, prefix 
+it with an underscore: `
+_shop`
+    |
+    = note: `#[warn(unus
+ed_variables)]` (part of
+ `#[warn(unused)]`) on b
+y default
+
+warning: unused variable
+: `pp`
+   --> src\infrastructur
+e\investigator.rs:616:21
+    |
+616 |         if let Som
+e(pp) = raw_headers.get(
+"permissions-policy") {
+    |                   
+  ^^ help: if this is in
+tentional, prefix it wit
+h an underscore: `_pp`
+
+warning: unused variable
+: `base_url`
+  --> src\infrastructure
+\discoverer\html_analyze
+r.rs:19:35
+   |
+19 |     pub fn parse(ht
+ml_body: &str, base_url:
+ &Url) -> HtmlAnalysisRe
+s {
+   |                    
+               ^^^^^^^^ 
+help: if this is intenti
+onal, prefix it with an 
+underscore: `_base_url`
+
+warning: variable does n
+ot need to be mutable
+  --> src\infrastructure
+\collector\mod.rs:32:13
+   |
+32 |         let mut err
+ors = Vec::new();
+   |             ----^^^
+^^^
+   |             |
+   |             help: r
+emove this `mut`
+   |
+   = note: `#[warn(unuse
+d_mut)]` (part of `#[war
+n(unused)]`) on by defau
+lt
+
+For more information abo
+ut this error, try `rust
+c --explain E0063`.
+warning: `limma` (bin "l
+imma") generated 8 warni
+ngs
+error: could not compile
+ `limma` (bin "limma") d
+ue to 1 previous error; 
+8 warnings emitted

@@ -1,0 +1,94 @@
+{
+  "events": [
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594286,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594288,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594288,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594288,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594291,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594291,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594292,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "ignored",
+      "timestamp_sec": 1775594292,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "fixed",
+      "timestamp_sec": 1775594293,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "ignored",
+      "timestamp_sec": 1775594293,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "false_positive",
+      "timestamp_sec": 1775594294,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594294,
+      "signature": "https://pentexa.com.tr/-http-securitymisconfiguration-missing-csp-exploitable-surface_[\"web_scanner\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594304,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[\"server_investigator\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594304,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[\"server_investigator\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594305,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[\"server_investigator\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594305,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[\"server_investigator\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594305,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[\"server_investigator\"]"
+    },
+    {
+      "action": "verified_true_positive",
+      "timestamp_sec": 1775594437,
+      "signature": "https://pentexa.com.tr/-no-protocol-insecuretransport-missing-csp-standard-hygiene_[ServerInvestigator]"
+    }
+  ]
+}
