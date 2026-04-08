@@ -19,7 +19,6 @@ use crate::domain::repositories::ServiceCollector;
 use async_trait::async_trait;
 use chrono::Utc;
 use futures::stream::{self, StreamExt};
-use std::time::Duration;
 use tokio::net::lookup_host;
 use url::Url;
 
@@ -35,7 +34,7 @@ impl HttpServiceCollector {
 impl ServiceCollector for HttpServiceCollector {
     async fn collect(&self, url_str: &str) -> Result<CollectorSnapshot, String> {
         let mut timeline = Vec::new();
-        let mut errors = Vec::new();
+        let errors = Vec::new();
 
         timeline.push(ActivityEvent {
             timestamp: Utc::now(),

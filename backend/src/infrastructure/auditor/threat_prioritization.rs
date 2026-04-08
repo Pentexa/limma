@@ -174,7 +174,7 @@ impl ThreatPrioritizationEngine {
         });
     }
 
-    fn score_to_level(score: u8, reasons: &Vec<String>) -> PriorityLevel {
+    fn score_to_level(score: u8, _reasons: &Vec<String>) -> PriorityLevel {
         if score >= 85 {
             PriorityLevel::Critical
         } else if score >= 60 {

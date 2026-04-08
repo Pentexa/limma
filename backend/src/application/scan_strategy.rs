@@ -12,7 +12,7 @@ impl AutonomousScanStrategyEngine {
         }
     }
 
-    pub fn compute_strategy(&self, analysis: &WebScanResult, api_discovery: &ApiDiscoveryResult, form_mapping: &FormMapping) -> Vec<ScanStrategyDecision> {
+    pub fn compute_strategy(&self, _analysis: &WebScanResult, api_discovery: &ApiDiscoveryResult, form_mapping: &FormMapping) -> Vec<ScanStrategyDecision> {
         let mut decisions = Vec::new();
 
         // 1. Analyze Auth Surfaces (Login forms)

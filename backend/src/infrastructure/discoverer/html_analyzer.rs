@@ -1,6 +1,5 @@
 use scraper::{Html, Selector};
 use url::Url;
-use std::collections::HashSet;
 
 pub struct HtmlAnalyzer;
 
@@ -16,7 +15,7 @@ pub struct HtmlAnalysisRes {
 }
 
 impl HtmlAnalyzer {
-    pub fn parse(html_body: &str, base_url: &Url) -> HtmlAnalysisRes {
+    pub fn parse(html_body: &str, _base_url: &Url) -> HtmlAnalysisRes {
         let document = Html::parse_document(html_body);
         let mut res = HtmlAnalysisRes {
             forms: Vec::new(),

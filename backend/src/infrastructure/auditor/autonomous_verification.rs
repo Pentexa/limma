@@ -1,5 +1,5 @@
 use crate::domain::entities::*;
-use reqwest::{Client, Method, header};
+use reqwest::{Client, header};
 use std::time::Duration;
 
 pub struct AutonomousVerificationEngine {

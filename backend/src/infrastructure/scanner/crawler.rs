@@ -1,4 +1,4 @@
-use crate::domain::entities::{ScannedPage, ScanEvent, RedirectChainEntry, DetectedTechnology};
+use crate::domain::entities::{ScannedPage, ScanEvent, RedirectChainEntry};
 use crate::infrastructure::scanner::{fingerprint, security};
 use reqwest::Client;
 use std::collections::{HashSet, VecDeque, HashMap};

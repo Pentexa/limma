@@ -88,7 +88,7 @@ impl AttackPathEngine {
     }
 
     fn build_session_chain(&self, cookie: &CanonicalFinding, intercept: &CanonicalFinding) -> Option<AttackPath> {
-        let shared: Vec<String> = self.get_shared_routes(cookie, intercept).into_iter().collect();
+        let _shared: Vec<String> = self.get_shared_routes(cookie, intercept).into_iter().collect();
         let auth_related = cookie.attack_surface_tags.contains(&"requires_authentication".to_string()) || intercept.attack_surface_tags.contains(&"requires_authentication".to_string());
         
         let mut score = 50;

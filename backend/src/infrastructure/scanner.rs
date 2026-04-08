@@ -4,7 +4,7 @@ pub mod crawler;
 pub mod consistency;
 pub mod correlation;
 
-use crate::domain::entities::{WebScanResult, RedirectChainEntry, CertaintyLevel, CertaintyNote};
+use crate::domain::entities::{WebScanResult, CertaintyLevel, CertaintyNote};
 use crate::domain::repositories::WebsiteScanner;
 use async_trait::async_trait;
 use reqwest::{Client, redirect::Policy};

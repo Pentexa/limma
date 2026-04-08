@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports, unused_variables, unused_mut)]
+
 mod domain;
 mod application;
 mod infrastructure;

@@ -326,7 +326,7 @@ impl HttpInvestigator {
                 conf += 60.0;
                 ev.push("Found Shopify global JavaScript object initialization".to_string());
             }
-            if let Some(shop) = raw_headers.get("x-shopid") {
+            if let Some(_shop) = raw_headers.get("x-shopid") {
                 conf += 100.0;
                 ev.push("Explicit Shopify Server Header detected: X-ShopId".to_string());
             }
@@ -616,7 +616,7 @@ impl HttpInvestigator {
             add_sec("Referrer Constraints Mapped", "Security Header Interpretation", "Informational", 90.0, &format!("Referrer-Policy: {}", rp.join(", ")), "Target explicitly decides how much endpoint routing information is exposed outwards when users click off-site links.");
         }
 
-        if let Some(pp) = raw_headers.get("permissions-policy") {
+        if let Some(_pp) = raw_headers.get("permissions-policy") {
             add_sec("Permissions Policy Executed", "Security Header Interpretation", "Secure", 95.0, "Permissions-Policy header detected", "Server explicitly locks down embedded browser APIs (Camera, Microphone, Geolocation).");
         }
 
