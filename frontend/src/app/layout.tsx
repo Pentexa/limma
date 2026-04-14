@@ -1,37 +1,24 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { Sidebar } from '@/components/Sidebar'
-import { LanguageProvider } from '@/context/LanguageContext'
-
-const inter = Inter({ subsets: ['latin'] })
+import type { Metadata } from "next";
+import "@/styles/globals.css";
+import AppLayoutWrapper from "@/components/AppLayoutWrapper";
 
 export const metadata: Metadata = {
-  title: 'Limma | Web Intelligence OS',
-  description: 'Premium cybersecurity and web intelligence tool',
-  icons: {
-    icon: '/logo.png',
-  },
-}
+  title: "LIMMA — Security Intelligence Platform",
+  description: "Ultra-modern web security auditing and intelligence platform. Scan, investigate, and audit websites with AI-powered analysis.",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-background text-foreground antialiased min-h-screen relative overflow-x-hidden selection:bg-accent-cyan/30 selection:text-white`}>
-        <LanguageProvider>
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-accent-blue/5 rounded-full blur-3xl pointer-events-none -z-10 translate-x-1/2 -translate-y-1/2"></div>
-          <Sidebar />
-          <div className="md:ml-64 flex flex-col min-h-screen">
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 py-10 relative">
-              {children}
-            </main>
-          </div>
-        </LanguageProvider>
+    <html lang="en" data-scroll-behavior="smooth">
+      <body>
+        <AppLayoutWrapper>
+          {children}
+        </AppLayoutWrapper>
       </body>
     </html>
-  )
+  );
 }

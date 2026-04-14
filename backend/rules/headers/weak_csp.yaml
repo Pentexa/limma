@@ -1,0 +1,28 @@
+id: "DRE-HDR-007"
+name: "Weak CSP — unsafe-inline or unsafe-eval"
+description: >
+  The Content-Security-Policy header is present but contains 'unsafe-inline'
+  or 'unsafe-eval' directives. These directives effectively bypass CSP
+  protections, allowing inline script execution and eval()-based injection
+  attacks, which are the primary XSS delivery vectors.
+category: "Security Misconfiguration"
+severity: "medium"
+remediation: >
+  Remove 'unsafe-inline' and 'unsafe-eval' from your CSP. Use nonce-based
+  or hash-based allowlisting for inline scripts instead. Refactor code that
+  relies on eval() to use safer alternatives.
+tags:
+  - xss
+  - headers
+  - csp
+  - weak-policy
+  - owasp-a05
+enabled: true
+condition:
+  any:
+    - header_value_contains:
+        header: "content-security-policy"
+        value: "unsafe-inline"
+    - header_value_contains:
+        header: "content-security-policy"
+        value: "unsafe-eval"

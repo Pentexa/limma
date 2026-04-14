@@ -1,0 +1,23 @@
+id: "DRE-TLS-001"
+name: "Insecure Transport — No TLS"
+description: >
+  The target is being served over plaintext HTTP without TLS encryption.
+  All traffic including credentials, session tokens, form submissions, and
+  API responses are transmitted in cleartext, exposing them to passive
+  network observers and active man-in-the-middle attackers.
+category: "Insecure Transport"
+severity: "high"
+remediation: >
+  Enable HTTPS on all endpoints by obtaining a TLS certificate (e.g., Let's Encrypt).
+  Redirect all HTTP traffic to HTTPS. Never serve authenticated or sensitive
+  content over plaintext HTTP.
+tags:
+  - tls
+  - https
+  - encryption
+  - transport
+  - owasp-a02
+enabled: true
+condition:
+  tls_state:
+    is_https: false

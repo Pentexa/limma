@@ -39,6 +39,7 @@ pub trait SecurityAuditorRepository: Send + Sync {
         web_scan: &WebScanResult,
         server_info: &crate::domain::entities::ServerInfo,
         api_discovery: &crate::domain::entities::ApiDiscoveryResult,
+        dynamic_engine: Option<&crate::infrastructure::rule_engine::DynamicRuleEngine>,
     ) -> Result<crate::domain::entities::NormalizedAuditReport, String>;
 }
 

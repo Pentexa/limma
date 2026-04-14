@@ -7,6 +7,7 @@ use super::normalizer::{FindingNormalizer, WebScannerNormalizer, ServerInvestiga
 
 pub struct HttpSecurityAuditor {
     client: Client,
+    pub pool: Option<sqlx::PgPool>,
 }
 
 impl HttpSecurityAuditor {
@@ -14,11 +15,17 @@ impl HttpSecurityAuditor {
         Self {
             client: Client::builder()
                 .redirect(reqwest::redirect::Policy::limited(5))
-                .user_agent("LimmaSecurityAuditor/3.0")
-                .timeout(std::time::Duration::from_secs(10))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .unwrap(),
+            pool: None,
         }
+    }
+
+    pub fn with_pool(mut self, pool: sqlx::PgPool) -> Self {
+        self.pool = Some(pool);
+        self
     }
 }
 
@@ -142,6 +149,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
         web_scan: &WebScanResult,
         server_info: &ServerInfo,
         api_discovery: &ApiDiscoveryResult,
+        dynamic_engine: Option<&crate::infrastructure::rule_engine::DynamicRuleEngine>,
     ) -> Result<NormalizedAuditReport, String> {
         let mut all_findings: Vec<SecurityAuditFinding> = Vec::new();
         let mut log = Vec::new();
@@ -214,7 +222,37 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
         log.push(format!("[Normalizer] FP Mitigation Complete. Filtered out {} false positive anomalies.", rejected));
         log.push(format!("[Normalizer] Proceeding with {} verified findings.", accepted));
 
-        // Let's run Phase 2 Rule Engine
+        // --- Dynamic Rule Engine (YAML/JSON file-driven rules) ---
+        let dynamic_rule_findings = if let Some(dre) = dynamic_engine {
+            log.extend(dre.boot_log());
+            log.push("[DynamicRuleEngine] Building evaluation context from scan data...".to_string());
+
+            let ctx = crate::infrastructure::rule_engine::build_context_from_headers(
+                target,
+                web_scan.final_status_code,
+                &web_scan.headers,
+                None, // body not needed for header-based rules
+            );
+
+            let findings = dre.evaluate(&ctx);
+            log.push(format!(
+                "[DynamicRuleEngine] Evaluated {} rules against target. {} rules triggered.",
+                dre.rule_count(),
+                findings.len()
+            ));
+            for f in &findings {
+                log.push(format!(
+                    "[DynamicRuleEngine] ✗ TRIGGERED: {} [{}] severity={} evidence_count={}",
+                    f.rule_id, f.rule_name, f.severity, f.matched_evidence.len()
+                ));
+            }
+            findings
+        } else {
+            log.push("[DynamicRuleEngine] No dynamic rule engine provided. Skipping.".to_string());
+            Vec::new()
+        };
+
+        // Let's run Phase 2 Rule Engine (hardcoded)
         log.push(format!("[RuleEngine] Starting definition enforcement phase..."));
         let engine = super::engine::RuleEngine::new();
         let rule_results = engine.evaluate(&all_findings);
@@ -319,18 +357,19 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
         log.push("[AutonomousVerificationEngine] Validation state machine concluded successfully.".to_string());
 
         // --- Learning Feedback Engine Initializer ---
-        let learning_engine = super::learning_feedback::LearningFeedbackEngine::new();
+        let pool = self.pool.clone().expect("Database pool not initialized for HttpSecurityAuditor");
+        let learning_engine = super::learning_feedback::LearningFeedbackEngine::new(pool.clone());
 
         // --- Phase 10: Confidence Calibration Engine ---
         log.push("[ConfidenceCalibrationEngine] Calculating historical empirical reliability to calibrate confidence...".to_string());
-        let mut calibration_engine = super::confidence_calibration::ConfidenceCalibrationEngine::new();
-        calibration_engine.update_from_scan(&mut canonical_findings, &learning_engine);
+        let mut calibration_engine = super::confidence_calibration::ConfidenceCalibrationEngine::new(pool.clone());
+        calibration_engine.update_from_scan(&mut canonical_findings, &learning_engine).await;
         log.push("[ConfidenceCalibrationEngine] Confidence levels calibrated using historical pattern metrics.".to_string());
 
         // --- Phase 11: Threat Prioritization Engine ---
         log.push("[ThreatPrioritizationEngine] Evaluating real-world impact and calculating final actionability scores...".to_string());
         let prioritization_engine = super::threat_prioritization::ThreatPrioritizationEngine::new();
-        prioritization_engine.evaluate_all(&mut canonical_findings, &mut attack_paths, &learning_engine);
+        prioritization_engine.evaluate_all(&mut canonical_findings, &mut attack_paths, &learning_engine).await;
         log.push(format!("[ThreatPrioritizationEngine] Successfully ranked {} threats and {} attack paths.", canonical_findings.len(), attack_paths.len()));
 
         // Compute audit certainty
@@ -366,6 +405,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
             scoring_stats: Some(scoring_stats),
             context_stats: Some(context_stats),
             audit_certainty,
+            dynamic_rule_findings,
         })
     }
 }

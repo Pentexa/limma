@@ -1,0 +1,22 @@
+# Rust
+/backend/target/
+/backend/Cargo.lock
+/backend/*.txt
+/backend/*.log
+
+# Node
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/*.tsbuildinfo
+/frontend/next-env.d.ts
+
+# Environment
+.env
+.env.*
+backend/.env
+frontend/.env
+
+# Misc
+.DS_Store
+*.pem

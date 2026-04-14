@@ -1,0 +1,22 @@
+id: "DRE-HDR-006"
+name: "Missing Permissions-Policy"
+description: >
+  The server response does not include a Permissions-Policy header. Without
+  this header, embedded third-party scripts can silently access powerful browser
+  APIs (camera, microphone, geolocation, payment), creating significant privacy
+  and surveillance risks for end-users.
+category: "Security Misconfiguration"
+severity: "low"
+remediation: >
+  Add a Permissions-Policy header restricting dangerous browser features, e.g.:
+  "Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()"
+tags:
+  - permissions
+  - headers
+  - privacy
+  - browser-api
+  - owasp-a05
+enabled: true
+condition:
+  header_missing:
+    header: "permissions-policy"

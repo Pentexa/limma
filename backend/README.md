@@ -41,8 +41,4 @@ npm start
 **Endpoint:** `POST /api/users/register`
 **Body:**
 ```json
-{
-  "name": "Can Safak",
-  "email": "can@example.com"
-}
-```
+

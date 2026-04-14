@@ -1,0 +1,22 @@
+id: "DRE-HDR-008"
+name: "Permissive CORS — Wildcard Origin"
+description: >
+  The Access-Control-Allow-Origin header is set to '*', allowing any external
+  origin to read authenticated responses from this domain. This enables
+  cross-site data exfiltration if the endpoint serves user-specific content.
+category: "Security Misconfiguration"
+severity: "high"
+remediation: >
+  Replace the wildcard '*' with specific trusted origins in your CORS configuration.
+  If the API is public and serves no user-specific data, ensure Access-Control-Allow-Credentials
+  is not set to 'true' alongside the wildcard origin.
+tags:
+  - cors
+  - headers
+  - cross-origin
+  - owasp-a05
+enabled: true
+condition:
+  header_value_contains:
+    header: "access-control-allow-origin"
+    value: "*"

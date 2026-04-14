@@ -21,9 +21,9 @@ impl HttpWebsiteScanner {
     pub fn new() -> Self {
         Self {
             client: Client::builder()
-                .user_agent("LimmaAnalyzer/1.0 (Phase 4)")
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .redirect(Policy::none()) // Prevent automatic redirects to track them manually
-                .timeout(std::time::Duration::from_secs(10))
+                .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .unwrap(),
             fingerprinter: fingerprint::FingerprintEngine::new(),

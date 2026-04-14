@@ -1,0 +1,21 @@
+id: "DRE-HDR-001"
+name: "Missing Content-Security-Policy"
+description: >
+  The server response does not include a Content-Security-Policy (CSP) header.
+  Without CSP, browsers will execute any injected script, making the application
+  vulnerable to Cross-Site Scripting (XSS) and data injection attacks.
+category: "Security Misconfiguration"
+severity: "medium"
+remediation: >
+  Add a Content-Security-Policy header to all responses. Start with a restrictive
+  policy like "default-src 'self'" and gradually relax as needed. Avoid using
+  'unsafe-inline' or 'unsafe-eval' unless absolutely necessary.
+tags:
+  - xss
+  - headers
+  - csp
+  - owasp-a05
+enabled: true
+condition:
+  header_missing:
+    header: "content-security-policy"

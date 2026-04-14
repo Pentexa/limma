@@ -1,0 +1,22 @@
+id: "DRE-DISC-002"
+name: "X-Powered-By Header Exposed"
+description: >
+  The X-Powered-By header discloses the underlying application framework or
+  language runtime. This accelerates reconnaissance for attackers by revealing
+  the technology stack without requiring any active probing.
+category: "Information Disclosure"
+severity: "low"
+remediation: >
+  Remove the X-Powered-By header from all responses. In Express.js, use
+  'app.disable("x-powered-by")'. In PHP, set 'expose_php = Off' in php.ini.
+  In ASP.NET, add a custom header removal rule in web.config.
+tags:
+  - x-powered-by
+  - disclosure
+  - reconnaissance
+  - technology-stack
+  - owasp-a05
+enabled: true
+condition:
+  header_present:
+    header: "x-powered-by"

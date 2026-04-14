@@ -1,0 +1,20 @@
+id: "DRE-HDR-004"
+name: "Missing X-Content-Type-Options"
+description: >
+  The server response does not include the X-Content-Type-Options header set to
+  'nosniff'. Without this, browsers may MIME-sniff responses and misinterpret
+  uploaded files as executable scripts, enabling stored XSS via file upload vectors.
+category: "Security Misconfiguration"
+severity: "low"
+remediation: >
+  Add "X-Content-Type-Options: nosniff" to all responses. This is a simple,
+  zero-risk header that prevents MIME type confusion attacks.
+tags:
+  - mime-sniffing
+  - headers
+  - xcto
+  - owasp-a05
+enabled: true
+condition:
+  header_missing:
+    header: "x-content-type-options"

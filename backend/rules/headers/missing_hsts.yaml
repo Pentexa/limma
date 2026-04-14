@@ -1,0 +1,26 @@
+id: "DRE-HDR-002"
+name: "Missing Strict-Transport-Security (HSTS)"
+description: >
+  The server response does not include the Strict-Transport-Security header.
+  Without HSTS, the initial connection may occur over plaintext HTTP, allowing
+  man-in-the-middle attackers to intercept credentials and session data via
+  SSL-stripping attacks before the TLS upgrade occurs.
+category: "Insecure Transport"
+severity: "medium"
+remediation: >
+  Add "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload"
+  to all HTTPS responses. Ensure the domain is also submitted to the HSTS
+  preload list (hstspreload.org) for maximum protection.
+tags:
+  - hsts
+  - headers
+  - tls
+  - ssl-stripping
+  - owasp-a02
+enabled: true
+condition:
+  all:
+    - tls_state:
+        is_https: true
+    - header_missing:
+        header: "strict-transport-security"

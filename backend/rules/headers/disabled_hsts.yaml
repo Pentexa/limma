@@ -1,0 +1,23 @@
+id: "DRE-HDR-009"
+name: "HSTS Disabled via max-age=0"
+description: >
+  The Strict-Transport-Security header is present but disabled with max-age=0.
+  This effectively disables HSTS protection, allowing browsers to connect over
+  plaintext HTTP on subsequent visits.
+category: "Insecure Transport"
+severity: "high"
+remediation: >
+  Set max-age to a sufficiently large value (recommended: 31536000, which is one year).
+  A max-age=0 is only acceptable during HSTS removal procedures and should never
+  be used in production.
+tags:
+  - hsts
+  - headers
+  - tls
+  - misconfiguration
+  - owasp-a02
+enabled: true
+condition:
+  header_value_contains:
+    header: "strict-transport-security"
+    value: "max-age=0"

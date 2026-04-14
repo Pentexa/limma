@@ -1,45 +1,13 @@
 use crate::domain::entities::*;
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-pub struct CalibrationDB {
-    pub patterns: HashMap<String, PatternCalibrationMetrics>,
-}
+use sqlx::PgPool;
 
 pub struct ConfidenceCalibrationEngine {
-    db_path: String,
-    db: CalibrationDB,
+    pool: PgPool,
 }
 
 impl ConfidenceCalibrationEngine {
-    pub fn new() -> Self {
-        let db_path = "calibration_db.json".to_string();
-        let db = Self::load_db(&db_path);
-        Self { db_path, db }
-    }
-
-    fn load_db(path: &str) -> CalibrationDB {
-        if Path::new(path).exists() {
-            if let Ok(content) = fs::read_to_string(path) {
-                if let Ok(db) = serde_json::from_str(&content) {
-                    return db;
-                }
-            }
-        }
-        CalibrationDB::default()
-    }
-
-    fn save_db(&self) {
-        if let Ok(content) = serde_json::to_string_pretty(&self.db) {
-            let _ = fs::write(&self.db_path, content);
-        }
-    }
-
-    pub fn get_metrics(&self, signature: &str) -> Option<PatternCalibrationMetrics> {
-        self.db.patterns.get(signature).cloned()
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 
     pub fn generate_signature(finding: &CanonicalFinding) -> String {
@@ -48,44 +16,71 @@ impl ConfidenceCalibrationEngine {
         format!("{}_[{}]", finding.canonical_slug, modules.join(","))
     }
 
-    pub fn update_from_scan(&mut self, canonical_findings: &mut Vec<CanonicalFinding>, learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
+    pub async fn update_from_scan(&mut self, canonical_findings: &mut Vec<CanonicalFinding>, learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
         for finding in canonical_findings.iter_mut() {
             let sig = Self::generate_signature(finding);
-            let mut metrics = self.db.patterns.remove(&sig).unwrap_or_default();
-            
-            // Only update history if active verification resulted in some check
-            if let Some(av) = &finding.active_verification {
-                metrics.total_observations += 1;
 
-                if av.status == VerificationStatus::VerifiedActionable {
-                    metrics.successful_verifications += 1;
-                } else if av.status == VerificationStatus::VerifiedInert {
-                    metrics.failed_verifications += 1;
-                } else if av.status == VerificationStatus::PartiallyVerified {
-                    metrics.partial_verifications += 1;
-                }
+            // Fetch from DB
+            let mut total_obs = 0;
+            let mut succ = 0;
+            let mut fail = 0;
+            let mut partial = 0;
+            let mut avg_rep = 0.0f32;
 
-                // Recalculate average reproducibility (moving average)
-                let current_rep = av.reproducibility_score as f32;
-                if metrics.total_observations == 1 {
-                    metrics.average_reproducibility = current_rep;
-                } else {
-                    // Weighted average prioritizing general history but acknowledging recent finding
-                    metrics.average_reproducibility = ((metrics.average_reproducibility * (metrics.total_observations - 1) as f32) + current_rep) / metrics.total_observations as f32;
-                }
+            use sqlx::Row;
+            if let Ok(Some(row)) = sqlx::query(
+                "SELECT total_observations, successful_verifications, failed_verifications, partial_verifications, average_reproducibility FROM confidence_calibration WHERE signature = $1"
+            )
+            .bind(&sig)
+            .fetch_optional(&self.pool)
+            .await 
+            {
+                total_obs = row.try_get("total_observations").unwrap_or(0);
+                succ = row.try_get("successful_verifications").unwrap_or(0);
+                fail = row.try_get("failed_verifications").unwrap_or(0);
+                partial = row.try_get("partial_verifications").unwrap_or(0);
+                avg_rep = row.try_get::<f32, _>("average_reproducibility").unwrap_or(0.0);
             }
 
-            self.db.patterns.insert(sig.clone(), metrics.clone());
+            if let Some(av) = &finding.active_verification {
+                total_obs += 1;
 
-            // Assign the ConfidenceCalibrationResult to the Canonical finding for UI visibility
-            let mut reliability_coefficient = if metrics.total_observations > 0 {
-                // If it successfully verified > 80% of the time, coefficient is high.
-                // We use average_reproducibility as the base, scaled to 0.1 - 1.5
-                let rep_ratio = metrics.average_reproducibility / 100.0;
-                // e.g. 100% rep -> 1.5 multiplier, 50% rep -> 0.8 multiplier, 0% rep -> 0.1 multiplier
+                if av.status == VerificationStatus::VerifiedActionable {
+                    succ += 1;
+                } else if av.status == VerificationStatus::VerifiedInert {
+                    fail += 1;
+                } else if av.status == VerificationStatus::PartiallyVerified {
+                    partial += 1;
+                }
+
+                let current_rep = av.reproducibility_score as f32;
+                if total_obs == 1 {
+                    avg_rep = current_rep;
+                } else {
+                    avg_rep = ((avg_rep * (total_obs - 1) as f32) + current_rep) / (total_obs as f32);
+                }
+
+                let _ = sqlx::query(
+                    "INSERT INTO confidence_calibration 
+                    (signature, total_observations, successful_verifications, failed_verifications, partial_verifications, average_reproducibility) 
+                    VALUES ($1, $2, $3, $4, $5, $6) 
+                    ON CONFLICT(signature) DO UPDATE SET 
+                    total_observations = EXCLUDED.total_observations,
+                    successful_verifications = EXCLUDED.successful_verifications,
+                    failed_verifications = EXCLUDED.failed_verifications,
+                    partial_verifications = EXCLUDED.partial_verifications,
+                    average_reproducibility = EXCLUDED.average_reproducibility"
+                )
+                .bind(&sig).bind(total_obs).bind(succ).bind(fail).bind(partial).bind(avg_rep)
+                .execute(&self.pool)
+                .await;
+            }
+
+            let mut reliability_coefficient = if total_obs > 0 {
+                let rep_ratio = avg_rep / 100.0;
                 0.1 + (rep_ratio * 1.4)
             } else {
-                1.0 // Neutral
+                1.0
             };
 
             let original = finding.confidence.clone();
@@ -94,11 +89,10 @@ impl ConfidenceCalibrationEngine {
             let mut impact = "Neutral - Insufficient History".to_string();
             let mut reasoning = "No historical calibration data exists for this pattern.".to_string();
 
-            if metrics.total_observations >= 2 {
+            if total_obs >= 2 {
                 if reliability_coefficient > 1.2 {
                     impact = "Confidence Boosted - Historically Reliable".to_string();
-                    reasoning = format!("Pattern {} has a high empirical reproducibility score of {:.0}%. Confidence elevated.", sig, metrics.average_reproducibility);
-                    // Upgrade confidence
+                    reasoning = format!("Pattern {} has a high empirical reproducibility score of {:.0}%. Confidence elevated.", sig, avg_rep);
                     adjusted = match original {
                         ConfidenceLevel::Tentative => ConfidenceLevel::Firm,
                         ConfidenceLevel::Firm => ConfidenceLevel::Certain,
@@ -106,8 +100,7 @@ impl ConfidenceCalibrationEngine {
                     }
                 } else if reliability_coefficient < 0.6 {
                     impact = "Confidence Reduced - Historically Inconsistent".to_string();
-                    reasoning = format!("Pattern {} frequently fails verification (Historical Rep.: {:.0}%). Confidence downgraded.", sig, metrics.average_reproducibility);
-                    // Downgrade confidence
+                    reasoning = format!("Pattern {} frequently fails verification (Historical Rep.: {:.0}%). Confidence downgraded.", sig, avg_rep);
                     adjusted = match original {
                         ConfidenceLevel::Certain => ConfidenceLevel::Firm,
                         ConfidenceLevel::Firm => ConfidenceLevel::Tentative,
@@ -116,16 +109,14 @@ impl ConfidenceCalibrationEngine {
                     }
                 } else {
                     impact = "Confidence Maintained - Moderate History".to_string();
-                    reasoning = format!("Pattern {} shows average reproducibility ({:.0}%). Maintaining baseline confidence.", sig, metrics.average_reproducibility);
+                    reasoning = format!("Pattern {} shows average reproducibility ({:.0}%). Maintaining baseline confidence.", sig, avg_rep);
                 }
             }
 
-            // Apply Learning Impact Overrides
-            let learning_impact = learning_engine.generate_impact(&sig);
+            let learning_impact = learning_engine.generate_impact(&sig).await;
             reliability_coefficient = reliability_coefficient * learning_impact.confidence_multiplier;
             
             if learning_impact.confidence_multiplier < 0.9 || learning_impact.confidence_multiplier > 1.1 {
-                // If the learning loop actively modified it, update the impact string.
                impact = format!("Confidence Modified by User Feedback").to_string();
             }
 
@@ -139,7 +130,5 @@ impl ConfidenceCalibrationEngine {
                 learning_impact: learning_impact.reasoning,
             });
         }
-        
-        self.save_db();
     }
 }

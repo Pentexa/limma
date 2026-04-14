@@ -6,13 +6,13 @@ pub struct AutonomousScanStrategyEngine {
 }
 
 impl AutonomousScanStrategyEngine {
-    pub fn new() -> Self {
+    pub fn new(pool: sqlx::PgPool) -> Self {
         Self {
-            learning_engine: LearningFeedbackEngine::new(),
+            learning_engine: LearningFeedbackEngine::new(pool),
         }
     }
 
-    pub fn compute_strategy(&self, _analysis: &WebScanResult, api_discovery: &ApiDiscoveryResult, form_mapping: &FormMapping) -> Vec<ScanStrategyDecision> {
+    pub async fn compute_strategy(&self, _analysis: &WebScanResult, api_discovery: &ApiDiscoveryResult, form_mapping: &FormMapping) -> Vec<ScanStrategyDecision> {
         let mut decisions = Vec::new();
 
         // 1. Analyze Auth Surfaces (Login forms)
@@ -29,7 +29,7 @@ impl AutonomousScanStrategyEngine {
         for ep in &api_discovery.detected_endpoints {
             // Check learning loop to see if this endpoint has historically been a false positive or inert
             let sig = format!("api_discovery_[{:?}]", ep.path); // Dummy sig
-            let learning_impact = self.learning_engine.generate_impact(&sig);
+            let learning_impact = self.learning_engine.generate_impact(&sig).await;
 
             let mut priority = TargetPriorityLevel::Standard;
             let mut depth = 2;

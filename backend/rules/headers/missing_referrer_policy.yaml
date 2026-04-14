@@ -1,0 +1,20 @@
+id: "DRE-HDR-005"
+name: "Missing Referrer-Policy"
+description: >
+  The server response does not include a Referrer-Policy header. Without a strict
+  Referrer-Policy, sensitive URL parameters (tokens, session IDs, internal paths)
+  leak to third-party origins through the Referer header on every outbound navigation.
+category: "Information Disclosure"
+severity: "low"
+remediation: >
+  Add "Referrer-Policy: strict-origin-when-cross-origin" or "Referrer-Policy: no-referrer"
+  to prevent leaking sensitive URL information to external sites.
+tags:
+  - referrer
+  - headers
+  - privacy
+  - owasp-a01
+enabled: true
+condition:
+  header_missing:
+    header: "referrer-policy"

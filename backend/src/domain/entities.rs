@@ -6,6 +6,8 @@ pub struct User {
     pub id: Uuid,
     pub name: String,
     pub email: String,
+    #[serde(default, skip_serializing)]
+    pub password_hash: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -655,15 +657,18 @@ pub struct DetectedForm {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MasterReport {
     pub url: String,
-    pub analysis: WebScanResult,
-    pub server_info: ServerInfo,
-    pub api_discovery: ApiDiscoveryResult,
-    pub service_collector: CollectorSnapshot,
-    pub security_audit: SecurityReport,
+    pub analysis: Option<WebScanResult>,
+    pub server_info: Option<ServerInfo>,
+    pub api_discovery: Option<ApiDiscoveryResult>,
+    pub service_collector: Option<CollectorSnapshot>,
+    pub security_audit: Option<SecurityReport>,
     pub normalized_audit: Option<NormalizedAuditReport>,
-    pub form_mapping: FormMapping,
+    pub form_mapping: Option<FormMapping>,
     pub scan_strategy: Option<Vec<ScanStrategyDecision>>,
     pub overall_health_score: u8,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
+    pub module_errors: Vec<String>,
 }
 
 // ── Phase 1: Normalized Security Auditor Data Models ──
@@ -951,6 +956,7 @@ pub struct NormalizedAuditReport {
     pub scoring_stats: Option<ScoringStats>,
     pub context_stats: Option<ContextStats>,
     pub audit_certainty: Option<CertaintyNote>,
+    pub dynamic_rule_findings: Vec<crate::infrastructure::rule_engine::DynamicRuleFinding>,
 }
 
 // ── Phase 4: Risk Scoring & Prioritization ──

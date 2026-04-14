@@ -1,0 +1,22 @@
+id: "DRE-DISC-001"
+name: "Server Version Exposed"
+description: >
+  The Server header contains version information that could help attackers
+  identify specific software versions and search for known CVEs and exploit
+  kits targeting this exact build.
+category: "Information Disclosure"
+severity: "low"
+remediation: >
+  Configure your web server to suppress or generalize the Server header.
+  For Nginx, use 'server_tokens off'. For Apache, use 'ServerTokens Prod'.
+  Never expose exact version numbers in production environments.
+tags:
+  - server-banner
+  - disclosure
+  - reconnaissance
+  - owasp-a05
+enabled: true
+condition:
+  header_value_matches:
+    header: "server"
+    pattern: "\\d+\\.\\d+"

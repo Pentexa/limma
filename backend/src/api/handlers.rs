@@ -1,24 +1,28 @@
 use axum::{extract::State, Json, http::StatusCode};
 use std::sync::Arc;
-use crate::api::models::{CreateUserRequest, AnalysisRequest, ProxyRequest, VerifyPortRequest, VerifyPortResponse, FeedbackRequest};
-use crate::application::use_cases::{RegisterUser, AnalyzeWebsite, InvestigateServer, DiscoverApis, CollectExternalServices, AuditSecurity, MapForms, GenerateMasterReport};
+use crate::api::models::{CreateUserRequest, LoginRequest, AuthResponse, UserPublic, AnalysisRequest, ProxyRequest, VerifyPortRequest, VerifyPortResponse, FeedbackRequest};
+use crate::application::use_cases::{RegisterUser, LoginUser, AnalyzeWebsite, InvestigateServer, DiscoverApis, CollectExternalServices, AuditSecurity, MapForms, GenerateMasterReport};
 use crate::error::AppError;
-use crate::infrastructure::persistence::InMemoryUserRepository;
+use crate::infrastructure::persistence::PgUserRepository;
 use crate::infrastructure::scanner::HttpWebsiteScanner;
 use crate::infrastructure::investigator::HttpInvestigator;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::mapper::HttpFormMapper;
+use crate::infrastructure::rule_engine::SharedDynamicRuleEngine;
 
 pub struct AppState {
-    pub user_repo: Arc<InMemoryUserRepository>,
+    pub user_repo: Arc<PgUserRepository>,
     pub website_scanner: Arc<HttpWebsiteScanner>,
     pub server_investigator: Arc<HttpInvestigator>,
     pub api_discoverer: Arc<HttpApiDiscoverer>,
     pub service_collector: Arc<HttpServiceCollector>,
     pub security_auditor: Arc<HttpSecurityAuditor>,
     pub form_mapper: Arc<HttpFormMapper>,
+    pub dynamic_rule_engine: SharedDynamicRuleEngine,
+    pub db_pool: sqlx::PgPool,
+    pub jwt_secret: String,
 }
 
 pub async fn register_user(
@@ -27,12 +31,93 @@ pub async fn register_user(
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     let use_case = RegisterUser { repo: &*state.user_repo };
     
-    match use_case.execute(payload.name, payload.email).await {
+    match use_case.execute(payload.name, payload.email, payload.password).await {
         Ok(user) => {
-            let value = serde_json::to_value(user)?;
+            // Auto-login after registration: create token
+            let token = crate::infrastructure::auth::create_token(user.id, &state.jwt_secret)
+                .map_err(AppError::Internal)?;
+
+            let response = AuthResponse {
+                token,
+                user: UserPublic {
+                    id: user.id.to_string(),
+                    name: user.name,
+                    email: user.email,
+                },
+            };
+            let value = serde_json::to_value(response)?;
             Ok((StatusCode::CREATED, Json(value)))
         },
         Err(e) => Err(AppError::BadRequest(e)),
+    }
+}
+
+pub async fn login_user(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let use_case = LoginUser {
+        repo: &*state.user_repo,
+        jwt_secret: &state.jwt_secret,
+    };
+
+    match use_case.execute(payload.email, payload.password).await {
+        Ok((user, token)) => {
+            let response = AuthResponse {
+                token,
+                user: UserPublic {
+                    id: user.id.to_string(),
+                    name: user.name,
+                    email: user.email,
+                },
+            };
+            let value = serde_json::to_value(response)?;
+            Ok(Json(value))
+        },
+        Err(e) => Err(AppError::BadRequest(e)),
+    }
+}
+
+pub async fn get_me(
+    State(state): State<Arc<AppState>>,
+    req: axum::http::Request<axum::body::Body>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Extract token from Authorization header
+    let auth_header = req.headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("Missing Authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| AppError::BadRequest("Invalid Authorization format. Use: Bearer <token>".to_string()))?;
+
+    let claims = crate::infrastructure::auth::verify_token(token, &state.jwt_secret)
+        .map_err(AppError::BadRequest)?;
+
+    let user_id = crate::infrastructure::auth::user_id_from_claims(&claims)
+        .map_err(AppError::BadRequest)?;
+
+    // Find user by iterating — simple approach using email lookup from token sub (user id)
+    // We query by ID directly
+    let row = sqlx::query("SELECT id, name, email, created_at FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db_pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    match row {
+        Some(r) => {
+            use sqlx::Row;
+            let user = UserPublic {
+                id: r.try_get::<uuid::Uuid, _>("id").unwrap_or_default().to_string(),
+                name: r.try_get("name").unwrap_or_default(),
+                email: r.try_get("email").unwrap_or_default(),
+            };
+            let value = serde_json::to_value(user)?;
+            Ok(Json(value))
+        },
+        None => Err(AppError::BadRequest("User not found".to_string())),
     }
 }
 
@@ -182,6 +267,8 @@ pub async fn generate_master_report(
         collector: &*state.service_collector,
         auditor: &*state.security_auditor,
         mapper: &*state.form_mapper,
+        dynamic_rule_engine: Some(&*state.dynamic_rule_engine),
+        db_pool: state.db_pool.clone(),
     };
 
     let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
@@ -258,13 +345,121 @@ pub async fn verify_port(
 }
 
 pub async fn submit_feedback(
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<FeedbackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let mut engine = crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine::new();
-    engine.record_feedback(payload.signature.clone(), payload.action.clone());
+    let engine = crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine::new(state.db_pool.clone());
+    engine.record_feedback(payload.signature.clone(), payload.action.clone()).await;
     
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Recorded feedback {:?} for signature: {}", payload.action, payload.signature)
+    })))
+}
+
+#[derive(serde::Deserialize)]
+pub struct RuleFeedbackPayload {
+    pub rule_id: String,
+    pub target_url: String,
+    pub action: crate::infrastructure::rule_engine::FeedbackAction,
+}
+
+pub async fn submit_rule_feedback(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RuleFeedbackPayload>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    state.dynamic_rule_engine.feedback_engine.record_feedback(
+        payload.rule_id.clone(),
+        payload.target_url,
+        "anonymous_user".to_string(),
+        payload.action.clone(),
+    );
+    
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": format!("Recorded feedback {:?} for rule: {}", payload.action, payload.rule_id)
+    })))
+}
+
+#[derive(serde::Serialize)]
+pub struct RuleEngineStatus {
+    pub total_rules: usize,
+    pub disabled_packs: Vec<String>,
+    pub disabled_rules: Vec<String>,
+    pub active_rules: Vec<serde_json::Value>,
+    pub feedback_stats: std::collections::HashMap<String, serde_json::Value>,
+}
+
+pub async fn get_rule_engine_status(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<RuleEngineStatus>, AppError> {
+    let engine = &state.dynamic_rule_engine;
+    let (disabled_packs, disabled_rules) = engine.get_governance_snapshot();
+
+    let mut feedback_stats = std::collections::HashMap::new();
+    let rules: Vec<serde_json::Value> = engine.rules().iter().map(|r| {
+        let stats = engine.feedback_engine.get_rule_stats(&r.id);
+        if stats.total_feedback > 0 {
+            feedback_stats.insert(r.id.clone(), serde_json::json!({
+                "total_feedback": stats.total_feedback,
+                "confirmed": stats.confirmed,
+                "false_positives": stats.false_positives,
+                "ignored": stats.ignored,
+                "reputation_score": stats.reputation_score
+            }));
+        }
+        serde_json::json!({
+            "id": r.id,
+            "name": r.name,
+            "category": r.category,
+            "pack": r.pack,
+            "source": r.source,
+            "version": r.version,
+            "default_severity": r.default_severity,
+            "default_confidence": r.default_confidence,
+            "is_active": engine.is_rule_active(r)
+        })
+    }).collect();
+
+    Ok(Json(RuleEngineStatus {
+        total_rules: engine.rule_count(),
+        disabled_packs: disabled_packs.into_iter().collect(),
+        disabled_rules: disabled_rules.into_iter().collect(),
+        active_rules: rules,
+        feedback_stats,
+    }))
+}
+
+pub async fn get_feedback_stats(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let engine = &state.dynamic_rule_engine;
+    let history = engine.feedback_engine.get_feedback_history();
+    
+    let mut rule_stats: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+    
+    for rule in engine.rules() {
+        let stats = engine.feedback_engine.get_rule_stats(&rule.id);
+        if stats.total_feedback > 0 {
+            rule_stats.insert(rule.id.clone(), serde_json::json!({
+                "rule_name": rule.name,
+                "total_feedback": stats.total_feedback,
+                "confirmed": stats.confirmed,
+                "false_positives": stats.false_positives,
+                "ignored": stats.ignored,
+                "reputation_score": stats.reputation_score
+            }));
+        }
+    }
+    
+    Ok(Json(serde_json::json!({
+        "total_feedback_entries": history.len(),
+        "rule_stats": rule_stats,
+        "recent_feedback": history.iter().rev().take(20).map(|e| serde_json::json!({
+            "rule_id": e.rule_id,
+            "action": e.action,
+            "target_url": e.target_url,
+            "timestamp": e.timestamp
+        })).collect::<Vec<_>>()
     })))
 }

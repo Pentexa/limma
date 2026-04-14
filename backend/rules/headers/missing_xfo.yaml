@@ -1,0 +1,22 @@
+id: "DRE-HDR-003"
+name: "Missing X-Frame-Options"
+description: >
+  The server response does not include an X-Frame-Options header. Without this
+  header, the page can be embedded in a malicious iframe on an attacker-controlled
+  site, enabling Clickjacking attacks where users are tricked into performing
+  unintended actions.
+category: "Security Misconfiguration"
+severity: "medium"
+remediation: >
+  Add "X-Frame-Options: DENY" or "X-Frame-Options: SAMEORIGIN" to all HTML
+  responses. For modern browsers, also consider using the frame-ancestors
+  directive in Content-Security-Policy for more granular control.
+tags:
+  - clickjacking
+  - headers
+  - xfo
+  - owasp-a05
+enabled: true
+condition:
+  header_missing:
+    header: "x-frame-options"

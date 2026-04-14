@@ -4,6 +4,26 @@ use serde::{Deserialize, Serialize};
 pub struct CreateUserRequest {
     pub name: String,
     pub email: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub user: UserPublic,
+}
+
+#[derive(Serialize)]
+pub struct UserPublic {
+    pub id: String,
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Serialize)]
