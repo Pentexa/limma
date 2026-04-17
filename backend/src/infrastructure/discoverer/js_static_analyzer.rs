@@ -12,7 +12,7 @@ pub struct JsStaticAnalyzer;
 impl JsStaticAnalyzer {
     fn extract_snippet(content: &str, full_match: &str) -> (String, Option<usize>) {
         if let Some(block_start) = content.find(full_match) {
-            let start = if block_start > 40 { block_start - 40 } else { 0 };
+            let start = block_start.saturating_sub(40);
             let end = if block_start + full_match.len() + 40 < content.len() {
                 block_start + full_match.len() + 40
             } else {

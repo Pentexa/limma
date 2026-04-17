@@ -1,0 +1,22 @@
+id: "DRE-DISC-004"
+name: "ASP.NET MVC Version Header Exposed"
+description: >
+  The X-AspNetMvc-Version header reveals the specific ASP.NET MVC framework
+  version in use. Combined with the runtime version, this gives attackers a
+  precise fingerprint of the server-side stack for targeted exploitation.
+category: "Information Disclosure"
+severity: "medium"
+remediation: >
+  Remove the X-AspNetMvc-Version header by adding
+  MvcHandler.DisableMvcResponseHeader = true in your Application_Start() method,
+  or suppress it via a custom HTTP module or middleware.
+tags:
+  - aspnet-mvc
+  - disclosure
+  - reconnaissance
+  - dotnet
+  - owasp-a05
+enabled: true
+condition:
+  header_present:
+    header: "x-aspnetmvc-version"

@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ScoreGauge from '@/components/ScoreGauge';
-import { analyzeSite, apiStream, getSeverityClass } from '@/lib/api';
-import type { WebScanResult, ScanEvent } from '@/lib/api';
+import SeverityBadge from '@/components/SeverityBadge';
+import ConfidenceBar from '@/components/ConfidenceBar';
+import ErrorAlert from '@/components/ErrorAlert';
+import EmptyState from '@/components/EmptyState';
+import ScanTimeline from '@/components/ScanTimeline';
+import { analyzeSite } from '@/lib/api';
+import { useSSEStream } from '@/lib/useSSEStream';
+import type { WebScanResult } from '@/lib/api';
 import {
   Globe, Cpu, ShieldCheck, AlertTriangle, Clock, ChevronDown, ChevronRight,
-  Wifi, FileText, Layers, Radio, Activity, CheckCircle2, XCircle, MinusCircle, AlertCircle
+  Wifi, FileText, Layers, Activity, CheckCircle2, XCircle, MinusCircle, AlertCircle
 } from 'lucide-react';
 
 function HeaderStatusIcon({ status }: { status: string }) {
@@ -21,44 +27,13 @@ function HeaderStatusIcon({ status }: { status: string }) {
 }
 
 export default function ScannerPage() {
-  const [result, setResult] = useState<WebScanResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [events, setEvents] = useState<ScanEvent[]>([]);
-  const [streaming, setStreaming] = useState(false);
+  const { result, loading, error, events, streaming, execute: handleScan } = useSSEStream<WebScanResult>({
+    streamEndpoint: '/analyze/stream',
+    fetchResult: analyzeSite,
+  });
+
   const [tab, setTab] = useState<'overview' | 'tech' | 'headers' | 'risks' | 'pages' | 'timeline'>('overview');
   const [expandedPage, setExpandedPage] = useState<number | null>(null);
-  const closeRef = useRef<(() => void) | null>(null);
-
-  const handleScan = async (url: string) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setEvents([]);
-    setStreaming(true);
-
-    // Start SSE stream
-    closeRef.current = apiStream(
-      '/analyze/stream',
-      { url },
-      (evt) => {
-        setEvents(prev => [...prev, { timestamp: new Date().toISOString(), event_type: evt.type, level: 'INFO', message: typeof evt.data === 'object' && evt.data !== null ? (evt.data as { message?: string }).message || JSON.stringify(evt.data) : String(evt.data) }]);
-      },
-      () => setStreaming(false),
-      () => setStreaming(false),
-    );
-
-    try {
-      const res = await analyzeSite(url);
-      setResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed');
-    } finally {
-      setLoading(false);
-      setStreaming(false);
-      if (closeRef.current) closeRef.current();
-    }
-  };
 
   return (
     <div className="fade-in">
@@ -75,23 +50,13 @@ export default function ScannerPage() {
           <div className="loading-text">Analyzing website...</div>
           {events.length > 0 && (
             <div className="loading-subtext">
-              {events[events.length - 1]?.event_type}: {events[events.length - 1]?.message?.substring(0, 80)}
+              {events[events.length - 1]?.type}: {events[events.length - 1]?.message?.substring(0, 80)}
             </div>
           )}
         </div>
       )}
 
-      {error && (
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="flex items-center gap-3">
-            <XCircle size={20} color="var(--color-danger)" />
-            <div>
-              <div style={{ fontWeight: 600, color: '#fca5a5' }}>Analysis Failed</div>
-              <div className="text-sm text-secondary">{error}</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {error && <ErrorAlert title="Analysis Failed" message={error} />}
 
       {result && (
         <div className="fade-in">
@@ -183,7 +148,7 @@ export default function ScannerPage() {
                       <div key={i} className="evidence-item">
                         <div className="flex items-center justify-between">
                           <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.85rem' }}>{cr.title}</span>
-                          <span className={`badge ${getSeverityClass(cr.severity)}`}>{cr.severity}</span>
+                          <SeverityBadge severity={cr.severity} />
                         </div>
                         <div className="text-xs text-secondary mt-2">{cr.explanation}</div>
                       </div>
@@ -215,15 +180,7 @@ export default function ScannerPage() {
                       <div className="text-xs text-muted">{tech.category}</div>
                     </div>
                   </div>
-                  <div className="confidence-bar-container">
-                    <div className="confidence-bar">
-                      <div
-                        className={`confidence-bar-fill ${tech.confidence_score >= 0.7 ? 'high' : tech.confidence_score >= 0.4 ? 'medium' : 'low'}`}
-                        style={{ width: `${tech.confidence_score * 100}%` }}
-                      />
-                    </div>
-                    <div className="confidence-value">{(tech.confidence_score * 100).toFixed(0)}%</div>
-                  </div>
+                  <ConfidenceBar score={tech.confidence_score} />
                   {tech.evidences.length > 0 && (
                     <div className="mt-4">
                       {tech.evidences.map((e, j) => (
@@ -280,7 +237,7 @@ export default function ScannerPage() {
                 <div key={i} className="glass-card">
                   <div className="flex items-center justify-between mb-4">
                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{risk.title}</div>
-                    <span className={`badge ${getSeverityClass(risk.severity)}`}>{risk.severity}</span>
+                    <SeverityBadge severity={risk.severity} />
                   </div>
                   <p className="text-sm text-secondary" style={{ marginBottom: 8 }}>{risk.explanation}</p>
                   <div className="evidence-item">
@@ -290,11 +247,11 @@ export default function ScannerPage() {
                 </div>
               ))}
               {result.risk_insights.length === 0 && (
-                <div className="empty-state">
-                  <div className="empty-state-icon"><ShieldCheck size={36} /></div>
-                  <div className="empty-state-title">No Risks Detected</div>
-                  <div className="empty-state-text">The scan did not identify any risk insights for this target.</div>
-                </div>
+                <EmptyState
+                  icon={<ShieldCheck size={36} />}
+                  title="No Risks Detected"
+                  description="The scan did not identify any risk insights for this target."
+                />
               )}
             </div>
           )}
@@ -327,7 +284,7 @@ export default function ScannerPage() {
                           <div className="text-xs text-muted mb-4">Risks ({page.risk_insights.length})</div>
                           {page.risk_insights.map((r, j) => (
                             <div key={j} className="flex items-center gap-2 text-sm mb-4">
-                              <span className={`badge ${getSeverityClass(r.severity)}`}>{r.severity}</span>
+                              <SeverityBadge severity={r.severity} />
                               {r.title}
                             </div>
                           ))}
@@ -341,29 +298,16 @@ export default function ScannerPage() {
           )}
 
           {/* Timeline Tab */}
-          {tab === 'timeline' && (
-            <div className="glass-card">
-              <div className="timeline">
-                {result.timeline.map((evt, i) => (
-                  <div key={i} className="timeline-item">
-                    <div className={`timeline-dot ${evt.level === 'WARN' ? 'warn' : evt.level === 'ERROR' ? 'error' : ''}`} />
-                    <div className="timeline-type">{evt.event_type}</div>
-                    <div className="timeline-message">{evt.message}</div>
-                    <div className="timeline-time">{new Date(evt.timestamp).toLocaleTimeString()}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {tab === 'timeline' && <ScanTimeline events={result.timeline} />}
         </div>
       )}
 
       {!result && !loading && !error && (
-        <div className="empty-state">
-          <div className="empty-state-icon"><Globe size={36} /></div>
-          <div className="empty-state-title">Website Scanner</div>
-          <div className="empty-state-text">Enter a URL to perform deep website analysis including technology detection, security header evaluation, and risk assessment.</div>
-        </div>
+        <EmptyState
+          icon={<Globe size={36} />}
+          title="Website Scanner"
+          description="Enter a URL to perform deep website analysis including technology detection, security header evaluation, and risk assessment."
+        />
       )}
     </div>
   );

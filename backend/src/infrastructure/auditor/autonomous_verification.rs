@@ -18,7 +18,7 @@ impl AutonomousVerificationEngine {
         Self { client }
     }
 
-    pub async fn verify_all(&self, target: &str, findings: &mut Vec<CanonicalFinding>, paths: &mut Vec<AttackPath>) {
+    pub async fn verify_all(&self, target: &str, findings: &mut [CanonicalFinding], paths: &mut [AttackPath]) {
         for f in findings.iter_mut() {
             if let Some(av) = self.verify_finding(target, f).await {
                 f.active_verification = Some(av);

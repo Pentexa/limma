@@ -7,7 +7,7 @@ impl ThreatPrioritizationEngine {
         Self
     }
 
-    pub async fn evaluate_all(&self, canonical_findings: &mut Vec<CanonicalFinding>, attack_paths: &mut Vec<AttackPath>, learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
+    pub async fn evaluate_all(&self, canonical_findings: &mut [CanonicalFinding], attack_paths: &mut [AttackPath], learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
         // Evaluate Attack Paths first
         for path in attack_paths.iter_mut() {
             let mut score: i32 = 40; // Base score for any correlated path

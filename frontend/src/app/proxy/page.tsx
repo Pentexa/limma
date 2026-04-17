@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ErrorAlert from '@/components/ErrorAlert';
 import { proxyRequest } from '@/lib/api';
 import {
   Send, Globe, Clock, FileCode, AlertTriangle, XCircle, CheckCircle2,
@@ -255,14 +256,8 @@ export default function ProxyPage() {
 
       {/* Error */}
       {error && (
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', marginTop: 16 }}>
-          <div className="flex items-center gap-3">
-            <XCircle size={20} color="var(--color-danger)" />
-            <div>
-              <div style={{ fontWeight: 600, color: '#fca5a5' }}>Request Failed</div>
-              <div className="text-sm text-secondary">{error}</div>
-            </div>
-          </div>
+        <div style={{ marginTop: 16 }}>
+          <ErrorAlert title="Request Failed" message={error} />
         </div>
       )}
 

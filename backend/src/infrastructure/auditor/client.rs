@@ -253,7 +253,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
         };
 
         // Let's run Phase 2 Rule Engine (hardcoded)
-        log.push(format!("[RuleEngine] Starting definition enforcement phase..."));
+        log.push("[RuleEngine] Starting definition enforcement phase...".to_string());
         let engine = super::engine::RuleEngine::new();
         let rule_results = engine.evaluate(&all_findings);
         let matched_count = rule_results.iter().filter(|r| r.outcome == RuleOutcome::Matched).count();

@@ -1,34 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Limma Frontend — Cyber-Intelligence Platform
 
-## Getting Started
+Bu proje, Limma siber güvenlik platformunun modern ve performanslı arayüzünü temsil etmektedir. **Next.js 16** (App Router) ve **Cyberdark v2** tasarım sistemi kullanılarak geliştirilmiştir.
 
-First, run the development server:
+## 🚀 Başlangıç
 
+### Gereksinimler
+* Node.js (v20+)
+* Çalışan bir Limma Backend servisi (Varsayılan: `http://localhost:8900`)
+
+### Kurulum ve Çalıştırma
 ```bash
+# Bağımlılıkları yükle
+npm install
+
+# Geliştirme sunucusunu başlat (Port: 3000)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🏗️ Mimari ve Tasarım
 
-## Learn More
+Platform, **Clean Frontend Architecture** prensipleriyle inşa edilmiştir:
 
-To learn more about Next.js, take a look at the following resources:
+*   **Next.js App Router:** Gelişmiş veri çekme ve rota yönetimi.
+*   **Design System (Cyberdark v2):** Custom CSS katmanı üzerine kurulu, "Glassmorphism" ve siber güvenlik estetiği sunan özgün tasarım.
+*   **Real-time SSE:** Backend ile `EventSource` üzerinden kurulan asenkron iletişim sayesinde canlı tarama sonuçları.
+*   **Tip Güvenliği:** Tüm API modelleri Rust backend tarafındaki `entities` ile tam uyumludur (TypeScript Interfaces).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📂 Dizin Yapısı (Klasörler)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+*   `src/app`: Sayfa rotaları (Dashboard, Scanner, Investigator, Audit vb.).
+*   `src/components`: UI bileşenleri (Sidebar, ScoreGauge, UrlInput).
+*   `src/lib`: API istemcisi (`api.ts`) ve Kimlik doğrulama (`auth.ts`).
+*   `src/styles`: Küresel stil tanımları ve tasarım tokenları.
 
-## Deploy on Vercel
+## 🔑 Önemli Özellikler
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1.  **Dashboard:** Tüm güvenlik modüllerini tek bir "Master Report" altında toplayan komuta merkezi.
+2.  **SSE Streaming:** Uzun süren siber taramalarda anlık olay akışı (Real-time progress).
+3.  **Advanced Evidence Tree:** Service Collector ve Auditor modüllerinden gelen bulguların kanıt tabanlı gösterimi.
+4.  **Security Scoring:** Hedef sistemin siber hijyen durumunu görselleştiren skorlama motoru.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🛠️ Teknik Notlar
+*   **Loglama:** Geliştirme esnasında tarayıcı konsolu üzerinden SSE olayları takip edilebilir.
+*   **Auth:** Oturum yönetimi `localStorage` üzerinde JWT token ile saklanır.
+*   **Grafikler:** Recharts kütüphanesi ile dairesel ve lineer gösterimler yapılır.
+
+*Detaylı teknik dokümantasyon için proje içindeki diğer doküman dosyalarına bakabilirsiniz.*

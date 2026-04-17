@@ -70,7 +70,7 @@ pub async fn crawl(
         emit_event("CRAWLING_PAGE", "INFO", format!("Crawling page (depth: {}): {}", item.depth, item.url), None);
 
         // Sleep to bypass rate limits (200ms)
-        if pages.len() > 0 {
+        if !pages.is_empty() {
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
@@ -89,17 +89,14 @@ pub async fn crawl(
 
                 let mut ct = None;
                 for (k, v) in &headers {
-                    match k.as_str() {
-                        "content-type" => ct = Some(v.clone()),
-                        _ => {}
-                    }
+                    if k.as_str() == "content-type" { ct = Some(v.clone()) }
                 }
 
                 let scan_ctx = fingerprint::ScanContext::new(&body, &headers);
                 let detected = fingerprinter.analyze(&scan_ctx);
 
                 let security_headers = security::audit_headers(&headers);
-                let risk_insights = security::generate_insights(&headers, &detected, &final_url);
+                let risk_insights = security::generate_insights(&headers, &detected, &final_url, &body, &chain);
 
                 let sp = ScannedPage {
                     url: item.url.clone(),

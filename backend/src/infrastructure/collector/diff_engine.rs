@@ -51,7 +51,7 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
                                 resource: format!("Confidence for {} on Port {}", curr.service_name, port),
                                 before: Some(format!("{:.0}%", prev.confidence_breakdown.final_score * 100.0)),
                                 after: Some(format!("{:.0}%", curr.confidence_breakdown.final_score * 100.0)),
-                                description: format!("Confidence shifted significantly"),
+                                description: "Confidence shifted significantly".to_string(),
                             });
                             changed_confidences += 1;
                             is_changed = true;
@@ -99,20 +99,20 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
                 resource: format!("Port {}", port),
                 before: None,
                 after: Some(format!("{:?}", curr_res.state)),
-                description: format!("New port discovered"),
+                description: "New port discovered".to_string(),
             });
             added_ports += 1;
         }
     }
 
-    for (port, _) in &prev_ports {
+    for port in prev_ports.keys() {
         if !curr_ports.contains_key(port) {
             changes.push(ChangeEvent {
                 change_type: ChangeType::Removed,
                 resource: format!("Port {}", port),
                 before: Some("Open".into()),
                 after: None,
-                description: format!("Port is no longer open/responsive"),
+                description: "Port is no longer open/responsive".to_string(),
             });
             removed_ports += 1;
         }

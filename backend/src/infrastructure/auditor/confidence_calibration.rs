@@ -16,7 +16,7 @@ impl ConfidenceCalibrationEngine {
         format!("{}_[{}]", finding.canonical_slug, modules.join(","))
     }
 
-    pub async fn update_from_scan(&mut self, canonical_findings: &mut Vec<CanonicalFinding>, learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
+    pub async fn update_from_scan(&mut self, canonical_findings: &mut [CanonicalFinding], learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
         for finding in canonical_findings.iter_mut() {
             let sig = Self::generate_signature(finding);
 
@@ -114,10 +114,10 @@ impl ConfidenceCalibrationEngine {
             }
 
             let learning_impact = learning_engine.generate_impact(&sig).await;
-            reliability_coefficient = reliability_coefficient * learning_impact.confidence_multiplier;
+            reliability_coefficient *= learning_impact.confidence_multiplier;
             
             if learning_impact.confidence_multiplier < 0.9 || learning_impact.confidence_multiplier > 1.1 {
-               impact = format!("Confidence Modified by User Feedback").to_string();
+               impact = "Confidence Modified by User Feedback".to_string();
             }
 
             finding.confidence = adjusted.clone();

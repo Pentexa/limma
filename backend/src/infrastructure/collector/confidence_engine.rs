@@ -135,11 +135,10 @@ pub fn evaluate(
         let mut response_quality = 1.0;
         let mut header_reliability = fp_match.confidence;
 
-        if fp_match.tier == crate::domain::entities::FingerprintTier::Generic {
-            if header_reliability > 0.6 {
+        if fp_match.tier == crate::domain::entities::FingerprintTier::Generic
+            && header_reliability > 0.6 {
                 header_reliability = 0.6;
             }
-        }
 
         if let Some(http) = http_summary {
             if let Some(code) = http.status_code {

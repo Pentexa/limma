@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ScoreGauge from '@/components/ScoreGauge';
+import SeverityBadge from '@/components/SeverityBadge';
+import ErrorAlert from '@/components/ErrorAlert';
+import EmptyState from '@/components/EmptyState';
 import { generateMasterReport, auditSecurity, submitFeedback, getSeverityClass } from '@/lib/api';
 import type { MasterReport, SecurityReport, CanonicalFinding, SecurityAuditFinding } from '@/lib/api';
 import {
@@ -66,11 +69,7 @@ export default function AuditPage() {
         </div>
       )}
 
-      {error && (
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="flex items-center gap-3"><XCircle size={20} color="var(--color-danger)" /><div><div style={{ fontWeight: 600, color: '#fca5a5' }}>Audit Failed</div><div className="text-sm text-secondary">{error}</div></div></div>
-        </div>
-      )}
+      {error && <ErrorAlert title="Audit Failed" message={error} />}
 
       {report && (
         <div className="fade-in">
@@ -278,7 +277,7 @@ export default function AuditPage() {
                             ))}
                           </div>
                         </td>
-                        <td><span className={`badge ${getSeverityClass(f.severity)}`}>{f.severity}</span></td>
+                        <td><SeverityBadge severity={f.severity} /></td>
                         <td><span className="badge badge-blue">{f.confidence}</span></td>
                         <td>
                           {f.exploitability_level && (
@@ -292,9 +291,7 @@ export default function AuditPage() {
                           {f.priority_assessment && (
                             <div style={{ textAlign: 'center' }}>
                               <div className="stat-value" style={{ fontSize: '1rem' }}>{f.priority_assessment.priority_score}</div>
-                              <span className={`badge ${getSeverityClass(f.priority_assessment.priority_level)}`} style={{ fontSize: '0.6rem' }}>
-                                {f.priority_assessment.priority_level}
-                              </span>
+                              <SeverityBadge severity={f.priority_assessment.priority_level} size="sm" />
                             </div>
                           )}
                         </td>
@@ -336,7 +333,7 @@ export default function AuditPage() {
                           </div>
                           {f.affected_path_or_endpoint && <div className="text-xs mono text-muted">{f.affected_path_or_endpoint}</div>}
                         </td>
-                        <td><span className={`badge ${getSeverityClass(f.severity)}`}>{f.severity}</span></td>
+                        <td><SeverityBadge severity={f.severity} /></td>
                         <td><span className="badge badge-blue">{f.confidence}</span></td>
                         <td><span className="badge badge-neutral">{f.source_module}</span></td>
                         <td><span className="badge badge-neutral">{f.status}</span></td>
@@ -344,7 +341,7 @@ export default function AuditPage() {
                           {f.risk_score && (
                             <div style={{ textAlign: 'center' }}>
                               <div className="mono" style={{ fontWeight: 600 }}>{f.risk_score.total_score}</div>
-                              <span className={`badge ${getSeverityClass(f.risk_score.level)}`} style={{ fontSize: '0.6rem' }}>{f.risk_score.level}</span>
+                              <SeverityBadge severity={f.risk_score.level} size="sm" />
                             </div>
                           )}
                         </td>
@@ -377,7 +374,7 @@ export default function AuditPage() {
                         <div className="stat-value" style={{ fontSize: '1.2rem' }}>{ap.attack_path_score}</div>
                         <div className="text-xs text-muted">Score</div>
                       </div>
-                      <span className={`badge ${getSeverityClass(ap.overall_risk_level)}`}>{ap.overall_risk_level}</span>
+                      <SeverityBadge severity={ap.overall_risk_level} />
                     </div>
                   </div>
                   <p className="text-sm text-secondary mb-4">{ap.narrative}</p>
@@ -403,7 +400,7 @@ export default function AuditPage() {
                 </div>
               ))}
               {audit.attack_paths.length === 0 && (
-                <div className="empty-state"><div className="empty-state-icon"><CheckCircle2 size={36} /></div><div className="empty-state-title">No Attack Paths</div><div className="empty-state-text">No multi-step attack chains were identified.</div></div>
+                <EmptyState icon={<CheckCircle2 size={36} />} title="No Attack Paths" description="No multi-step attack chains were identified." />
               )}
             </div>
           )}
@@ -478,7 +475,7 @@ export default function AuditPage() {
                           <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.rule_name}</div>
                           <div className="text-xs mono text-muted">{f.rule_id}</div>
                         </td>
-                        <td><span className={`badge ${getSeverityClass(f.severity)}`}>{f.severity}</span></td>
+                        <td><SeverityBadge severity={f.severity} /></td>
                         <td><span className="badge badge-blue">{f.confidence}</span></td>
                         <td className="text-sm mono">{f.matched_target}</td>
                         <td className="text-sm text-secondary">{f.evidence_summary}</td>
@@ -510,7 +507,7 @@ export default function AuditPage() {
             <div className="text-xs mono text-muted mb-6">{selectedFinding.canonical_slug}</div>
 
             <div className="flex gap-2 mb-6" style={{ flexWrap: 'wrap' }}>
-              <span className={`badge ${getSeverityClass(selectedFinding.severity)}`}>{selectedFinding.severity}</span>
+              <SeverityBadge severity={selectedFinding.severity} />
               <span className="badge badge-blue">{selectedFinding.confidence}</span>
               <span className="badge badge-neutral">{selectedFinding.verification_status}</span>
               {selectedFinding.exploitability_level && (
@@ -533,9 +530,7 @@ export default function AuditPage() {
                   <div className="text-xs text-muted">Priority Assessment</div>
                   <div className="flex items-center gap-2">
                     <span className="stat-value" style={{ fontSize: '1.2rem' }}>{selectedFinding.priority_assessment.priority_score}</span>
-                    <span className={`badge ${getSeverityClass(selectedFinding.priority_assessment.priority_level)}`}>
-                      {selectedFinding.priority_assessment.priority_level}
-                    </span>
+                    <SeverityBadge severity={selectedFinding.priority_assessment.priority_level} />
                   </div>
                 </div>
                 {selectedFinding.priority_assessment.reasoning.map((r, i) => (
@@ -582,7 +577,7 @@ export default function AuditPage() {
                   <div key={i} className="evidence-item">
                     <div className="flex items-center justify-between">
                       <span className="text-sm" style={{ fontWeight: 500 }}>{uf.summary}</span>
-                      <span className={`badge ${getSeverityClass(uf.severity)}`}>{uf.severity}</span>
+                      <SeverityBadge severity={uf.severity} />
                     </div>
                     <div className="text-xs text-secondary mt-2">{uf.technical_details}</div>
                     <div className="flex gap-2 mt-2"><span className="badge badge-neutral">{uf.source_module}</span></div>
@@ -604,7 +599,7 @@ export default function AuditPage() {
             <div className="text-xs mono text-muted mb-6">{selectedRawFinding.id}</div>
 
             <div className="flex gap-2 mb-6" style={{ flexWrap: 'wrap' }}>
-              <span className={`badge ${getSeverityClass(selectedRawFinding.severity)}`}>{selectedRawFinding.severity}</span>
+              <SeverityBadge severity={selectedRawFinding.severity} />
               <span className="badge badge-blue">{selectedRawFinding.confidence}</span>
               <span className="badge badge-neutral">{selectedRawFinding.source_module}</span>
               <span className="badge badge-neutral">{selectedRawFinding.status}</span>
@@ -622,7 +617,7 @@ export default function AuditPage() {
                   <div><div className="text-xs text-muted">Finding</div><div className="stat-value" style={{ fontSize: '1rem' }}>{selectedRawFinding.risk_score.finding_score}</div></div>
                   <div><div className="text-xs text-muted">Correlation</div><div className="stat-value" style={{ fontSize: '1rem' }}>{selectedRawFinding.risk_score.correlation_score}</div></div>
                   <div><div className="text-xs text-muted">Total</div><div className="stat-value" style={{ fontSize: '1rem' }}>{selectedRawFinding.risk_score.total_score}</div></div>
-                  <div><div className="text-xs text-muted">Level</div><span className={`badge ${getSeverityClass(selectedRawFinding.risk_score.level)}`}>{selectedRawFinding.risk_score.level}</span></div>
+                  <div><div className="text-xs text-muted">Level</div><SeverityBadge severity={selectedRawFinding.risk_score.level} /></div>
                 </div>
                 <div className="text-sm text-secondary mb-4">{selectedRawFinding.risk_score.priority_statement}</div>
                 {selectedRawFinding.risk_score.contributions.map((c, i) => (
@@ -677,11 +672,11 @@ export default function AuditPage() {
       )}
 
       {!report && !loading && !error && (
-        <div className="empty-state">
-          <div className="empty-state-icon"><Shield size={36} /></div>
-          <div className="empty-state-title">Security Audit</div>
-          <div className="empty-state-text">Enter a URL to run the full security audit pipeline: Normalization → Correlation → Risk Scoring → Context-Aware Analysis → Attack Path Detection.</div>
-        </div>
+        <EmptyState
+          icon={<Shield size={36} />}
+          title="Security Audit"
+          description="Enter a URL to run the full security audit pipeline: Normalization → Correlation → Risk Scoring → Context-Aware Analysis → Attack Path Detection."
+        />
       )}
     </div>
   );

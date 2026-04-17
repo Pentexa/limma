@@ -193,7 +193,7 @@ pub fn evaluate_fingerprint(
     }
 
     // ── Pass 3: Apply weak-only cap ──
-    if only_weak_rules && matched_rules.len() > 0 && raw_score > WEAK_ONLY_CAP * total_possible.max(1.0) {
+    if only_weak_rules && !matched_rules.is_empty() && raw_score > WEAK_ONLY_CAP * total_possible.max(1.0) {
         let capped = WEAK_ONLY_CAP * total_possible.max(1.0);
         explanations.push(ExplanationItem {
             category: "penalty".into(),
@@ -284,21 +284,19 @@ fn evaluate_rule(
     match category {
         RuleCategory::BannerContains => {
             for ev in evidence {
-                if ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting {
-                    if expected.is_empty() || ev.raw_signal.to_lowercase().contains(&expected.to_lowercase()) {
+                if (ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting)
+                    && (expected.is_empty() || ev.raw_signal.to_lowercase().contains(&expected.to_lowercase())) {
                         return (true, Some(truncate(&ev.raw_signal, 80)));
                     }
-                }
             }
             (false, None)
         }
         RuleCategory::BannerStartsWith => {
             for ev in evidence {
-                if ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting {
-                    if ev.raw_signal.trim().to_uppercase().starts_with(&expected.to_uppercase()) {
+                if (ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting)
+                    && ev.raw_signal.trim().to_uppercase().starts_with(&expected.to_uppercase()) {
                         return (true, Some(truncate(&ev.raw_signal, 80)));
                     }
-                }
             }
             (false, None)
         }
@@ -365,11 +363,10 @@ fn evaluate_rule(
         }
         RuleCategory::GreetingSignature => {
             for ev in evidence {
-                if ev.kind == EvidenceKind::ProtocolGreeting {
-                    if expected.is_empty() || ev.interpretation.to_lowercase().contains(&expected.to_lowercase()) {
+                if ev.kind == EvidenceKind::ProtocolGreeting
+                    && (expected.is_empty() || ev.interpretation.to_lowercase().contains(&expected.to_lowercase())) {
                         return (true, Some(truncate(&ev.raw_signal, 80)));
                     }
-                }
             }
             (false, None)
         }
@@ -396,9 +393,7 @@ fn compute_strength(
 
     if matched_count == total && confidence >= 0.70 {
         MatchStrength::Full
-    } else if has_critical && confidence >= 0.45 {
-        MatchStrength::Strong
-    } else if has_strong && confidence >= 0.30 {
+    } else if (has_critical && confidence >= 0.45) || (has_strong && confidence >= 0.30) {
         MatchStrength::Strong
     } else if confidence >= 0.20 {
         MatchStrength::Partial
@@ -445,6 +440,7 @@ fn compute_confidence_level(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_reasoning(
     service: &str,
     strength: &MatchStrength,

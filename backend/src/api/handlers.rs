@@ -388,6 +388,8 @@ pub struct RuleEngineStatus {
     pub disabled_rules: Vec<String>,
     pub active_rules: Vec<serde_json::Value>,
     pub feedback_stats: std::collections::HashMap<String, serde_json::Value>,
+    pub load_errors: Vec<String>,
+    pub validation_errors: Vec<String>,
 }
 
 pub async fn get_rule_engine_status(
@@ -427,6 +429,8 @@ pub async fn get_rule_engine_status(
         disabled_rules: disabled_rules.into_iter().collect(),
         active_rules: rules,
         feedback_stats,
+        load_errors: engine.load_errors().to_vec(),
+        validation_errors: engine.validation_errors().to_vec(),
     }))
 }
 

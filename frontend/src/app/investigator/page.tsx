@@ -1,47 +1,28 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import UrlInput from '@/components/UrlInput';
-import { investigateServer, apiStream, getSeverityClass } from '@/lib/api';
+import SeverityBadge from '@/components/SeverityBadge';
+import ConfidenceBar from '@/components/ConfidenceBar';
+import EvidenceList from '@/components/EvidenceList';
+import ErrorAlert from '@/components/ErrorAlert';
+import EmptyState from '@/components/EmptyState';
+import { investigateServer } from '@/lib/api';
+import { useSSEStream } from '@/lib/useSSEStream';
 import type { ServerInfo } from '@/lib/api';
 import {
-  Server, Shield, Fingerprint, Truck, AlertTriangle, Eye, Layers,
-  ChevronDown, ChevronRight, XCircle, CheckCircle2, Activity, Radio
+  Server, Shield, Fingerprint, Truck, AlertTriangle,
+  ChevronDown, ChevronRight, CheckCircle2, Activity, Radio
 } from 'lucide-react';
 
 export default function InvestigatorPage() {
-  const [result, setResult] = useState<ServerInfo | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [events, setEvents] = useState<string[]>([]);
+  const { result, loading, error, events, streaming, execute: handleScan } = useSSEStream<ServerInfo>({
+    streamEndpoint: '/investigate/stream',
+    fetchResult: investigateServer,
+  });
+
   const [tab, setTab] = useState<'fingerprints' | 'infra' | 'delivery' | 'security' | 'consistency' | 'headers'>('fingerprints');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const closeRef = useRef<(() => void) | null>(null);
-
-  const handleScan = async (url: string) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setEvents([]);
-
-    closeRef.current = apiStream(
-      '/investigate/stream',
-      { url },
-      (evt) => setEvents(prev => [...prev, `[${evt.type}] ${typeof evt.data === 'object' ? JSON.stringify(evt.data) : evt.data}`]),
-      () => {},
-      () => {},
-    );
-
-    try {
-      const res = await investigateServer(url);
-      setResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Investigation failed');
-    } finally {
-      setLoading(false);
-      if (closeRef.current) closeRef.current();
-    }
-  };
 
   const headerCategories = result ? Object.entries(result.categorized_headers) : [];
 
@@ -58,15 +39,15 @@ export default function InvestigatorPage() {
         <div className="loading-overlay">
           <div className="loading-spinner" />
           <div className="loading-text">Investigating server...</div>
-          {events.length > 0 && <div className="loading-subtext">{events[events.length - 1]?.substring(0, 100)}</div>}
+          {events.length > 0 && (
+            <div className="loading-subtext">
+              {events[events.length - 1]?.type}: {events[events.length - 1]?.message?.substring(0, 100)}
+            </div>
+          )}
         </div>
       )}
 
-      {error && (
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="flex items-center gap-3"><XCircle size={20} color="var(--color-danger)" /><div><div style={{ fontWeight: 600, color: '#fca5a5' }}>Investigation Failed</div><div className="text-sm text-secondary">{error}</div></div></div>
-        </div>
-      )}
+      {error && <ErrorAlert title="Investigation Failed" message={error} />}
 
       {result && (
         <div className="fade-in">
@@ -151,20 +132,9 @@ export default function InvestigatorPage() {
                     </div>
                     {fp.certainty && <span className="badge badge-violet">{fp.certainty}</span>}
                   </div>
-                  <div className="confidence-bar-container mb-4">
-                    <div className="confidence-bar">
-                      <div className={`confidence-bar-fill ${fp.confidence_score >= 0.7 ? 'high' : fp.confidence_score >= 0.4 ? 'medium' : 'low'}`} style={{ width: `${fp.confidence_score * 100}%` }} />
-                    </div>
-                    <div className="confidence-value">{(fp.confidence_score * 100).toFixed(0)}%</div>
-                  </div>
+                  <ConfidenceBar score={fp.confidence_score} className="mb-4" />
                   <p className="text-sm text-secondary" style={{ marginBottom: 8 }}>{fp.explanation}</p>
-                  {fp.evidences.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {fp.evidences.map((e, j) => (
-                        <div key={j} className="text-xs" style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>• {e}</div>
-                      ))}
-                    </div>
-                  )}
+                  <EvidenceList items={fp.evidences} />
                 </div>
               ))}
             </div>
@@ -197,15 +167,12 @@ export default function InvestigatorPage() {
                       <div className="text-xs text-muted">{d.category}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="confidence-bar-container">
-                        <div className="confidence-bar"><div className={`confidence-bar-fill ${d.confidence_score >= 0.7 ? 'high' : 'medium'}`} style={{ width: `${d.confidence_score * 100}%` }} /></div>
-                        <div className="confidence-value">{(d.confidence_score * 100).toFixed(0)}%</div>
-                      </div>
+                      <ConfidenceBar score={d.confidence_score} />
                       {d.certainty && <span className="badge badge-violet">{d.certainty}</span>}
                     </div>
                   </div>
                   <p className="text-sm text-secondary">{d.explanation}</p>
-                  <div className="evidence-item mt-2"><div className="evidence-type">Evidence</div><div className="evidence-content">{d.evidence}</div></div>
+                  <EvidenceList labeled={[{ type: 'Evidence', content: d.evidence }]} />
                 </div>
               ))}
             </div>
@@ -226,7 +193,7 @@ export default function InvestigatorPage() {
                     </div>
                   </div>
                   <p className="text-sm text-secondary">{s.explanation}</p>
-                  <div className="evidence-item mt-2"><div className="evidence-type">Evidence</div><div className="evidence-content">{s.evidence}</div></div>
+                  <EvidenceList labeled={[{ type: 'Evidence', content: s.evidence }]} />
                 </div>
               ))}
             </div>
@@ -240,17 +207,19 @@ export default function InvestigatorPage() {
                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
                     <div className="flex items-center gap-2">
                       <span className="badge badge-neutral">{c.category}</span>
-                      <span className={`badge ${getSeverityClass(c.severity)}`}>{c.severity}</span>
+                      <SeverityBadge severity={c.severity} />
                     </div>
                   </div>
                   <p className="text-sm text-secondary" style={{ marginBottom: 8 }}>{c.explanation}</p>
-                  {c.evidences.map((e, j) => (
-                    <div key={j} className="text-xs" style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>• {e}</div>
-                  ))}
+                  <EvidenceList items={c.evidences} />
                 </div>
               ))}
               {result.consistency_insights.length === 0 && (
-                <div className="empty-state"><div className="empty-state-icon"><CheckCircle2 size={36} /></div><div className="empty-state-title">Consistent Configuration</div><div className="empty-state-text">No consistency issues detected.</div></div>
+                <EmptyState
+                  icon={<CheckCircle2 size={36} />}
+                  title="Consistent Configuration"
+                  description="No consistency issues detected."
+                />
               )}
             </div>
           )}
@@ -289,11 +258,11 @@ export default function InvestigatorPage() {
       )}
 
       {!result && !loading && !error && (
-        <div className="empty-state">
-          <div className="empty-state-icon"><Server size={36} /></div>
-          <div className="empty-state-title">Server Investigator</div>
-          <div className="empty-state-text">Deep server analysis including CMS fingerprinting, infrastructure signals, CDN/proxy detection, and security posture evaluation.</div>
-        </div>
+        <EmptyState
+          icon={<Server size={36} />}
+          title="Server Investigator"
+          description="Deep server analysis including CMS fingerprinting, infrastructure signals, CDN/proxy detection, and security posture evaluation."
+        />
       )}
     </div>
   );

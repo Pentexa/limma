@@ -142,8 +142,8 @@ pub fn analyze_target(pages: &[ScannedPage], events: &mut Vec<ScanEvent>, tx: &O
 
     // 3. Technology Context Vector
     for (url, tech_name, server, powered) in tech_server_combos {
-        let is_verbose_server = server.as_ref().map_or(false, |s| s.contains('/') && (s.contains("Ubuntu") || s.contains("Debian") || s.contains("CentOS") || s.chars().filter(|c| c.is_ascii_digit()).count() > 2));
-        let is_verbose_powered = powered.as_ref().map_or(false, |p| p.contains('/') && p.chars().filter(|c| c.is_ascii_digit()).count() > 1);
+        let is_verbose_server = server.as_ref().is_some_and(|s| s.contains('/') && (s.contains("Ubuntu") || s.contains("Debian") || s.contains("CentOS") || s.chars().filter(|c| c.is_ascii_digit()).count() > 2));
+        let is_verbose_powered = powered.as_ref().is_some_and(|p| p.contains('/') && p.chars().filter(|c| c.is_ascii_digit()).count() > 1);
 
         if is_verbose_server || is_verbose_powered {
             let mut ev = Vec::new();

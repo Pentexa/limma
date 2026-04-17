@@ -44,11 +44,10 @@ impl FormMapperRepository for HttpFormMapper {
                 fields.push(format!("{}({})", name, input_type));
                 
                 // Detection for potential login
-                if name.contains("password") || name.contains("pwd") || input_type == "password" {
-                    if !login_pages.contains(&url_str.to_string()) {
+                if (name.contains("password") || name.contains("pwd") || input_type == "password")
+                    && !login_pages.contains(&url_str.to_string()) {
                         login_pages.push(url_str.to_string());
                     }
-                }
             }
 
             detected_forms.push(DetectedForm {

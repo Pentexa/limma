@@ -13,7 +13,7 @@ pub fn validate_rules(rules: Vec<RuleDefinition>) -> (Vec<RuleDefinition>, Vec<S
 
         // Required fields
         if rule.id.trim().is_empty() {
-            rule_errors.push(format!("Rule missing required 'id' field"));
+            rule_errors.push("Rule missing required 'id' field".to_string());
         }
         if rule.name.trim().is_empty() {
             rule_errors.push(format!("Rule '{}' missing required 'name' field", rule.id));

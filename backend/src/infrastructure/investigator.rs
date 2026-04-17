@@ -284,11 +284,11 @@ impl HttpInvestigator {
                 wp_conf += 80.0;
                 wp_ev.push("Found explicit WordPress meta generator tag".to_string());
             }
-            if raw_headers.get("set-cookie").map_or(false, |c| c.iter().any(|v| v.contains("wp-settings"))) {
+            if raw_headers.get("set-cookie").is_some_and(|c| c.iter().any(|v| v.contains("wp-settings"))) {
                 wp_conf += 60.0;
                 wp_ev.push("Found 'wp-settings' specific session cookie".to_string());
             }
-            if raw_headers.get("x-powered-by").map_or(false, |h| h.iter().any(|v| v.to_lowercase().contains("wordpress"))) {
+            if raw_headers.get("x-powered-by").is_some_and(|h| h.iter().any(|v| v.to_lowercase().contains("wordpress"))) {
                 wp_conf += 80.0;
                 wp_ev.push("Found X-Powered-By WordPress header".to_string());
             }
@@ -343,7 +343,7 @@ impl HttpInvestigator {
                 conf += 90.0;
                 ev.push("Found explicit Drupal meta generator tag".to_string());
             }
-            if raw_headers.get("x-drupal-cache").is_some() || raw_headers.get("x-generator").map_or(false, |c| c.iter().any(|v| v.to_lowercase().contains("drupal"))) {
+            if raw_headers.contains_key("x-drupal-cache") || raw_headers.get("x-generator").is_some_and(|c| c.iter().any(|v| v.to_lowercase().contains("drupal"))) {
                 conf += 80.0;
                 ev.push("Found Drupal specific headers".to_string());
             }
@@ -360,7 +360,7 @@ impl HttpInvestigator {
                 conf += 60.0;
                 ev.push("Found Ghost meta generator tag or content signature".to_string());
             }
-            if raw_headers.get("x-ghost-cache").is_some() {
+            if raw_headers.contains_key("x-ghost-cache") {
                 conf += 90.0;
                 ev.push("Found Ghost specific caching headers".to_string());
             }
@@ -373,11 +373,11 @@ impl HttpInvestigator {
         {
             let mut conf = 0.0;
             let mut ev = Vec::new();
-            if raw_headers.get("x-vercel-id").is_some() || raw_headers.get("x-vercel-cache").is_some() {
+            if raw_headers.contains_key("x-vercel-id") || raw_headers.contains_key("x-vercel-cache") {
                 conf += 100.0;
                 ev.push("Explicit X-Vercel headers strongly identify target".to_string());
             }
-            if raw_headers.get("server").map_or(false, |c| c.iter().any(|v| v.to_lowercase() == "vercel")) {
+            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "vercel")) {
                 conf += 90.0;
                 ev.push("Server header broadcasts Vercel".to_string());
             }
@@ -390,11 +390,11 @@ impl HttpInvestigator {
         {
             let mut conf = 0.0;
             let mut ev = Vec::new();
-            if raw_headers.get("server").map_or(false, |c| c.iter().any(|v| v.to_lowercase() == "netlify")) {
+            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "netlify")) {
                 conf += 95.0;
                 ev.push("Server header explicitly broadcasts Netlify".to_string());
             }
-            if raw_headers.get("x-nf-request-id").is_some() {
+            if raw_headers.contains_key("x-nf-request-id") {
                 conf += 100.0;
                 ev.push("X-NF-Request-Id specific header detected".to_string());
             }
@@ -407,11 +407,11 @@ impl HttpInvestigator {
         {
             let mut conf = 0.0;
             let mut ev = Vec::new();
-            if raw_headers.get("cf-ray").is_some() {
+            if raw_headers.contains_key("cf-ray") {
                 conf += 90.0;
                 ev.push("CF-Ray header detects Cloudflare infrastructure".to_string());
             }
-            if raw_headers.get("server").map_or(false, |c| c.iter().any(|v| v.to_lowercase() == "cloudflare")) {
+            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "cloudflare")) {
                 conf += 80.0;
                 ev.push("Server header broadcasts Cloudflare".to_string());
             }
@@ -424,7 +424,7 @@ impl HttpInvestigator {
         {
             let mut conf = 0.0;
             let mut ev = Vec::new();
-            if raw_headers.get("server").map_or(false, |c| c.iter().any(|v| v.to_lowercase() == "firebase")) {
+            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "firebase")) {
                 conf += 100.0;
                 ev.push("Server header explicitly broadcasts Firebase".to_string());
             }
@@ -441,11 +441,11 @@ impl HttpInvestigator {
         {
             let mut conf = 0.0;
             let mut ev = Vec::new();
-            if raw_headers.get("server").map_or(false, |c| c.iter().any(|v| v.to_lowercase() == "github.com")) {
+            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "github.com")) {
                 conf += 100.0;
                 ev.push("Server header explicitly broadcasts GitHub.com".to_string());
             }
-            if raw_headers.get("x-github-request-id").is_some() {
+            if raw_headers.contains_key("x-github-request-id") {
                 conf += 100.0;
                 ev.push("X-GitHub-Request-Id header detected".to_string());
             }
@@ -494,7 +494,7 @@ impl HttpInvestigator {
             }
         }
 
-        if raw_headers.get("etag").is_some() || raw_headers.get("last-modified").is_some() {
+        if raw_headers.contains_key("etag") || raw_headers.contains_key("last-modified") {
             add_insight("Conditional Cache Verification", "Cache Behavior", 80.0, "ETag / Last-Modified header found", "Server utilizes validator tokens for conditional 304 Not Modified routing.");
         }
 
@@ -572,7 +572,10 @@ impl HttpInvestigator {
                 add_sec("Encrypted Transport", "TLS & Transport", "Secure", 100.0, "Final URL operates over HTTPS", "Connections to the target are protected by TLS encryption.");
             }
         } else {
-            add_sec("Insecure Transport", "TLS & Transport", "Critical", 100.0, "Final URL operates over HTTP", "Traffic is routed over plaintext HTTP, leaving interceptable payloads and credentials entirely exposed.");
+            // Localhost/loopback HTTP is expected in dev/test environments — not a real vulnerability
+            let is_local = final_url.contains("localhost") || final_url.contains("127.0.0.1") || final_url.contains("[::1]");
+            let status = if is_local { "Informational" } else { "Critical" };
+            add_sec("Insecure Transport", "TLS & Transport", status, 100.0, "Final URL operates over HTTP", "Traffic is routed over plaintext HTTP, leaving interceptable payloads and credentials entirely exposed.");
         }
 
         if let Some(hsts) = raw_headers.get("strict-transport-security") {

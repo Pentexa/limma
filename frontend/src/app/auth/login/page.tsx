@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { loginUser } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { Shield, Mail, Lock, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +31,7 @@ export default function LoginPage() {
       await loginUser(email, password);
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = '/';
+        router.replace('/');
       }, 1200);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
@@ -54,8 +58,8 @@ export default function LoginPage() {
       <div className={`auth-card ${mounted ? 'auth-card-visible' : ''} ${shake ? 'auth-card-shake' : ''} ${success ? 'auth-card-success' : ''}`}>
         {/* Logo */}
         <div className="auth-logo">
-          <div className="auth-logo-icon">
-            <Shield size={28} strokeWidth={2.5} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '6px' }}>
+            <Image src="/limma_logo_icon.svg" alt="Limma Logo" width={52} height={52} style={{ filter: 'drop-shadow(0 4px 16px rgba(0, 212, 255, 0.4))' }} />
           </div>
           <div className="auth-logo-text-group">
             <span className="auth-logo-text">LIMMA</span>
@@ -152,10 +156,10 @@ export default function LoginPage() {
         {/* Footer */}
         <div className="auth-footer">
           <span className="auth-footer-text">Don&apos;t have an account?</span>
-          <a href="/auth/register" className="auth-footer-link">
+          <Link href="/auth/register" className="auth-footer-link">
             Create Account
             <ArrowRight size={14} />
-          </a>
+          </Link>
         </div>
 
         {/* Decorative corner accents */}

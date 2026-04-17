@@ -180,10 +180,11 @@ impl FindingNormalizer<ServerInfo> for ServerInvestigatorNormalizer {
         let mut findings = Vec::new();
 
         for insight in &data.security_insights {
+            // Only Critical and Warning are actionable findings.
+            // "Informational" and "Secure" are observations — not vulnerabilities.
             let severity = match insight.status.as_str() {
                 "Critical" => SeverityLevel::Critical,
                 "Warning" => SeverityLevel::Medium,
-                "Informational" => SeverityLevel::Informational,
                 _ => continue,
             };
 

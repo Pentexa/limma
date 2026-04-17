@@ -81,7 +81,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
             has_page_data = true;
         }
 
-        let scan_certainty = if has_page_data && final_status_code >= 200 && final_status_code < 400 {
+        let scan_certainty = if has_page_data && (200..400).contains(&final_status_code) {
             Some(CertaintyNote {
                 level: CertaintyLevel::Certain,
                 reason: "Sayfa başarıyla tarandı ve analiz edildi".to_string(),
@@ -173,7 +173,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
             has_page_data = true;
         }
 
-        let scan_certainty = if has_page_data && final_status_code >= 200 && final_status_code < 400 {
+        let scan_certainty = if has_page_data && (200..400).contains(&final_status_code) {
             Some(CertaintyNote {
                 level: CertaintyLevel::Certain,
                 reason: "Sayfa başarıyla tarandı ve analiz edildi".to_string(),

@@ -15,7 +15,7 @@ impl CanonicalFindingEngine {
         // 1. Group findings by Canonical Slug
         for finding in findings {
             let slug = self.generate_canonical_slug(finding);
-            groups.entry(slug).or_insert_with(Vec::new).push(finding.clone());
+            groups.entry(slug).or_default().push(finding.clone());
         }
 
         // 2. Reduce groups into Canonical Findings
@@ -136,11 +136,10 @@ impl CanonicalFindingEngine {
         }
 
         // If multiple modules reported, we can bump confidence across the canonical group
-        if modules_set.len() > 1 {
-            if max_confidence_val < 2 {
+        if modules_set.len() > 1
+            && max_confidence_val < 2 {
                 max_confidence = ConfidenceLevel::Firm; 
             }
-        }
 
         let contributing_modules: Vec<SourceModule> = modules_set.into_iter().collect();
         let affected_routes: Vec<String> = routes_set.into_iter().collect();

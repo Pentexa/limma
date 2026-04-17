@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import UrlInput from '@/components/UrlInput';
+import ErrorAlert from '@/components/ErrorAlert';
 import { mapForms, getSeverityClass } from '@/lib/api';
 import type { FormMapping } from '@/lib/api';
 import {
@@ -91,15 +92,7 @@ export default function FormsPage() {
       )}
 
       {error && (
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="flex items-center gap-3">
-            <XCircle size={20} color="var(--color-danger)" />
-            <div>
-              <div style={{ fontWeight: 600, color: '#fca5a5' }}>Form Mapping Failed</div>
-              <div className="text-sm text-secondary">{error}</div>
-            </div>
-          </div>
-        </div>
+        <ErrorAlert title="Form Mapping Failed" message={error} />
       )}
 
       {result && (

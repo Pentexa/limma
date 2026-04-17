@@ -16,7 +16,7 @@ pub async fn probe_http_plain(
         host
     );
 
-    if let Err(_) = tokio::time::timeout(timeout, stream.write_all(request.as_bytes())).await {
+    if tokio::time::timeout(timeout, stream.write_all(request.as_bytes())).await.is_err() {
         return None;
     }
 
@@ -43,7 +43,7 @@ pub async fn probe_http_tls(
         host
     );
 
-    if let Err(_) = tokio::time::timeout(timeout, tls_stream.write_all(request.as_bytes())).await {
+    if tokio::time::timeout(timeout, tls_stream.write_all(request.as_bytes())).await.is_err() {
         return None;
     }
 
@@ -97,7 +97,7 @@ fn parse_http_response(response: &str) -> Option<(HttpSummary, ProbeEvidence)> {
 
     let response_length = headers.get("content-length")
         .and_then(|l| l.parse::<u64>().ok())
-        .or_else(|| {
+        .or({
             if !body.is_empty() {
                 Some(body.len() as u64)
             } else {
@@ -122,9 +122,9 @@ fn parse_http_response(response: &str) -> Option<(HttpSummary, ProbeEvidence)> {
     );
 
     let interpretation = if let Some(code) = status_code {
-        if code >= 200 && code < 400 {
+        if (200..400).contains(&code) {
             format!("HTTP service confirmed (status {})", code)
-        } else if code >= 300 && code < 400 {
+        } else if (300..400).contains(&code) {
             format!(
                 "HTTP redirect (status {}) → {}",
                 code,

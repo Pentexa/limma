@@ -9,7 +9,6 @@ impl RiskScorer {
 
     pub fn score_finding(&self, finding: &SecurityAuditFinding) -> RiskScore {
         let mut contributions: Vec<RiskContribution> = Vec::new();
-        let mut finding_score: u32 = 0;
         let mut correlation_score: u32 = 0;
         let mut raw: i32 = 0;
 
@@ -97,7 +96,7 @@ impl RiskScorer {
             }
         }
 
-        finding_score = raw.clamp(0, 100) as u32;
+        // Intermediate clamp checkpoint (raw is further adjusted below)
 
         let summary_lower = finding.summary.to_lowercase();
         let details_lower = finding.technical_details.to_lowercase();
@@ -133,8 +132,8 @@ impl RiskScorer {
 
             // Systemic finding rule: correlated but NO exploit indicators => cap at Low severity
             let has_exploit_signals = self.has_exploit_indicators(finding, &combined);
-            if !has_exploit_signals {
-                if raw > 30 {
+            if !has_exploit_signals
+                && raw > 30 {
                     let cap_delta = raw - 30;
                     contributions.push(RiskContribution {
                         factor: RiskFactor::NoisyCorrelationPenalty,
@@ -143,7 +142,6 @@ impl RiskScorer {
                     });
                     raw -= cap_delta;
                 }
-            }
         }
 
         // ── 5. Sensitive Endpoint / Auth Boost ──
@@ -192,8 +190,8 @@ impl RiskScorer {
         }
 
         // ── 8. Header Risk Dampening ──
-        if finding.category == FindingCategory::SecurityMisconfiguration {
-            if finding.evidence_weight != Some(EvidenceWeight::Strong) {
+        if finding.category == FindingCategory::SecurityMisconfiguration
+            && finding.evidence_weight != Some(EvidenceWeight::Strong) {
                 // dampen score to max out at Low priority (e.g. max 44).
                 if raw >= 45 {
                     let damp_amount = raw - 40;
@@ -205,9 +203,8 @@ impl RiskScorer {
                     raw -= damp_amount;
                 }
             }
-        }
 
-        finding_score = raw.clamp(0, 100) as u32;
+        let finding_score = raw.clamp(0, 100) as u32;
 
         // ── Clamp & Map to Level ──
         let total_score = raw.clamp(0, 100) as u32;
@@ -394,10 +391,9 @@ impl RiskScorer {
         "Informational: general hardening recommendation with no confirmed exploit path.".to_string()
     }
 
-    pub fn score_all(&self, findings: &mut Vec<SecurityAuditFinding>) -> ScoringStats {
+    pub fn score_all(&self, findings: &mut [SecurityAuditFinding]) -> ScoringStats {
         let mut boosted = 0;
         let mut downgraded = 0;
-        let mut total_score: u64 = 0;
 
         for finding in findings.iter_mut() {
             let score = self.score_finding(finding);
@@ -409,7 +405,7 @@ impl RiskScorer {
             if has_boost { boosted += 1; }
             if has_penalty { downgraded += 1; }
 
-            total_score += score.total_score as u64;
+
             finding.risk_score = Some(score);
         }
 

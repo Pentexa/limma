@@ -32,25 +32,29 @@ pub fn load_rules_from_directory(dir: &Path) -> (Vec<RuleDefinition>, Vec<String
     (rules, errors)
 }
 
-/// Recursively finds all .yaml, .yml, and .json files under the given directory.
 fn discover_rule_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-
-    let yaml_pattern = format!("{}/**/*.yaml", dir.display());
-    let yml_pattern = format!("{}/**/*.yml", dir.display());
-    let json_pattern = format!("{}/**/*.json", dir.display());
-
-    for pattern in &[yaml_pattern, yml_pattern, json_pattern] {
-        if let Ok(entries) = glob::glob(pattern) {
-            for entry in entries.flatten() {
-                files.push(entry);
-            }
-        }
-    }
-
+    collect_files_recursive(dir, &mut files);
     files.sort();
     files
 }
+
+fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                collect_files_recursive(&path, files);
+            } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                let lower_ext = ext.to_lowercase();
+                if lower_ext == "yaml" || lower_ext == "yml" || lower_ext == "json" {
+                    files.push(path);
+                }
+            }
+        }
+    }
+}
+
 
 /// Loads and parses a single rule file (YAML or JSON).
 fn load_single_file(path: &Path) -> Result<RuleDefinition, String> {

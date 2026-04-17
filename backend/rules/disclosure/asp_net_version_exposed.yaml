@@ -1,0 +1,22 @@
+id: "DRE-DISC-003"
+name: "ASP.NET Version Header Exposed"
+description: >
+  The X-AspNet-Version header discloses the exact .NET Framework runtime version
+  powering the application. Attackers can cross-reference this with known CVEs
+  targeting specific .NET builds (e.g., deserialization exploits, ViewState attacks).
+category: "Information Disclosure"
+severity: "medium"
+remediation: >
+  Remove the X-AspNet-Version header by adding the following to your web.config:
+  <system.web><httpRuntime enableVersionHeader="false" /></system.web>.
+  For ASP.NET Core, this header is not emitted by default.
+tags:
+  - aspnet
+  - disclosure
+  - reconnaissance
+  - dotnet
+  - owasp-a05
+enabled: true
+condition:
+  header_present:
+    header: "x-aspnet-version"

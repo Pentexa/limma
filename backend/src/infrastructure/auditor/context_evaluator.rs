@@ -7,7 +7,7 @@ impl ContextEvaluator {
         Self
     }
 
-    pub fn evaluate_all(&self, findings: &mut Vec<SecurityAuditFinding>) -> ContextStats {
+    pub fn evaluate_all(&self, findings: &mut [SecurityAuditFinding]) -> ContextStats {
         let mut elevated = 0;
         let mut downgraded = 0;
         let mut suppressed = 0;
@@ -33,11 +33,10 @@ impl ContextEvaluator {
             }
 
             // Hard Severity Dampening
-            if assessment.noise_indicators.contains(&NoiseIndicator::StaticAssetHeaderMissing) || assessment.suppression_reason.is_some() {
-                if finding.severity == SeverityLevel::Critical || finding.severity == SeverityLevel::High || finding.severity == SeverityLevel::Medium {
+            if (assessment.noise_indicators.contains(&NoiseIndicator::StaticAssetHeaderMissing) || assessment.suppression_reason.is_some())
+                && (finding.severity == SeverityLevel::Critical || finding.severity == SeverityLevel::High || finding.severity == SeverityLevel::Medium) {
                     finding.severity = SeverityLevel::Low;
                 }
-            }
 
             finding.context_summary = Some(assessment.context_summary.clone());
             finding.context_assessment = Some(assessment);
@@ -272,8 +271,6 @@ impl ContextEvaluator {
             Exploitability::Likely
         } else if suppression_reason.is_some() || noise.contains(&NoiseIndicator::StaticAssetHeaderMissing) {
             Exploitability::Unlikely
-        } else if delta < 0 {
-            Exploitability::Possible
         } else {
             Exploitability::Possible
         };

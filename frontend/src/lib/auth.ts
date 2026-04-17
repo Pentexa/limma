@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8900';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8900';
 
 export interface AuthUser {
   id: string;
@@ -70,5 +70,4 @@ export function isAuthenticated(): boolean {
 export function logout(): void {
   localStorage.removeItem('limma_token');
   localStorage.removeItem('limma_user');
-  window.location.href = '/auth/login';
 }

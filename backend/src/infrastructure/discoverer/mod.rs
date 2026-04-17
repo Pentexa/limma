@@ -29,6 +29,7 @@ impl HttpApiDiscoverer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn register_path(&self, endpoints_map: &mut HashMap<String, EndpointDetail>, raw_path: &str, base_url: &Url, source_type: &str, snippet: &str, method: &str, params: Vec<String>, auth_prob: f32, reason: &str, line_number: Option<usize>) {
         if EndpointClassifier::is_false_positive(raw_path) { return; }
         
@@ -197,7 +198,7 @@ impl ApiDiscoverer for HttpApiDiscoverer {
             }
 
             // Assign certainty based on verification outcome
-            ep.certainty = Some(if ep.runtime_verification.as_ref().map_or(false, |v| v.is_valid) {
+            ep.certainty = Some(if ep.runtime_verification.as_ref().is_some_and(|v| v.is_valid) {
                 CertaintyLevel::Certain
             } else if ep.confidence_score >= 0.7 {
                 CertaintyLevel::Likely

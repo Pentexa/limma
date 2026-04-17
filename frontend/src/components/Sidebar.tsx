@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Globe, Server, Search, Layers, Lock, FileCode, BookOpen,
   LayoutDashboard, ChevronRight, Send, Activity, LogOut
@@ -50,6 +50,12 @@ function LimmaLogo({ size = 32 }: { size?: number }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/auth/login');
+  };
 
   return (
     <aside className="sidebar">
@@ -117,7 +123,7 @@ export default function Sidebar() {
         {/* Logout Button */}
         <div style={{ marginTop: 'auto', paddingTop: '10px' }}>
           <button 
-            onClick={logout}
+            onClick={handleLogout}
             className="sidebar-link"
             style={{ width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer' }}
           >

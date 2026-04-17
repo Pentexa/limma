@@ -20,7 +20,7 @@ impl EndpointClassifier {
             score += 0.10;
         }
 
-        if score > 0.95 { 0.95 } else if score < 0.3 { 0.3 } else { score }
+        score.clamp(0.3, 0.95)
     }
 
     // Measure auth based on tokens nearby (0.0 to 1.0)

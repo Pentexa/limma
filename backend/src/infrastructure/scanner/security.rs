@@ -202,6 +202,8 @@ pub fn generate_insights(
     headers: &HashMap<String, String>,
     technologies: &[DetectedTechnology],
     final_url: &str,
+    body: &str,
+    redirect_chain: &[crate::domain::entities::RedirectChainEntry],
 ) -> Vec<RiskInsight> {
     let mut insights = Vec::new();
 
@@ -215,12 +217,12 @@ pub fn generate_insights(
         });
     }
 
-    // 2. Permissive CORS
+    // 2. Permissive CORS (Enhanced: Wildcard, Null, AND Domain Suffix Attacks)
     if let Some(cors) = headers.get("access-control-allow-origin") {
+        let has_creds = headers.get("access-control-allow-credentials").is_some_and(|v| v.to_lowercase() == "true");
+        let is_sensitive = ["api", "auth", "login", "admin"].iter().any(|&s| final_url.to_lowercase().contains(s));
+
         if cors == "*" || cors == "null" {
-            let has_creds = headers.get("access-control-allow-credentials").map_or(false, |v| v.to_lowercase() == "true");
-            let is_sensitive = ["api", "auth", "login", "admin"].iter().any(|&s| final_url.to_lowercase().contains(s));
-            
             let severity = if has_creds || is_sensitive {
                 RiskSeverity::High
             } else {
@@ -237,17 +239,36 @@ pub fn generate_insights(
                 },
                 evidence: format!("Access-Control-Allow-Origin: {}", cors),
             });
+        } else if has_creds {
+            // Domain suffix attack detection: e.g. "trusted.com.evil.com"
+            // Extract the origin's hostname and check if it looks suspicious
+            if let Ok(origin_url) = url::Url::parse(cors) {
+                if let Some(origin_host) = origin_url.host_str() {
+                    // Check if the origin host has 3+ domain segments (possible subdomain of attacker apex)
+                    let segments: Vec<&str> = origin_host.split('.').collect();
+                    if segments.len() > 3 {
+                        insights.push(RiskInsight {
+                            title: "Suspicious CORS Origin — Possible Domain Suffix Attack".to_string(),
+                            severity: RiskSeverity::High,
+                            explanation: "The Access-Control-Allow-Origin header reflects a specific origin with credentials enabled, but the origin hostname has an unusually deep domain hierarchy. Attackers can register domains like 'trusted-app.company.evil.com' to bypass naive origin whitelists that use prefix matching instead of strict domain comparison.".to_string(),
+                            evidence: format!("Access-Control-Allow-Origin: {} (with credentials enabled)", cors),
+                        });
+                    }
+                }
+            }
         }
     }
 
-    // 3. Exposed Server Identity
+    // 3. Exposed Server Identity (Only if version is likely exposed)
     if let Some(server) = headers.get("server") {
-        insights.push(RiskInsight {
-            title: "Exposed Server Identity".to_string(),
-            severity: RiskSeverity::Low,
-            explanation: "The web server explicitly identifies its software and potentially its version. Attackers can cross-reference this with known vulnerabilities/CVEs.".to_string(),
-            evidence: format!("Server: {}", server),
-        });
+        if server.chars().any(|c| c.is_ascii_digit()) {
+            insights.push(RiskInsight {
+                title: "Exposed Server Identity".to_string(),
+                severity: RiskSeverity::Low,
+                explanation: "The web server explicitly identifies its software version. Attackers can cross-reference this with known vulnerabilities/CVEs.".to_string(),
+                evidence: format!("Server: {}", server),
+            });
+        }
     }
     if let Some(powered) = headers.get("x-powered-by") {
         insights.push(RiskInsight {
@@ -255,6 +276,24 @@ pub fn generate_insights(
             severity: RiskSeverity::Medium,
             explanation: "The X-Powered-By header discloses the underlying application framework or language. This accelerates reconnaissance for an attacker.".to_string(),
             evidence: format!("X-Powered-By: {}", powered),
+        });
+    }
+
+    // 3b. ASP.NET Specific Version Disclosures
+    if let Some(aspnet_ver) = headers.get("x-aspnet-version") {
+        insights.push(RiskInsight {
+            title: "Exposed ASP.NET Runtime Version".to_string(),
+            severity: RiskSeverity::Medium,
+            explanation: "The X-AspNet-Version header reveals the exact .NET Framework runtime version. Attackers can cross-reference this with known CVEs targeting specific .NET builds (e.g., deserialization exploits, ViewState attacks).".to_string(),
+            evidence: format!("X-AspNet-Version: {}", aspnet_ver),
+        });
+    }
+    if let Some(mvc_ver) = headers.get("x-aspnetmvc-version") {
+        insights.push(RiskInsight {
+            title: "Exposed ASP.NET MVC Version".to_string(),
+            severity: RiskSeverity::Medium,
+            explanation: "The X-AspNetMvc-Version header reveals the specific MVC framework version. Combined with the runtime version, this gives attackers a precise fingerprint for targeted exploitation.".to_string(),
+            evidence: format!("X-AspNetMvc-Version: {}", mvc_ver),
         });
     }
 
@@ -267,6 +306,75 @@ pub fn generate_insights(
                 explanation: format!("A Content Management System ({}) was detected with high confidence. Identifying the CMS allows attackers to run targeted exploit suites (like wpscan) to find vulnerable plugins/themes.", tech.name),
                 evidence: format!("{} detected at {}% confidence.", tech.name, (tech.confidence_score * 100.0) as u32),
             });
+        }
+    }
+
+    // 5. HTML Comment Leakage Detection
+    // Scan for sensitive information accidentally left in <!-- --> comments
+    let comment_regex = regex::Regex::new(r"<!--([\s\S]*?)-->").unwrap();
+    let sensitive_patterns: Vec<(&str, regex::Regex)> = vec![
+        ("Password/Credential", regex::Regex::new(r"(?i)(password|passwd|pwd|secret|api[_-]?key|token|credential)\s*[:=]\s*\S+").unwrap()),
+        ("Database Connection", regex::Regex::new(r"(?i)(db[_-]?pass|database|mysql|postgres|mongodb|connection[_-]?string|jdbc)").unwrap()),
+        ("Internal IP Address", regex::Regex::new(r"(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})").unwrap()),
+        ("Server Version in Comment", regex::Regex::new(r"(?i)(apache|nginx|tomcat|iis|node|django|flask|rails|laravel|express)/[\d.]+").unwrap()),
+        ("TODO/FIXME with Sensitive Context", regex::Regex::new(r"(?i)(todo|fixme|hack|xxx|bug)\s*:.*(?:auth|security|password|secret|vuln)").unwrap()),
+    ];
+
+    for cap in comment_regex.captures_iter(body) {
+        let comment_text = cap.get(1).map_or("", |m| m.as_str());
+        for (label, pattern) in &sensitive_patterns {
+            if let Some(m) = pattern.find(comment_text) {
+                // Truncate evidence to avoid leaking the actual secret in reports
+                let evidence_snippet = if comment_text.len() > 120 {
+                    format!("{}...", &comment_text[..120])
+                } else {
+                    comment_text.to_string()
+                };
+                insights.push(RiskInsight {
+                    title: format!("Sensitive Data in HTML Comment — {}", label),
+                    severity: RiskSeverity::High,
+                    explanation: format!(
+                        "An HTML comment contains what appears to be sensitive information ({}). \
+                         Developers sometimes leave debug notes, credentials, or internal details \
+                         in comments that are invisible to users but fully readable in the page source. \
+                         Matched pattern: '{}'",
+                        label, m.as_str()
+                    ),
+                    evidence: format!("<!-- {} -->", evidence_snippet.trim()),
+                });
+                break; // One finding per comment per pattern category is enough
+            }
+        }
+    }
+
+    // 6. Open Redirect Detection — analyze redirect chain for suspicious external destinations
+    if redirect_chain.len() >= 2 {
+        if let Ok(original_url) = url::Url::parse(&redirect_chain[0].url) {
+            let orig_host = original_url.host_str().unwrap_or("").to_lowercase();
+            for entry in &redirect_chain[1..] {
+                if entry.status_code == 301 || entry.status_code == 302 || entry.status_code == 307 || entry.status_code == 308 {
+                    if let Ok(redirect_url) = url::Url::parse(&entry.url) {
+                        let redirect_host = redirect_url.host_str().unwrap_or("").to_lowercase();
+                        if !redirect_host.is_empty()
+                            && redirect_host != orig_host
+                            && !redirect_host.ends_with(&format!(".{}", orig_host))
+                            && redirect_host != "localhost"
+                            && !redirect_host.starts_with("127.")
+                        {
+                            insights.push(RiskInsight {
+                                title: "Suspicious External Redirect Detected".to_string(),
+                                severity: RiskSeverity::High,
+                                explanation: format!(
+                                    "The server redirects to an external domain '{}' which differs from the original target '{}'. \
+                                     This may indicate an open redirect vulnerability that can be weaponized for phishing campaigns.",
+                                    redirect_host, orig_host
+                                ),
+                                evidence: format!("HTTP {} → {}", entry.status_code, entry.url),
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 

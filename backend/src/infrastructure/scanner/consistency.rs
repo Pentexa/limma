@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::Utc;
 
 pub fn analyze_consistency(
-    pages: &mut Vec<ScannedPage>,
+    pages: &mut [ScannedPage],
     events: &mut Vec<ScanEvent>,
     tx: &Option<tokio::sync::mpsc::UnboundedSender<ScanEvent>>,
 ) -> ScanSummary {

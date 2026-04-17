@@ -6,6 +6,7 @@ use crate::infrastructure::discoverer::classifier::EndpointClassifier;
 pub struct PathNormalizer;
 
 impl PathNormalizer {
+    #[allow(clippy::too_many_arguments)]
     pub fn resolve_and_merge(
         endpoints_map: &mut HashMap<String, EndpointDetail>,
         raw_path: &str,
@@ -21,7 +22,7 @@ impl PathNormalizer {
     ) {
         // Fallback UNKNOWN method to GET and lower its confidence slightly
         let method = if predicted_method == "UNKNOWN" {
-            conf = conf * 0.85; // Penalty for fallback
+            conf *= 0.85; // Penalty for fallback
             if conf < 0.3 { conf = 0.3; } // Maintain lower bound limit
             "GET"
         } else {

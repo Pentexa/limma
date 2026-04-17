@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ErrorAlert from '@/components/ErrorAlert';
 import { getRuleEngineStatus, getFeedbackStats, submitRuleFeedback } from '@/lib/api';
 import type { RuleEngineStatus, FeedbackStatsResponse } from '@/lib/api';
 import {
@@ -76,9 +77,7 @@ export default function RulesPage() {
           <h1 className="page-title">Rule Engine</h1>
           <p className="page-subtitle">Dynamic rule management and feedback analytics</p>
         </div>
-        <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="flex items-center gap-3"><XCircle size={20} color="var(--color-danger)" /><div><div style={{ fontWeight: 600, color: '#fca5a5' }}>Load Failed</div><div className="text-sm text-secondary">{error}</div></div></div>
-        </div>
+        <ErrorAlert title="Load Failed" message={error} />
         <div className="mt-4">
           <button className="scan-button" onClick={loadData}>Retry</button>
         </div>

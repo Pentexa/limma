@@ -49,8 +49,7 @@ pub struct RuleScope {
 
 // ── Declarative Condition Tree ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Serialize)]
 pub enum RuleConditionNode {
     // Leaf conditions
     HeaderMissing { header: String },
@@ -66,6 +65,98 @@ pub enum RuleConditionNode {
     All(Vec<RuleConditionNode>),
     Any(Vec<RuleConditionNode>),
     Not(Box<RuleConditionNode>),
+}
+
+// Custom Deserialize implementation to work around serde_yaml 0.9's broken
+// externally-tagged enum handling. Our YAML files use a single-key map format:
+//   condition:
+//     header_missing:
+//       header: "content-security-policy"
+impl<'de> Deserialize<'de> for RuleConditionNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let map: HashMap<String, serde_yaml::Value> = HashMap::deserialize(deserializer)?;
+
+        if map.len() != 1 {
+            return Err(serde::de::Error::custom(format!(
+                "Expected exactly one key in condition node, found {}",
+                map.len()
+            )));
+        }
+
+        let (key, value) = map.into_iter().next().unwrap();
+
+        match key.as_str() {
+            "header_missing" => {
+                #[derive(Deserialize)]
+                struct Inner { header: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderMissing { header: inner.header })
+            }
+            "header_present" => {
+                #[derive(Deserialize)]
+                struct Inner { header: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderPresent { header: inner.header })
+            }
+            "header_value_contains" => {
+                #[derive(Deserialize)]
+                struct Inner { header: String, value: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderValueContains { header: inner.header, value: inner.value })
+            }
+            "header_value_matches" => {
+                #[derive(Deserialize)]
+                struct Inner { header: String, pattern: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderValueMatches { header: inner.header, pattern: inner.pattern })
+            }
+            "status_code_in" => {
+                #[derive(Deserialize)]
+                struct Inner { codes: Vec<u16> }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::StatusCodeIn { codes: inner.codes })
+            }
+            "body_contains" => {
+                #[derive(Deserialize)]
+                struct Inner { value: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::BodyContains { value: inner.value })
+            }
+            "tls_state" => {
+                #[derive(Deserialize)]
+                struct Inner { is_https: bool }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::TlsState { is_https: inner.is_https })
+            }
+            "context_flag" => {
+                #[derive(Deserialize)]
+                struct Inner { flag: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::ContextFlag { flag: inner.flag })
+            }
+            "all" => {
+                let children: Vec<RuleConditionNode> = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::All(children))
+            }
+            "any" => {
+                let children: Vec<RuleConditionNode> = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::Any(children))
+            }
+            "not" => {
+                let inner: RuleConditionNode = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::Not(Box::new(inner)))
+            }
+            other => Err(serde::de::Error::custom(format!(
+                "Unknown condition type: '{}'. Valid types: header_missing, header_present, \
+                 header_value_contains, header_value_matches, status_code_in, body_contains, \
+                 tls_state, context_flag, all, any, not",
+                other
+            ))),
+        }
+    }
 }
 
 // ── Rule Context: Normalized scan data passed to the evaluator ──

@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { registerUser } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { Shield, Mail, Lock, User, ArrowRight, Eye, EyeOff, Loader2, Check, X } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -20,6 +23,7 @@ function getPasswordStrength(password: string): { score: number; label: string; 
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,7 +68,7 @@ export default function RegisterPage() {
       await registerUser(name, email, password);
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = '/';
+        router.replace('/');
       }, 1200);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed';
@@ -91,8 +95,8 @@ export default function RegisterPage() {
       <div className={`auth-card ${mounted ? 'auth-card-visible' : ''} ${shake ? 'auth-card-shake' : ''} ${success ? 'auth-card-success' : ''}`}>
         {/* Logo */}
         <div className="auth-logo">
-          <div className="auth-logo-icon">
-            <Shield size={28} strokeWidth={2.5} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '6px' }}>
+            <Image src="/limma_logo_icon.svg" alt="Limma Logo" width={52} height={52} style={{ filter: 'drop-shadow(0 4px 16px rgba(0, 212, 255, 0.4))' }} />
           </div>
           <div className="auth-logo-text-group">
             <span className="auth-logo-text">LIMMA</span>
@@ -267,10 +271,10 @@ export default function RegisterPage() {
         {/* Footer */}
         <div className="auth-footer">
           <span className="auth-footer-text">Already have an account?</span>
-          <a href="/auth/login" className="auth-footer-link">
+          <Link href="/auth/login" className="auth-footer-link">
             Sign In
             <ArrowRight size={14} />
-          </a>
+          </Link>
         </div>
 
         {/* Decorative corner accents */}

@@ -2,7 +2,7 @@ use crate::domain::entities::{DecisionOutcome, DecisionTreeStep, PortProbeResult
 
 /// Cross-references native probe results against actual nmap truth logic
 /// and applies a verification downgrade for any non-parity.
-pub fn validate_parity(results: &mut Vec<PortProbeResult>, truth_open_ports: &[u16]) {
+pub fn validate_parity(results: &mut [PortProbeResult], truth_open_ports: &[u16]) {
     for result in results.iter_mut() {
         if truth_open_ports.contains(&result.port) {
             continue; // Parity is good

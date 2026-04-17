@@ -227,11 +227,11 @@ impl FingerprintEngine {
                 let mut merge = 1.0;
                 for r in &rule.rules {
                     let matched = match r {
-                        RuleMatch::Header(k, v, _) => ctx.headers.get(*k).map_or(false, |val| val.to_lowercase().contains(v) || v.is_empty()),
+                        RuleMatch::Header(k, v, _) => ctx.headers.get(*k).is_some_and(|val| val.to_lowercase().contains(v) || v.is_empty()),
                         RuleMatch::Cookie(c, _) => ctx.cookies.keys().any(|k| k.to_lowercase().contains(&c.to_lowercase())),
                         RuleMatch::HtmlBody(p, _) => lbody.contains(&p.to_lowercase()),
                         RuleMatch::ScriptSrc(s, _) => ctx.script_urls.iter().any(|u| u.to_lowercase().contains(&s.to_lowercase())),
-                        RuleMatch::MetaTag(n, c, _) => ctx.meta_tags.get(*n).map_or(false, |v| v.to_lowercase().contains(&c.to_lowercase())),
+                        RuleMatch::MetaTag(n, c, _) => ctx.meta_tags.get(*n).is_some_and(|v| v.to_lowercase().contains(&c.to_lowercase())),
                     };
                     if matched {
                         let w = match r {

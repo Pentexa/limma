@@ -239,7 +239,7 @@ pub async fn probe_with_fallback(
     // === Phase 3: Evidence collection ===
     let mut evidence_items: Vec<EvidenceItem> = all_evidences
         .iter()
-        .map(|ev| confidence_engine::evidence_from_probe(ev))
+        .map(confidence_engine::evidence_from_probe)
         .collect();
 
     // Add port assumption evidence
