@@ -16,8 +16,7 @@ jobs:
   build_and_test:
     name: Build & Test (Rust)
     runs-on: ubuntu-latest
-    env:
-      LD_LIBRARY_PATH: ""
+
     defaults:
       run:
         working-directory: ./backend
@@ -53,21 +52,20 @@ jobs:
           workspaces: ./backend
 
       - name: Check formatting
-        run: cargo fmt --check
+        run: env -u LD_LIBRARY_PATH cargo fmt --check
 
       - name: Lint with Clippy
-        run: cargo clippy -- -D warnings
+        run: env -u LD_LIBRARY_PATH cargo clippy -- -D warnings
 
       - name: Run tests
-        run: cargo test
+        run: env -u LD_LIBRARY_PATH cargo test
         env:
           DATABASE_URL: postgres://postgres:password@127.0.0.1:5432/limma?sslmode=disable
 
   security_audit:
     name: Dependency Security Audit
     runs-on: ubuntu-latest
-    env:
-      LD_LIBRARY_PATH: ""
+
     defaults:
       run:
         working-directory: ./backend
@@ -82,5 +80,5 @@ jobs:
         run: cargo binstall cargo-audit -y --force
 
       - name: Run cargo audit
-        run: cargo audit
+        run: env -u LD_LIBRARY_PATH cargo audit
         continue-on-error: true
