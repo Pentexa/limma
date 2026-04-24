@@ -1,7 +1,6 @@
 /// Encoding Detection Layer for the Dynamic Rule Engine.
 /// Provides multi-layer content decoding (Unicode escapes, Base64, URL encoding)
 /// to detect obfuscated payloads that bypass simple string matching.
-
 use std::collections::HashMap;
 
 /// Represents a decoded content fragment with its source encoding.
@@ -146,15 +145,16 @@ fn decode_html_entities(input: &str) -> String {
 fn resolve_html_entity(entity: &str) -> Option<String> {
     // Numeric references: &#60; or &#x3C;
     if let Some(stripped) = entity.strip_prefix('#') {
-        let code_point = if let Some(hex_str) = stripped.strip_prefix('x').or_else(|| stripped.strip_prefix('X')) {
+        let code_point = if let Some(hex_str) = stripped
+            .strip_prefix('x')
+            .or_else(|| stripped.strip_prefix('X'))
+        {
             u32::from_str_radix(hex_str, 16).ok()
         } else {
             stripped.parse::<u32>().ok()
         };
 
-        return code_point
-            .and_then(char::from_u32)
-            .map(|c| c.to_string());
+        return code_point.and_then(char::from_u32).map(|c| c.to_string());
     }
 
     // Named entity references
@@ -206,7 +206,7 @@ fn resolve_html_entity(entity: &str) -> Option<String> {
 fn extract_base64_from_comments(body: &str) -> Option<String> {
     // Look for patterns like <!-- Base64: XXXXX --> or <!--XXXXX-->
     let patterns = ["<!-- Base64:", "<!--Base64:", "<!-- base64:", "<!--base64:"];
-    
+
     for pattern in &patterns {
         if let Some(start_idx) = body.find(pattern) {
             let content_start = start_idx + pattern.len();
@@ -226,8 +226,11 @@ fn extract_base64_from_comments(body: &str) -> Option<String> {
 fn base64_decode(input: &str) -> Option<String> {
     // Standard Base64 alphabet
     let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let input_clean: Vec<u8> = input.bytes().filter(|b| *b != b'=' && *b != b'\n' && *b != b'\r' && *b != b' ').collect();
-    
+    let input_clean: Vec<u8> = input
+        .bytes()
+        .filter(|b| *b != b'=' && *b != b'\n' && *b != b'\r' && *b != b' ')
+        .collect();
+
     let mut lookup = [255u8; 256];
     for (i, &b) in alphabet.iter().enumerate() {
         lookup[b as usize] = i as u8;
@@ -239,7 +242,7 @@ fn base64_decode(input: &str) -> Option<String> {
     for chunk in chunks {
         let mut buf: u32 = 0;
         let valid_chars = chunk.len();
-        
+
         for (i, &byte) in chunk.iter().enumerate() {
             let val = lookup[byte as usize];
             if val == 255 {
@@ -248,9 +251,15 @@ fn base64_decode(input: &str) -> Option<String> {
             buf |= (val as u32) << (6 * (3 - i));
         }
 
-        if valid_chars >= 2 { output.push((buf >> 16) as u8); }
-        if valid_chars >= 3 { output.push((buf >> 8) as u8); }
-        if valid_chars >= 4 { output.push(buf as u8); }
+        if valid_chars >= 2 {
+            output.push((buf >> 16) as u8);
+        }
+        if valid_chars >= 3 {
+            output.push((buf >> 8) as u8);
+        }
+        if valid_chars >= 4 {
+            output.push(buf as u8);
+        }
     }
 
     String::from_utf8(output).ok()
@@ -282,8 +291,18 @@ fn url_decode(input: &str) -> String {
 
 /// Heuristic check: is this string likely Base64?
 fn is_likely_base64(s: &str) -> bool {
-    if s.len() < 4 { return false; }
-    s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=' || b == b'\n' || b == b'\r' || b == b' ')
+    if s.len() < 4 {
+        return false;
+    }
+    s.bytes().all(|b| {
+        b.is_ascii_alphanumeric()
+            || b == b'+'
+            || b == b'/'
+            || b == b'='
+            || b == b'\n'
+            || b == b'\r'
+            || b == b' '
+    })
 }
 
 #[cfg(test)]

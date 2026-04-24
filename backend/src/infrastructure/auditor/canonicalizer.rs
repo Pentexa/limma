@@ -1,6 +1,6 @@
 use crate::domain::entities::*;
-use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 pub struct CanonicalFindingEngine;
 
@@ -45,35 +45,52 @@ impl CanonicalFindingEngine {
     fn generate_canonical_slug(&self, finding: &SecurityAuditFinding) -> String {
         let target = &finding.target_identifier;
         let risk_family = format!("{:?}", finding.category).to_lowercase();
-        
+
         let lower_summary = finding.summary.to_lowercase();
-        
+
         // Root Cause extraction
-        let root_cause = if lower_summary.contains("strict-transport-security") || lower_summary.contains("hsts") {
+        let root_cause = if lower_summary.contains("strict-transport-security")
+            || lower_summary.contains("hsts")
+        {
             "missing-hsts".to_string()
-        } else if lower_summary.contains("content-security-policy") || lower_summary.contains("csp") {
+        } else if lower_summary.contains("content-security-policy") || lower_summary.contains("csp")
+        {
             "missing-csp".to_string()
         } else if lower_summary.contains("x-frame-options") {
             "missing-xframe".to_string()
-        } else if lower_summary.contains("cookie") || lower_summary.contains("httponly") || lower_summary.contains("samesite") || lower_summary.contains("secure") {
+        } else if lower_summary.contains("cookie")
+            || lower_summary.contains("httponly")
+            || lower_summary.contains("samesite")
+            || lower_summary.contains("secure")
+        {
             "insecure-cookie".to_string()
         } else if lower_summary.contains("cors") || lower_summary.contains("access-control") {
             "permissive-cors".to_string()
         } else if lower_summary.contains("robot") || lower_summary.contains("disallow") {
             "robots-txt-leak".to_string()
-        } else if lower_summary.contains("tls") || lower_summary.contains("ssl") || lower_summary.contains("certificate") || lower_summary.contains("cipher") {
+        } else if lower_summary.contains("tls")
+            || lower_summary.contains("ssl")
+            || lower_summary.contains("certificate")
+            || lower_summary.contains("cipher")
+        {
             "weak-tls".to_string()
-        } else if lower_summary.contains("version") || lower_summary.contains("server") || lower_summary.contains("x-powered-by") {
+        } else if lower_summary.contains("version")
+            || lower_summary.contains("server")
+            || lower_summary.contains("x-powered-by")
+        {
             "server-banner".to_string()
         } else {
             // sanitize summary to form a slug component
-            let sanitized: String = lower_summary.chars()
+            let sanitized: String = lower_summary
+                .chars()
                 .map(|c| if c.is_alphanumeric() { c } else { '-' })
                 .collect();
             let mut deduplicated = String::new();
             let mut last_char = ' ';
             for c in sanitized.chars() {
-                if c == '-' && last_char == '-' { continue; }
+                if c == '-' && last_char == '-' {
+                    continue;
+                }
                 deduplicated.push(c);
                 last_char = c;
             }
@@ -81,37 +98,55 @@ impl CanonicalFindingEngine {
         };
 
         // Context check to split exploitability contexts (auth/dynamic vs static hygiene)
-        let combined_text = format!("{} {}", finding.summary, finding.technical_details).to_lowercase();
-        let has_exploit_indicators = combined_text.contains("auth") || combined_text.contains("login") 
-            || combined_text.contains("session") || combined_text.contains("credential")
+        let combined_text =
+            format!("{} {}", finding.summary, finding.technical_details).to_lowercase();
+        let has_exploit_indicators = combined_text.contains("auth")
+            || combined_text.contains("login")
+            || combined_text.contains("session")
+            || combined_text.contains("credential")
             || finding.category == FindingCategory::SuspiciousEndpoint
             || finding.category == FindingCategory::AuthenticationBypass;
 
         // E.g. Missing HSTS on public marketing site vs Missing HSTS on login endpoint
-        let context_slug = if has_exploit_indicators { "-exploitable-surface" } else { "-standard-hygiene" };
+        let context_slug = if has_exploit_indicators {
+            "-exploitable-surface"
+        } else {
+            "-standard-hygiene"
+        };
 
-        let protocol_slug = finding.protocol.as_deref().unwrap_or("no-protocol").to_lowercase();
+        let protocol_slug = finding
+            .protocol
+            .as_deref()
+            .unwrap_or("no-protocol")
+            .to_lowercase();
 
-        format!("{}-{}-{}-{}{}", target, protocol_slug, risk_family, root_cause, context_slug)
+        format!(
+            "{}-{}-{}-{}{}",
+            target, protocol_slug, risk_family, root_cause, context_slug
+        )
     }
 
-    fn merge_group(&self, slug: String, group_findings: &[SecurityAuditFinding]) -> CanonicalFinding {
+    fn merge_group(
+        &self,
+        slug: String,
+        group_findings: &[SecurityAuditFinding],
+    ) -> CanonicalFinding {
         let title_candidate = &group_findings[0].summary; // Best effort title
         let mut title = self.normalize_title(title_candidate);
-        
+
         let risk_family = group_findings[0].category.clone();
-        
+
         // Modules tracking
         let mut modules_set = HashSet::new();
         let mut routes_set = HashSet::new();
         let mut total_evidence = 0;
-        
+
         let mut max_severity_val = -1;
         let mut max_severity = SeverityLevel::Informational;
-        
+
         let mut max_confidence_val = -1;
         let mut max_confidence = ConfidenceLevel::Low;
-        
+
         // Find best fields
         for f in group_findings {
             modules_set.insert(f.source_module.clone());
@@ -136,10 +171,9 @@ impl CanonicalFindingEngine {
         }
 
         // If multiple modules reported, we can bump confidence across the canonical group
-        if modules_set.len() > 1
-            && max_confidence_val < 2 {
-                max_confidence = ConfidenceLevel::Firm; 
-            }
+        if modules_set.len() > 1 && max_confidence_val < 2 {
+            max_confidence = ConfidenceLevel::Firm;
+        }
 
         let contributing_modules: Vec<SourceModule> = modules_set.into_iter().collect();
         let affected_routes: Vec<String> = routes_set.into_iter().collect();

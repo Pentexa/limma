@@ -1,7 +1,7 @@
 use crate::domain::entities::{EndpointDetail, Evidence, ParamDetail};
+use crate::infrastructure::discoverer::classifier::EndpointClassifier;
 use std::collections::HashMap;
 use url::Url;
-use crate::infrastructure::discoverer::classifier::EndpointClassifier;
 
 pub struct PathNormalizer;
 
@@ -23,7 +23,9 @@ impl PathNormalizer {
         // Fallback UNKNOWN method to GET and lower its confidence slightly
         let method = if predicted_method == "UNKNOWN" {
             conf *= 0.85; // Penalty for fallback
-            if conf < 0.3 { conf = 0.3; } // Maintain lower bound limit
+            if conf < 0.3 {
+                conf = 0.3;
+            } // Maintain lower bound limit
             "GET"
         } else {
             predicted_method
@@ -37,15 +39,20 @@ impl PathNormalizer {
 
         let host = resolved_url.host_str().unwrap_or("");
         let base_host = base_url.host_str().unwrap_or("");
-        
-        if host != base_host && !host.contains("api.") && !host.contains("graphql") && !host.contains("firebase") {
-            return; 
+
+        if host != base_host
+            && !host.contains("api.")
+            && !host.contains("graphql")
+            && !host.contains("firebase")
+        {
+            return;
         }
 
         let mut param_details: Vec<ParamDetail> = Vec::new();
 
         // 1. Process explicit Path variables (e.g. from template literals mapping [VAR])
-        let mut final_path = format!("{}://{}{}", 
+        let mut final_path = format!(
+            "{}://{}{}",
             resolved_url.scheme(),
             resolved_url.host_str().unwrap_or(""),
             resolved_url.path()
@@ -77,7 +84,7 @@ impl PathNormalizer {
             } else {
                 "query"
             };
-            
+
             // Prevent duplicated params (e.g. ?name=x and <input name="name"> mapping)
             if !param_details.iter().any(|pd| pd.name == input) {
                 param_details.push(ParamDetail {
@@ -99,21 +106,27 @@ impl PathNormalizer {
 
         // Deduplication & Synthesis Merge
         let is_novel = !endpoints_map.contains_key(&canonical_path);
-        let entry = endpoints_map.entry(canonical_path.clone()).or_insert(EndpointDetail {
-            path: canonical_path.clone(), 
-            method_prediction: method.to_string(),
-            parameters: Vec::new(),
-            auth_probability: auth_prob,
-            auth_likelihood: EndpointClassifier::evaluate_auth_likelihood(auth_prob),
-            confidence_score: conf,
-            evidences: Vec::new(),
-            runtime_verification: None,
-            certainty: None,
-        });
+        let entry = endpoints_map
+            .entry(canonical_path.clone())
+            .or_insert(EndpointDetail {
+                path: canonical_path.clone(),
+                method_prediction: method.to_string(),
+                parameters: Vec::new(),
+                auth_probability: auth_prob,
+                auth_likelihood: EndpointClassifier::evaluate_auth_likelihood(auth_prob),
+                confidence_score: conf,
+                evidences: Vec::new(),
+                runtime_verification: None,
+                certainty: None,
+            });
 
         // Push unique evidence
         let mut is_new_evidence = false;
-        if !entry.evidences.iter().any(|e| e.snippet == evidence.snippet) {
+        if !entry
+            .evidences
+            .iter()
+            .any(|e| e.snippet == evidence.snippet)
+        {
             entry.evidences.push(evidence);
             is_new_evidence = true;
         }
@@ -121,7 +134,9 @@ impl PathNormalizer {
         if !is_novel && is_new_evidence {
             // Compound confidence formula: 1 - (1 - c1) * (1 - c2)
             let mut combined = 1.0 - ((1.0 - entry.confidence_score) * (1.0 - conf));
-            if combined > 0.95 { combined = 0.95; }
+            if combined > 0.95 {
+                combined = 0.95;
+            }
             entry.confidence_score = combined;
         } else if is_novel {
             entry.confidence_score = conf; // Use raw conf initially
@@ -129,14 +144,18 @@ impl PathNormalizer {
             entry.confidence_score = conf; // Safe fallback if evidence was duplicate but confidence was maybe higher for some reason
         }
 
-        // Method Override handling 
+        // Method Override handling
         if entry.method_prediction == "GET" && method != "GET" && conf > entry.confidence_score {
             entry.method_prediction = method.to_string(); // POST/PUT is more explicit
         }
 
         // Merge parameters intelligently without exact duplicates
         for p in param_details {
-            if !entry.parameters.iter().any(|existing| existing.name == p.name) {
+            if !entry
+                .parameters
+                .iter()
+                .any(|existing| existing.name == p.name)
+            {
                 entry.parameters.push(p);
             }
         }

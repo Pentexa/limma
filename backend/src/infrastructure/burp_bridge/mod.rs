@@ -1,8 +1,10 @@
+use crate::domain::entities::*;
+use crate::infrastructure::rule_engine::{
+    build_context_from_headers, DynamicRuleEngine, DynamicRuleFinding,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
-use crate::domain::entities::*;
-use crate::infrastructure::rule_engine::{DynamicRuleEngine, build_context_from_headers, DynamicRuleFinding};
 
 /// In-memory Burp Bridge session manager.
 ///
@@ -59,7 +61,11 @@ impl BurpBridgeManager {
             channels.insert(session_id.clone(), tx);
         }
 
-        tracing::info!("[BurpBridge] New session created: {} for target: {}", session_id, req.target_url);
+        tracing::info!(
+            "[BurpBridge] New session created: {} for target: {}",
+            session_id,
+            req.target_url
+        );
 
         BurpHandshakeResponse {
             session_id,
@@ -75,13 +81,15 @@ impl BurpBridgeManager {
 
     /// Import a batch of traffic items into a session.
     pub fn import_traffic(
-        &self, 
-        session_id: &str, 
+        &self,
+        session_id: &str,
         items: Vec<BurpTrafficItem>,
-        rule_engine: &DynamicRuleEngine
+        rule_engine: &DynamicRuleEngine,
     ) -> Result<BurpImportTrafficResponse, String> {
         // Verify session exists
-        let session_exists = self.sessions.read()
+        let session_exists = self
+            .sessions
+            .read()
             .map(|s| s.contains_key(session_id))
             .unwrap_or(false);
 
@@ -99,7 +107,7 @@ impl BurpBridgeManager {
                 &item.url,
                 item.response_status,
                 &item.response_headers,
-                item.response_body.as_deref()
+                item.response_body.as_deref(),
             );
 
             let dynamic_findings = rule_engine.evaluate(&ctx);
@@ -107,7 +115,7 @@ impl BurpBridgeManager {
 
             // Map DynamicRuleFinding to BurpNativeFinding
             let (host, port, protocol) = parse_url_parts(&item.url);
-            
+
             for f in dynamic_findings {
                 let detail = format!(
                     "<b>{}</b><br/>{}<br/><br/>Rule ID: {}<br/>Confidence: {}",
@@ -124,13 +132,20 @@ impl BurpBridgeManager {
                     host: host.clone(),
                     port,
                     protocol: protocol.clone(),
-                    remediation: "Please review the finding details and apply appropriate security controls.".to_string(),
+                    remediation:
+                        "Please review the finding details and apply appropriate security controls."
+                            .to_string(),
                     issue_type: 0x08000000,
                     cwe_id: None,
                 };
 
                 // Broadcast the finding in real-time
-                if let Some(tx) = self.event_channels.read().ok().and_then(|c| c.get(session_id).cloned()) {
+                if let Some(tx) = self
+                    .event_channels
+                    .read()
+                    .ok()
+                    .and_then(|c| c.get(session_id).cloned())
+                {
                     let _ = tx.send(BurpSseEvent::FindingDetected(native_finding.clone()));
                 }
 
@@ -147,7 +162,9 @@ impl BurpBridgeManager {
         // 3. Store generated findings
         if !burp_findings.is_empty() {
             if let Ok(mut f_store) = self.findings_store.write() {
-                let entry = f_store.entry(session_id.to_string()).or_insert_with(Vec::new);
+                let entry = f_store
+                    .entry(session_id.to_string())
+                    .or_insert_with(Vec::new);
                 entry.extend(burp_findings);
             }
         }
@@ -162,7 +179,12 @@ impl BurpBridgeManager {
             }
         }
 
-        tracing::info!("[BurpBridge] Imported {} traffic items for session: {}. Triggered {} findings.", count, session_id, new_findings_count);
+        tracing::info!(
+            "[BurpBridge] Imported {} traffic items for session: {}. Triggered {} findings.",
+            count,
+            session_id,
+            new_findings_count
+        );
 
         Ok(BurpImportTrafficResponse {
             imported_count: count,
@@ -176,15 +198,20 @@ impl BurpBridgeManager {
     }
 
     /// Subscribe to real-time events for a session.
-    pub fn subscribe_to_events(&self, session_id: &str) -> Option<broadcast::Receiver<BurpSseEvent>> {
-        self.event_channels.read()
+    pub fn subscribe_to_events(
+        &self,
+        session_id: &str,
+    ) -> Option<broadcast::Receiver<BurpSseEvent>> {
+        self.event_channels
+            .read()
             .ok()
             .and_then(|channels| channels.get(session_id).map(|tx| tx.subscribe()))
     }
 
     /// Get all active sessions.
     pub fn get_all_sessions(&self) -> Vec<BurpBridgeSession> {
-        self.sessions.read()
+        self.sessions
+            .read()
             .map(|s| s.values().cloned().collect())
             .unwrap_or_default()
     }
@@ -196,7 +223,8 @@ impl BurpBridgeManager {
 
     /// Get traffic items for a session.
     pub fn get_traffic(&self, session_id: &str) -> Vec<BurpTrafficItem> {
-        self.traffic_store.read()
+        self.traffic_store
+            .read()
             .ok()
             .and_then(|store| store.get(session_id).cloned())
             .unwrap_or_default()
@@ -204,7 +232,8 @@ impl BurpBridgeManager {
 
     /// Get traffic count for a session.
     pub fn get_traffic_count(&self, session_id: &str) -> usize {
-        self.traffic_store.read()
+        self.traffic_store
+            .read()
             .ok()
             .and_then(|store| store.get(session_id).map(|v| v.len()))
             .unwrap_or(0)
@@ -212,79 +241,87 @@ impl BurpBridgeManager {
 
     /// Get all native findings for a session.
     pub fn get_session_findings(&self, session_id: &str) -> Vec<BurpNativeFinding> {
-        self.findings_store.read()
+        self.findings_store
+            .read()
             .ok()
             .and_then(|store| store.get(session_id).cloned())
             .unwrap_or_default()
     }
 
     /// Convert a NormalizedAuditReport's findings into Burp-native format.
-    pub fn findings_to_burp_native(
-        report: &NormalizedAuditReport,
-    ) -> Vec<BurpNativeFinding> {
+    pub fn findings_to_burp_native(report: &NormalizedAuditReport) -> Vec<BurpNativeFinding> {
         let (host, port, protocol) = parse_url_parts(&report.target);
 
-        report.canonical_findings.iter().map(|cf| {
-            let severity = match cf.severity {
-                SeverityLevel::Critical | SeverityLevel::High => "High".to_string(),
-                SeverityLevel::Medium => "Medium".to_string(),
-                SeverityLevel::Low => "Low".to_string(),
-                SeverityLevel::Informational => "Information".to_string(),
-            };
+        report
+            .canonical_findings
+            .iter()
+            .map(|cf| {
+                let severity = match cf.severity {
+                    SeverityLevel::Critical | SeverityLevel::High => "High".to_string(),
+                    SeverityLevel::Medium => "Medium".to_string(),
+                    SeverityLevel::Low => "Low".to_string(),
+                    SeverityLevel::Informational => "Information".to_string(),
+                };
 
-            let confidence = match cf.confidence {
-                ConfidenceLevel::Certain => "Certain".to_string(),
-                ConfidenceLevel::Firm => "Firm".to_string(),
-                ConfidenceLevel::Tentative | ConfidenceLevel::Low => "Tentative".to_string(),
-            };
+                let confidence = match cf.confidence {
+                    ConfidenceLevel::Certain => "Certain".to_string(),
+                    ConfidenceLevel::Firm => "Firm".to_string(),
+                    ConfidenceLevel::Tentative | ConfidenceLevel::Low => "Tentative".to_string(),
+                };
 
-            let path = cf.affected_routes.first()
-                .cloned()
-                .unwrap_or_else(|| "/".to_string());
+                let path = cf
+                    .affected_routes
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "/".to_string());
 
-            let detail = format!(
-                "<b>{}</b><br/><br/>Modules: {}<br/>Evidence count: {}<br/>{}",
-                cf.title,
-                cf.contributing_modules.iter()
-                    .map(|m| format!("{:?}", m))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                cf.merged_evidence_count,
-                cf.underlying_findings.iter()
-                    .flat_map(|f| &f.evidence)
-                    .map(|e| format!("• {}", e.description))
-                    .collect::<Vec<_>>()
-                    .join("<br/>")
-            );
+                let detail = format!(
+                    "<b>{}</b><br/><br/>Modules: {}<br/>Evidence count: {}<br/>{}",
+                    cf.title,
+                    cf.contributing_modules
+                        .iter()
+                        .map(|m| format!("{:?}", m))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    cf.merged_evidence_count,
+                    cf.underlying_findings
+                        .iter()
+                        .flat_map(|f| &f.evidence)
+                        .map(|e| format!("• {}", e.description))
+                        .collect::<Vec<_>>()
+                        .join("<br/>")
+                );
 
-            BurpNativeFinding {
-                name: cf.title.clone(),
-                detail,
-                severity,
-                confidence,
-                url: format!("{}://{}:{}{}", protocol, host, port, path),
-                path,
-                host: host.clone(),
-                port,
-                protocol: protocol.clone(),
-                remediation: String::new(), // Phase 2: populate from rule metadata
-                issue_type: 0x08000000,     // Extension-generated issue
-                cwe_id: None,               // Phase 2: CWE mapping
-            }
-        }).collect()
+                BurpNativeFinding {
+                    name: cf.title.clone(),
+                    detail,
+                    severity,
+                    confidence,
+                    url: format!("{}://{}:{}{}", protocol, host, port, path),
+                    path,
+                    host: host.clone(),
+                    port,
+                    protocol: protocol.clone(),
+                    remediation: String::new(), // Phase 2: populate from rule metadata
+                    issue_type: 0x08000000,     // Extension-generated issue
+                    cwe_id: None,               // Phase 2: CWE mapping
+                }
+            })
+            .collect()
     }
 }
 
 /// Parse URL into (host, port, protocol) tuple.
 fn parse_url_parts(url: &str) -> (String, i32, String) {
     let parsed = url::Url::parse(url).unwrap_or_else(|_| {
-        url::Url::parse(&format!("https://{}", url)).unwrap_or_else(|_| {
-            url::Url::parse("https://unknown").unwrap()
-        })
+        url::Url::parse(&format!("https://{}", url))
+            .unwrap_or_else(|_| url::Url::parse("https://unknown").unwrap())
     });
     let host = parsed.host_str().unwrap_or("unknown").to_string();
     let protocol = parsed.scheme().to_string();
-    let port = parsed.port().unwrap_or(if protocol == "https" { 443 } else { 80 }) as i32;
+    let port = parsed
+        .port()
+        .unwrap_or(if protocol == "https" { 443 } else { 80 }) as i32;
     (host, port, protocol)
 }
 

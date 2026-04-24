@@ -8,7 +8,7 @@ pub fn validate_parity(results: &mut [PortProbeResult], truth_open_ports: &[u16]
             continue; // Parity is good
         }
 
-        // Port is NOT verified open by Nmap truth layer. 
+        // Port is NOT verified open by Nmap truth layer.
         // We must downgrade any 'Verified' candidates to 'Suspected'
         for candidate in result.service_candidates.iter_mut() {
             if candidate.decision == DecisionOutcome::Verified {

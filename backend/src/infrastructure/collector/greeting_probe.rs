@@ -60,11 +60,9 @@ pub async fn probe_greeting(
             if port == 5432 && (raw_bytes[0] == b'E' || raw_bytes[0] == b'N') {
                 return Some(ProbeEvidence {
                     method: ProbeMethod::Greeting,
-                    raw_signal: format!(
-                        "PostgreSQL message type '{}'",
-                        raw_bytes[0] as char
-                    ),
-                    interpretation: "PostgreSQL server detected (error/notice response)".to_string(),
+                    raw_signal: format!("PostgreSQL message type '{}'", raw_bytes[0] as char),
+                    interpretation: "PostgreSQL server detected (error/notice response)"
+                        .to_string(),
                 });
             }
 

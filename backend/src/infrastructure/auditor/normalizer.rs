@@ -14,23 +14,29 @@ pub struct ApiDiscovererNormalizer;
 /// CSP and HSTS are critical defense layers — their absence enables real attacks.
 fn header_severity(name: &str, status: &SecurityHeaderStatus) -> SeverityLevel {
     let name_lower = name.to_lowercase();
-    
+
     // Misconfigured is generally worse than Missing (active misconfiguration vs passive omission)
     let is_misconfigured = matches!(status, SecurityHeaderStatus::Misconfigured);
     let is_weak = matches!(status, SecurityHeaderStatus::Weak);
-    
+
     if name_lower.contains("content-security-policy") {
-        if is_weak { return SeverityLevel::Medium; } // unsafe-inline/unsafe-eval
+        if is_weak {
+            return SeverityLevel::Medium;
+        } // unsafe-inline/unsafe-eval
         SeverityLevel::Medium // Missing CSP enables XSS
     } else if name_lower.contains("strict-transport-security") {
-        if is_misconfigured { return SeverityLevel::Medium; } // max-age=0
+        if is_misconfigured {
+            return SeverityLevel::Medium;
+        } // max-age=0
         SeverityLevel::Medium // Missing HSTS enables SSL stripping
     } else if name_lower.contains("x-frame-options") {
         SeverityLevel::Medium // Missing enables clickjacking
     } else if name_lower.contains("x-content-type-options") {
         SeverityLevel::Medium // Missing enables MIME sniffing attacks
     } else if name_lower.contains("access-control") {
-        if is_weak { return SeverityLevel::High; } // Wildcard CORS
+        if is_weak {
+            return SeverityLevel::High;
+        } // Wildcard CORS
         SeverityLevel::Medium
     } else {
         // referrer-policy, permissions-policy, etc.
@@ -66,7 +72,10 @@ fn header_impact(header_name: &str) -> String {
 /// Generates a context-aware real-world impact statement for risk insights.
 fn risk_impact(title: &str, explanation: &str) -> String {
     let ctx = format!("{} {}", title, explanation).to_lowercase();
-    let impact = if ctx.contains("cors") || ctx.contains("cross-origin") || ctx.contains("access-control") {
+    let impact = if ctx.contains("cors")
+        || ctx.contains("cross-origin")
+        || ctx.contains("access-control")
+    {
         "Any malicious website can issue cross-origin requests to this domain and read the response, allowing silent exfiltration of user data, tokens, and session state."
     } else if ctx.contains("cookie") || ctx.contains("set-cookie") {
         "Cookies transmitted without Secure/HttpOnly/SameSite flags can be intercepted over plaintext connections, accessed by injected JavaScript, or sent in cross-site request forgery attacks."
@@ -74,7 +83,11 @@ fn risk_impact(title: &str, explanation: &str) -> String {
         "Exposing server software and version numbers allows attackers to search for known CVEs and exploit kits targeting this exact software build."
     } else if ctx.contains("redirect") || ctx.contains("301") || ctx.contains("302") {
         "Insecure or open redirects can be weaponized for phishing campaigns, where attackers use the trusted domain as a redirect proxy to land users on malicious pages."
-    } else if ctx.contains("tls") || ctx.contains("ssl") || ctx.contains("certificate") || ctx.contains("https") {
+    } else if ctx.contains("tls")
+        || ctx.contains("ssl")
+        || ctx.contains("certificate")
+        || ctx.contains("https")
+    {
         "Weak or misconfigured TLS allows passive network observers to decrypt traffic, exposing credentials, form submissions, and API tokens in transit."
     } else if ctx.contains("dns") || ctx.contains("nameserver") {
         "DNS misconfiguration can enable subdomain takeover, cache poisoning, or zone transfer attacks that give attackers control over traffic routing."
@@ -89,7 +102,11 @@ fn risk_impact(title: &str, explanation: &str) -> String {
 /// Generates a context-aware real-world impact statement for server insights.
 fn server_insight_impact(name: &str, explanation: &str) -> String {
     let ctx = format!("{} {}", name, explanation).to_lowercase();
-    let impact = if ctx.contains("tls") || ctx.contains("ssl") || ctx.contains("cipher") || ctx.contains("certificate") {
+    let impact = if ctx.contains("tls")
+        || ctx.contains("ssl")
+        || ctx.contains("cipher")
+        || ctx.contains("certificate")
+    {
         "Weak TLS configuration allows passive eavesdroppers on the same network (ISP, public WiFi) to decrypt the full TCP stream, exposing credentials and session data."
     } else if ctx.contains("http/2") || ctx.contains("http2") || ctx.contains("alpn") {
         "Lack of modern protocol support degrades performance and may expose the connection to protocol-downgrade attacks."
@@ -136,7 +153,9 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
                 source_module: SourceModule::WebScanner,
                 evidence: vec![AuditEvidenceItem {
                     description: "Risk Evidence".to_string(),
-                    validation_context: Some("Observed directly in the HTTP Response payload".to_string()),
+                    validation_context: Some(
+                        "Observed directly in the HTTP Response payload".to_string(),
+                    ),
                     raw_data: risk.evidence.clone(),
                 }],
                 raw_reference: serde_json::to_value(risk).ok(),
@@ -157,13 +176,13 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
         }
 
         for header in &data.security_headers {
-            if header.status == SecurityHeaderStatus::Missing 
-                || header.status == SecurityHeaderStatus::Weak 
-                || header.status == SecurityHeaderStatus::Misconfigured 
+            if header.status == SecurityHeaderStatus::Missing
+                || header.status == SecurityHeaderStatus::Weak
+                || header.status == SecurityHeaderStatus::Misconfigured
             {
                 // Severity based on real-world impact of each header
                 let severity = header_severity(&header.name, &header.status);
-                
+
                 let summary = match header.status {
                     SecurityHeaderStatus::Missing => format!("Missing {}", header.name),
                     SecurityHeaderStatus::Weak => format!("Weak {}", header.name),
@@ -191,7 +210,9 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
                     source_module: SourceModule::WebScanner,
                     evidence: vec![AuditEvidenceItem {
                         description: "Header Status".to_string(),
-                        validation_context: Some("Static header inspection on base domain response".to_string()),
+                        validation_context: Some(
+                            "Static header inspection on base domain response".to_string(),
+                        ),
                         raw_data: format!("{:?}", header.status),
                     }],
                     raw_reference: serde_json::to_value(header).ok(),
@@ -249,7 +270,9 @@ impl FindingNormalizer<ServerInfo> for ServerInvestigatorNormalizer {
                 source_module: SourceModule::ServerInvestigator,
                 evidence: vec![AuditEvidenceItem {
                     description: "Insight Evidence".to_string(),
-                    validation_context: Some("Analyzed during active connection lifecycle".to_string()),
+                    validation_context: Some(
+                        "Analyzed during active connection lifecycle".to_string(),
+                    ),
                     raw_data: insight.evidence.clone(),
                 }],
                 raw_reference: serde_json::to_value(insight).ok(),
@@ -323,8 +346,11 @@ impl FindingNormalizer<ApiDiscoveryResult> for ApiDiscovererNormalizer {
         let mut findings = Vec::new();
 
         for endpoint in &data.detected_endpoints {
-            let is_suspicious = endpoint.auth_likelihood == "None" && endpoint.confidence_score > 0.7 && !endpoint.path.contains("public") && !endpoint.path.contains("health");
-            
+            let is_suspicious = endpoint.auth_likelihood == "None"
+                && endpoint.confidence_score > 0.7
+                && !endpoint.path.contains("public")
+                && !endpoint.path.contains("health");
+
             if is_suspicious {
                 findings.push(SecurityAuditFinding {
                     id: Uuid::new_v4().to_string(),

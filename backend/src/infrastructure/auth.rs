@@ -1,5 +1,5 @@
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
-use serde::{Serialize, Deserialize};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,6 +40,5 @@ pub fn verify_token(token: &str, secret: &str) -> Result<Claims, String> {
 
 /// Extract user UUID from validated claims.
 pub fn user_id_from_claims(claims: &Claims) -> Result<Uuid, String> {
-    Uuid::parse_str(&claims.sub)
-        .map_err(|e| format!("Invalid user ID in token: {}", e))
+    Uuid::parse_str(&claims.sub).map_err(|e| format!("Invalid user ID in token: {}", e))
 }

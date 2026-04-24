@@ -33,7 +33,7 @@ impl UserRepository for PgUserRepository {
 
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, String> {
         let row = sqlx::query(
-            "SELECT id, name, email, password_hash, created_at FROM users WHERE email = $1"
+            "SELECT id, name, email, password_hash, created_at FROM users WHERE email = $1",
         )
         .bind(email)
         .fetch_optional(&self.pool)
@@ -47,7 +47,9 @@ impl UserRepository for PgUserRepository {
                 name: r.try_get("name").unwrap_or_default(),
                 email: r.try_get("email").unwrap_or_default(),
                 password_hash: r.try_get("password_hash").unwrap_or_default(),
-                created_at: r.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now()),
+                created_at: r
+                    .try_get("created_at")
+                    .unwrap_or_else(|_| chrono::Utc::now()),
             }
         }))
     }

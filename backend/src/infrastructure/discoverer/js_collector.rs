@@ -25,11 +25,14 @@ impl JsCollector {
     fn check_minified(content: &str) -> bool {
         // Simple heuristic: very few newlines compared to file length
         let newlines = content.bytes().filter(|&b| b == b'\n').count();
-        if content.len() > 1024 * 50 { // Over 50kb
+        if content.len() > 1024 * 50 {
+            // Over 50kb
             newlines < 15
         } else {
             // Smaller files: average line length
-            if newlines == 0 { return true }
+            if newlines == 0 {
+                return true;
+            }
             (content.len() / newlines) > 200
         }
     }

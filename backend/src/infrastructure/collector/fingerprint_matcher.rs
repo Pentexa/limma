@@ -1,6 +1,6 @@
 use crate::domain::entities::{
-    ActivityEvent, ActivitySeverity, EvidenceItem, FingerprintMatch,
-    HttpSummary, MatchStrength, TlsSummary,
+    ActivityEvent, ActivitySeverity, EvidenceItem, FingerprintMatch, HttpSummary, MatchStrength,
+    TlsSummary,
 };
 use chrono::Utc;
 
@@ -35,7 +35,11 @@ pub fn match_fingerprints(
 
     for fp in &registry {
         let result = signature_evaluator::evaluate_fingerprint(
-            fp, port, evidence, tls_summary, http_summary,
+            fp,
+            port,
+            evidence,
+            tls_summary,
+            http_summary,
         );
 
         // Log evaluation step
@@ -90,7 +94,9 @@ pub fn match_fingerprints(
         let a_rank = a.confidence + (a_tier * 0.20);
         let b_rank = b.confidence + (b_tier * 0.20);
 
-        b_rank.partial_cmp(&a_rank).unwrap_or(std::cmp::Ordering::Equal)
+        b_rank
+            .partial_cmp(&a_rank)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     // Deduplicate: if two fingerprints point to the same service name, keep the best one

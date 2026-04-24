@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -72,7 +72,7 @@ impl RuleFeedbackEngine {
     pub fn get_rule_stats(&self, rule_id: &str) -> RuleReputationStats {
         let r = self.entries.read().unwrap();
         let mut stats = RuleReputationStats::default();
-        
+
         for entry in r.iter().filter(|e| e.rule_id == rule_id) {
             stats.total_feedback += 1;
             match entry.action {
@@ -88,7 +88,7 @@ impl RuleFeedbackEngine {
             let c = stats.confirmed as f64;
             let fp = stats.false_positives as f64;
             let total_actionable = c + fp;
-            
+
             if total_actionable > 0.0 {
                 let ratio = c / total_actionable; // 0.0 to 1.0
                 stats.reputation_score = ratio * 100.0;

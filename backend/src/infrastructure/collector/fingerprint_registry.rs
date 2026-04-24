@@ -16,12 +16,35 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::BannerStartsWith, "SSH-", 0.45, RuleWeight::Critical, true, "SSH protocol greeting", None),
-                rule(RuleCategory::PortBinding, "22", 0.10, RuleWeight::Weak, false, "Standard SSH port", None),
-                rule(RuleCategory::BannerContains, "OpenSSH", 0.15, RuleWeight::Strong, false, "OpenSSH vendor signature", Some(RuleCategory::BannerStartsWith)),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "SSH-",
+                    0.45,
+                    RuleWeight::Critical,
+                    true,
+                    "SSH protocol greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "22",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard SSH port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "OpenSSH",
+                    0.15,
+                    RuleWeight::Strong,
+                    false,
+                    "OpenSSH vendor signature",
+                    Some(RuleCategory::BannerStartsWith),
+                ),
             ],
         },
-
         // ── FTP ──
         FingerprintDefinition {
             id: "ftp-generic".into(),
@@ -30,12 +53,35 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::BannerStartsWith, "220", 0.20, RuleWeight::Medium, true, "FTP 220 ready greeting", None),
-                rule(RuleCategory::BannerContains, "FTP", 0.30, RuleWeight::Strong, false, "FTP keyword in banner", None),
-                rule(RuleCategory::PortBinding, "21", 0.10, RuleWeight::Weak, false, "Standard FTP port", None),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "220",
+                    0.20,
+                    RuleWeight::Medium,
+                    true,
+                    "FTP 220 ready greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "FTP",
+                    0.30,
+                    RuleWeight::Strong,
+                    false,
+                    "FTP keyword in banner",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "21",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard FTP port",
+                    None,
+                ),
             ],
         },
-
         // ── SMTP ──
         FingerprintDefinition {
             id: "smtp-generic".into(),
@@ -44,14 +90,53 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::BannerContains, "SMTP", 0.35, RuleWeight::Critical, true, "SMTP keyword in banner", None),
-                rule(RuleCategory::BannerStartsWith, "220", 0.15, RuleWeight::Medium, false, "SMTP 220 greeting", None),
-                rule(RuleCategory::PortBinding, "25", 0.10, RuleWeight::Weak, false, "Standard SMTP port", None),
-                rule(RuleCategory::PortBinding, "465", 0.08, RuleWeight::Weak, false, "SMTPS port", None),
-                rule(RuleCategory::PortBinding, "587", 0.08, RuleWeight::Weak, false, "Submission port", None),
+                rule(
+                    RuleCategory::BannerContains,
+                    "SMTP",
+                    0.35,
+                    RuleWeight::Critical,
+                    true,
+                    "SMTP keyword in banner",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "220",
+                    0.15,
+                    RuleWeight::Medium,
+                    false,
+                    "SMTP 220 greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "25",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard SMTP port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "465",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "SMTPS port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "587",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Submission port",
+                    None,
+                ),
             ],
         },
-
         // ── IMAP ──
         FingerprintDefinition {
             id: "imap-generic".into(),
@@ -60,13 +145,44 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::BannerStartsWith, "* OK", 0.35, RuleWeight::Critical, true, "IMAP OK greeting", None),
-                rule(RuleCategory::BannerContains, "IMAP", 0.20, RuleWeight::Strong, false, "IMAP keyword", Some(RuleCategory::BannerStartsWith)),
-                rule(RuleCategory::PortBinding, "143", 0.10, RuleWeight::Weak, false, "Standard IMAP port", None),
-                rule(RuleCategory::PortBinding, "993", 0.10, RuleWeight::Weak, false, "IMAPS port", None),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "* OK",
+                    0.35,
+                    RuleWeight::Critical,
+                    true,
+                    "IMAP OK greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "IMAP",
+                    0.20,
+                    RuleWeight::Strong,
+                    false,
+                    "IMAP keyword",
+                    Some(RuleCategory::BannerStartsWith),
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "143",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard IMAP port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "993",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "IMAPS port",
+                    None,
+                ),
             ],
         },
-
         // ── POP3 ──
         FingerprintDefinition {
             id: "pop3-generic".into(),
@@ -75,13 +191,44 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::BannerStartsWith, "+OK", 0.35, RuleWeight::Critical, true, "POP3 +OK greeting", None),
-                rule(RuleCategory::BannerContains, "POP3", 0.15, RuleWeight::Strong, false, "POP3 keyword", Some(RuleCategory::BannerStartsWith)),
-                rule(RuleCategory::PortBinding, "110", 0.10, RuleWeight::Weak, false, "Standard POP3 port", None),
-                rule(RuleCategory::PortBinding, "995", 0.10, RuleWeight::Weak, false, "POP3S port", None),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "+OK",
+                    0.35,
+                    RuleWeight::Critical,
+                    true,
+                    "POP3 +OK greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "POP3",
+                    0.15,
+                    RuleWeight::Strong,
+                    false,
+                    "POP3 keyword",
+                    Some(RuleCategory::BannerStartsWith),
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "110",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard POP3 port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "995",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "POP3S port",
+                    None,
+                ),
             ],
         },
-
         // ── HTTPS ──
         FingerprintDefinition {
             id: "https-web".into(),
@@ -90,16 +237,71 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.30,
             rules: vec![
-                rule(RuleCategory::TlsPresent, "true", 0.30, RuleWeight::Critical, true, "TLS handshake succeeded", None),
-                rule(RuleCategory::HttpStatusRange, "100-599", 0.25, RuleWeight::Strong, false, "Valid HTTP response over TLS", Some(RuleCategory::TlsPresent)),
-                rule(RuleCategory::TlsAlpnContains, "h2", 0.10, RuleWeight::Strong, false, "HTTP/2 ALPN negotiated", Some(RuleCategory::TlsPresent)),
-                rule(RuleCategory::TlsAlpnContains, "http/1.1", 0.08, RuleWeight::Medium, false, "HTTP/1.1 ALPN", Some(RuleCategory::TlsPresent)),
-                rule(RuleCategory::PortBinding, "443", 0.08, RuleWeight::Weak, false, "Standard HTTPS port", None),
-                rule(RuleCategory::PortBinding, "8443", 0.06, RuleWeight::Weak, false, "Alt HTTPS port", None),
-                rule(RuleCategory::HttpServerContains, "", 0.05, RuleWeight::Contextual, false, "Server header present", Some(RuleCategory::HttpStatusRange)),
+                rule(
+                    RuleCategory::TlsPresent,
+                    "true",
+                    0.30,
+                    RuleWeight::Critical,
+                    true,
+                    "TLS handshake succeeded",
+                    None,
+                ),
+                rule(
+                    RuleCategory::HttpStatusRange,
+                    "100-599",
+                    0.25,
+                    RuleWeight::Strong,
+                    false,
+                    "Valid HTTP response over TLS",
+                    Some(RuleCategory::TlsPresent),
+                ),
+                rule(
+                    RuleCategory::TlsAlpnContains,
+                    "h2",
+                    0.10,
+                    RuleWeight::Strong,
+                    false,
+                    "HTTP/2 ALPN negotiated",
+                    Some(RuleCategory::TlsPresent),
+                ),
+                rule(
+                    RuleCategory::TlsAlpnContains,
+                    "http/1.1",
+                    0.08,
+                    RuleWeight::Medium,
+                    false,
+                    "HTTP/1.1 ALPN",
+                    Some(RuleCategory::TlsPresent),
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "443",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard HTTPS port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "8443",
+                    0.06,
+                    RuleWeight::Weak,
+                    false,
+                    "Alt HTTPS port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::HttpServerContains,
+                    "",
+                    0.05,
+                    RuleWeight::Contextual,
+                    false,
+                    "Server header present",
+                    Some(RuleCategory::HttpStatusRange),
+                ),
             ],
         },
-
         // ── HTTP (plain) ──
         FingerprintDefinition {
             id: "http-plain".into(),
@@ -108,14 +310,53 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.25,
             rules: vec![
-                rule(RuleCategory::HttpStatusRange, "100-599", 0.35, RuleWeight::Critical, true, "Valid HTTP response", None),
-                rule(RuleCategory::PortBinding, "80", 0.10, RuleWeight::Weak, false, "Standard HTTP port", None),
-                rule(RuleCategory::PortBinding, "8080", 0.08, RuleWeight::Weak, false, "Alt HTTP port", None),
-                rule(RuleCategory::HttpServerContains, "", 0.05, RuleWeight::Contextual, false, "Server header present", Some(RuleCategory::HttpStatusRange)),
-                rule(RuleCategory::HttpContentTypeContains, "text/html", 0.10, RuleWeight::Medium, false, "HTML content served", Some(RuleCategory::HttpStatusRange)),
+                rule(
+                    RuleCategory::HttpStatusRange,
+                    "100-599",
+                    0.35,
+                    RuleWeight::Critical,
+                    true,
+                    "Valid HTTP response",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "80",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard HTTP port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "8080",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Alt HTTP port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::HttpServerContains,
+                    "",
+                    0.05,
+                    RuleWeight::Contextual,
+                    false,
+                    "Server header present",
+                    Some(RuleCategory::HttpStatusRange),
+                ),
+                rule(
+                    RuleCategory::HttpContentTypeContains,
+                    "text/html",
+                    0.10,
+                    RuleWeight::Medium,
+                    false,
+                    "HTML content served",
+                    Some(RuleCategory::HttpStatusRange),
+                ),
             ],
         },
-
         // ── MySQL ──
         FingerprintDefinition {
             id: "mysql-generic".into(),
@@ -124,12 +365,35 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.30,
             rules: vec![
-                rule(RuleCategory::GreetingSignature, "mysql", 0.50, RuleWeight::Critical, true, "MySQL handshake v10 greeting", None),
-                rule(RuleCategory::PortBinding, "3306", 0.10, RuleWeight::Weak, false, "Standard MySQL port", None),
-                rule(RuleCategory::BannerContains, "MariaDB", 0.10, RuleWeight::Strong, false, "MariaDB variant", Some(RuleCategory::GreetingSignature)),
+                rule(
+                    RuleCategory::GreetingSignature,
+                    "mysql",
+                    0.50,
+                    RuleWeight::Critical,
+                    true,
+                    "MySQL handshake v10 greeting",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "3306",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard MySQL port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "MariaDB",
+                    0.10,
+                    RuleWeight::Strong,
+                    false,
+                    "MariaDB variant",
+                    Some(RuleCategory::GreetingSignature),
+                ),
             ],
         },
-
         // ── PostgreSQL ──
         FingerprintDefinition {
             id: "postgresql-generic".into(),
@@ -138,11 +402,26 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.30,
             rules: vec![
-                rule(RuleCategory::GreetingSignature, "postgresql", 0.50, RuleWeight::Critical, true, "PostgreSQL auth packet", None),
-                rule(RuleCategory::PortBinding, "5432", 0.10, RuleWeight::Weak, false, "Standard PostgreSQL port", None),
+                rule(
+                    RuleCategory::GreetingSignature,
+                    "postgresql",
+                    0.50,
+                    RuleWeight::Critical,
+                    true,
+                    "PostgreSQL auth packet",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "5432",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard PostgreSQL port",
+                    None,
+                ),
             ],
         },
-
         // ── Redis ──
         FingerprintDefinition {
             id: "redis-generic".into(),
@@ -151,12 +430,35 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.30,
             rules: vec![
-                rule(RuleCategory::GreetingSignature, "redis", 0.45, RuleWeight::Critical, true, "Redis RESP signature", None),
-                rule(RuleCategory::BannerContains, "REDIS", 0.15, RuleWeight::Strong, false, "Redis keyword in banner", None),
-                rule(RuleCategory::PortBinding, "6379", 0.10, RuleWeight::Weak, false, "Standard Redis port", None),
+                rule(
+                    RuleCategory::GreetingSignature,
+                    "redis",
+                    0.45,
+                    RuleWeight::Critical,
+                    true,
+                    "Redis RESP signature",
+                    None,
+                ),
+                rule(
+                    RuleCategory::BannerContains,
+                    "REDIS",
+                    0.15,
+                    RuleWeight::Strong,
+                    false,
+                    "Redis keyword in banner",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "6379",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Standard Redis port",
+                    None,
+                ),
             ],
         },
-
         // ── RDP ──
         FingerprintDefinition {
             id: "rdp-generic".into(),
@@ -165,11 +467,26 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Specific,
             min_confidence: 0.20,
             rules: vec![
-                rule(RuleCategory::PortBinding, "3389", 0.15, RuleWeight::Medium, true, "Standard RDP port", None),
-                rule(RuleCategory::TlsPresent, "true", 0.15, RuleWeight::Medium, false, "RDP often uses TLS", None),
+                rule(
+                    RuleCategory::PortBinding,
+                    "3389",
+                    0.15,
+                    RuleWeight::Medium,
+                    true,
+                    "Standard RDP port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::TlsPresent,
+                    "true",
+                    0.15,
+                    RuleWeight::Medium,
+                    false,
+                    "RDP often uses TLS",
+                    None,
+                ),
             ],
         },
-
         // ═══════════════ GENERIC TIER ═══════════════
 
         // ── Generic Web Server ──
@@ -180,11 +497,26 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Generic,
             min_confidence: 0.15,
             rules: vec![
-                rule(RuleCategory::HttpStatusRange, "100-599", 0.30, RuleWeight::Medium, true, "Any HTTP response received", None),
-                rule(RuleCategory::HttpServerContains, "", 0.10, RuleWeight::Weak, false, "Server header present", Some(RuleCategory::HttpStatusRange)),
+                rule(
+                    RuleCategory::HttpStatusRange,
+                    "100-599",
+                    0.30,
+                    RuleWeight::Medium,
+                    true,
+                    "Any HTTP response received",
+                    None,
+                ),
+                rule(
+                    RuleCategory::HttpServerContains,
+                    "",
+                    0.10,
+                    RuleWeight::Weak,
+                    false,
+                    "Server header present",
+                    Some(RuleCategory::HttpStatusRange),
+                ),
             ],
         },
-
         // ── Generic Database ──
         FingerprintDefinition {
             id: "generic-database".into(),
@@ -193,13 +525,44 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Generic,
             min_confidence: 0.15,
             rules: vec![
-                rule(RuleCategory::GreetingSignature, "", 0.25, RuleWeight::Medium, true, "Any database greeting pattern", None),
-                rule(RuleCategory::PortBinding, "3306", 0.08, RuleWeight::Weak, false, "MySQL port", None),
-                rule(RuleCategory::PortBinding, "5432", 0.08, RuleWeight::Weak, false, "PostgreSQL port", None),
-                rule(RuleCategory::PortBinding, "6379", 0.08, RuleWeight::Weak, false, "Redis port", None),
+                rule(
+                    RuleCategory::GreetingSignature,
+                    "",
+                    0.25,
+                    RuleWeight::Medium,
+                    true,
+                    "Any database greeting pattern",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "3306",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "MySQL port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "5432",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "PostgreSQL port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "6379",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Redis port",
+                    None,
+                ),
             ],
         },
-
         // ── Generic Mail ──
         FingerprintDefinition {
             id: "generic-mail".into(),
@@ -208,12 +571,35 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             tier: FingerprintTier::Generic,
             min_confidence: 0.15,
             rules: vec![
-                rule(RuleCategory::BannerStartsWith, "220", 0.20, RuleWeight::Medium, true, "220 greeting (SMTP/FTP)", None),
-                rule(RuleCategory::PortBinding, "25", 0.08, RuleWeight::Weak, false, "Mail port", None),
-                rule(RuleCategory::PortBinding, "587", 0.08, RuleWeight::Weak, false, "Submission port", None),
+                rule(
+                    RuleCategory::BannerStartsWith,
+                    "220",
+                    0.20,
+                    RuleWeight::Medium,
+                    true,
+                    "220 greeting (SMTP/FTP)",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "25",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Mail port",
+                    None,
+                ),
+                rule(
+                    RuleCategory::PortBinding,
+                    "587",
+                    0.08,
+                    RuleWeight::Weak,
+                    false,
+                    "Submission port",
+                    None,
+                ),
             ],
         },
-
         // ═══════════════ FALLBACK TIER ═══════════════
 
         // ── Unknown TLS ──
@@ -223,11 +609,16 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             description: "TLS-secured service, protocol unknown".into(),
             tier: FingerprintTier::Fallback,
             min_confidence: 0.10,
-            rules: vec![
-                rule(RuleCategory::TlsPresent, "true", 0.25, RuleWeight::Medium, true, "TLS handshake succeeded", None),
-            ],
+            rules: vec![rule(
+                RuleCategory::TlsPresent,
+                "true",
+                0.25,
+                RuleWeight::Medium,
+                true,
+                "TLS handshake succeeded",
+                None,
+            )],
         },
-
         // ── DNS ──
         FingerprintDefinition {
             id: "dns-generic".into(),
@@ -235,11 +626,16 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             description: "DNS server".into(),
             tier: FingerprintTier::Fallback,
             min_confidence: 0.10,
-            rules: vec![
-                rule(RuleCategory::PortBinding, "53", 0.20, RuleWeight::Weak, true, "Standard DNS port", None),
-            ],
+            rules: vec![rule(
+                RuleCategory::PortBinding,
+                "53",
+                0.20,
+                RuleWeight::Weak,
+                true,
+                "Standard DNS port",
+                None,
+            )],
         },
-
         // ── MSSQL ──
         FingerprintDefinition {
             id: "mssql-generic".into(),
@@ -247,11 +643,16 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             description: "Microsoft SQL Server".into(),
             tier: FingerprintTier::Fallback,
             min_confidence: 0.10,
-            rules: vec![
-                rule(RuleCategory::PortBinding, "1433", 0.20, RuleWeight::Weak, true, "Standard MSSQL port", None),
-            ],
+            rules: vec![rule(
+                RuleCategory::PortBinding,
+                "1433",
+                0.20,
+                RuleWeight::Weak,
+                true,
+                "Standard MSSQL port",
+                None,
+            )],
         },
-
         // ── Oracle ──
         FingerprintDefinition {
             id: "oracle-generic".into(),
@@ -259,11 +660,16 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             description: "Oracle Database listener".into(),
             tier: FingerprintTier::Fallback,
             min_confidence: 0.10,
-            rules: vec![
-                rule(RuleCategory::PortBinding, "1521", 0.20, RuleWeight::Weak, true, "Standard Oracle port", None),
-            ],
+            rules: vec![rule(
+                RuleCategory::PortBinding,
+                "1521",
+                0.20,
+                RuleWeight::Weak,
+                true,
+                "Standard Oracle port",
+                None,
+            )],
         },
-
         // ── NFS ──
         FingerprintDefinition {
             id: "nfs-generic".into(),
@@ -271,9 +677,15 @@ pub fn load_registry() -> Vec<FingerprintDefinition> {
             description: "Network File System".into(),
             tier: FingerprintTier::Fallback,
             min_confidence: 0.10,
-            rules: vec![
-                rule(RuleCategory::PortBinding, "2049", 0.20, RuleWeight::Weak, true, "Standard NFS port", None),
-            ],
+            rules: vec![rule(
+                RuleCategory::PortBinding,
+                "2049",
+                0.20,
+                RuleWeight::Weak,
+                true,
+                "Standard NFS port",
+                None,
+            )],
         },
     ]
 }

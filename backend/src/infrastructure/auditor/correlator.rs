@@ -51,9 +51,12 @@ impl CorrelationEngine {
 
         if header_findings.len() >= 2 {
             // Gate: at least one must be Medium+ severity
-            let has_meaningful = header_findings
-                .iter()
-                .any(|f| matches!(f.severity, SeverityLevel::Medium | SeverityLevel::High | SeverityLevel::Critical));
+            let has_meaningful = header_findings.iter().any(|f| {
+                matches!(
+                    f.severity,
+                    SeverityLevel::Medium | SeverityLevel::High | SeverityLevel::Critical
+                )
+            });
 
             if !has_meaningful {
                 return;
@@ -70,7 +73,11 @@ impl CorrelationEngine {
 
             let has_dynamic_context = header_findings.iter().any(|f| {
                 let combined = format!("{} {}", f.summary, f.technical_details).to_lowercase();
-                combined.contains("input") || combined.contains("script") || combined.contains("login") || combined.contains("admin") || combined.contains("api")
+                combined.contains("input")
+                    || combined.contains("script")
+                    || combined.contains("login")
+                    || combined.contains("admin")
+                    || combined.contains("api")
             });
             let is_hygiene_gap = !has_dynamic_context;
 
@@ -195,14 +202,13 @@ impl CorrelationEngine {
                     .iter()
                     .map(|f| CorrelationLink {
                         finding_id: f.id.clone(),
-                        relationship_note: format!(
-                            "Module {:?}: {}",
-                            f.source_module, f.summary
-                        ),
+                        relationship_note: format!("Module {:?}: {}", f.source_module, f.summary),
                     })
                     .collect();
 
-                let all_low = cat_findings.iter().all(|f| f.severity == SeverityLevel::Low);
+                let all_low = cat_findings
+                    .iter()
+                    .all(|f| f.severity == SeverityLevel::Low);
 
                 results.push(CorrelationResult {
                     group_id,
@@ -316,10 +322,8 @@ impl CorrelationEngine {
                 // Check summary similarity (simple keyword overlap)
                 let a_lower = a.summary.to_lowercase();
                 let b_lower = b.summary.to_lowercase();
-                let a_words: std::collections::HashSet<&str> =
-                    a_lower.split_whitespace().collect();
-                let b_words: std::collections::HashSet<&str> =
-                    b_lower.split_whitespace().collect();
+                let a_words: std::collections::HashSet<&str> = a_lower.split_whitespace().collect();
+                let b_words: std::collections::HashSet<&str> = b_lower.split_whitespace().collect();
                 let intersection = a_words.intersection(&b_words).count();
                 let min_len = a_words.len().min(b_words.len());
 
@@ -372,24 +376,51 @@ impl CorrelationEngine {
         findings: &[SecurityAuditFinding],
         results: &mut Vec<CorrelationResult>,
     ) {
-        let csp_findings: Vec<&SecurityAuditFinding> = findings.iter()
-            .filter(|f| f.summary.to_lowercase().contains("content-security-policy") || f.summary.to_lowercase().contains("csp"))
+        let csp_findings: Vec<&SecurityAuditFinding> = findings
+            .iter()
+            .filter(|f| {
+                f.summary.to_lowercase().contains("content-security-policy")
+                    || f.summary.to_lowercase().contains("csp")
+            })
             .collect();
-            
-        let inline_findings: Vec<&SecurityAuditFinding> = findings.iter()
-            .filter(|f| f.summary.to_lowercase().contains("inline script") || f.technical_details.to_lowercase().contains("inline script"))
+
+        let inline_findings: Vec<&SecurityAuditFinding> = findings
+            .iter()
+            .filter(|f| {
+                f.summary.to_lowercase().contains("inline script")
+                    || f.technical_details.to_lowercase().contains("inline script")
+            })
             .collect();
-            
-        let input_findings: Vec<&SecurityAuditFinding> = findings.iter()
-            .filter(|f| f.summary.to_lowercase().contains("input") || f.technical_details.to_lowercase().contains("reflected"))
+
+        let input_findings: Vec<&SecurityAuditFinding> = findings
+            .iter()
+            .filter(|f| {
+                f.summary.to_lowercase().contains("input")
+                    || f.technical_details.to_lowercase().contains("reflected")
+            })
             .collect();
 
         if !csp_findings.is_empty() && !inline_findings.is_empty() && !input_findings.is_empty() {
             let group_id = Uuid::new_v4().to_string();
             let mut links = Vec::new();
-            if let Some(f) = csp_findings.first() { links.push(CorrelationLink { finding_id: f.id.clone(), relationship_note: "Missing CSP".into() }); }
-            if let Some(f) = inline_findings.first() { links.push(CorrelationLink { finding_id: f.id.clone(), relationship_note: "Inline Scripts".into() }); }
-            if let Some(f) = input_findings.first() { links.push(CorrelationLink { finding_id: f.id.clone(), relationship_note: "Input Exposure".into() }); }
+            if let Some(f) = csp_findings.first() {
+                links.push(CorrelationLink {
+                    finding_id: f.id.clone(),
+                    relationship_note: "Missing CSP".into(),
+                });
+            }
+            if let Some(f) = inline_findings.first() {
+                links.push(CorrelationLink {
+                    finding_id: f.id.clone(),
+                    relationship_note: "Inline Scripts".into(),
+                });
+            }
+            if let Some(f) = input_findings.first() {
+                links.push(CorrelationLink {
+                    finding_id: f.id.clone(),
+                    relationship_note: "Input Exposure".into(),
+                });
+            }
 
             results.push(CorrelationResult {
                 group_id,
@@ -413,22 +444,45 @@ impl CorrelationEngine {
         findings: &[SecurityAuditFinding],
         results: &mut Vec<CorrelationResult>,
     ) {
-        let cors_findings: Vec<&SecurityAuditFinding> = findings.iter()
-            .filter(|f| f.summary.to_lowercase().contains("cors") || f.summary.to_lowercase().contains("access-control"))
-            .collect();
-
-        let cred_findings: Vec<&SecurityAuditFinding> = findings.iter()
+        let cors_findings: Vec<&SecurityAuditFinding> = findings
+            .iter()
             .filter(|f| {
-                let combined = format!("{} {}", f.summary, f.technical_details).to_lowercase();
-                combined.contains("credential") || combined.contains("allow-credentials") || combined.contains("login") || combined.contains("auth")
+                f.summary.to_lowercase().contains("cors")
+                    || f.summary.to_lowercase().contains("access-control")
             })
             .collect();
 
-        if !cors_findings.is_empty() && !cred_findings.is_empty() && cors_findings.iter().any(|f| !cred_findings.iter().any(|c| c.id == f.id)) {
+        let cred_findings: Vec<&SecurityAuditFinding> = findings
+            .iter()
+            .filter(|f| {
+                let combined = format!("{} {}", f.summary, f.technical_details).to_lowercase();
+                combined.contains("credential")
+                    || combined.contains("allow-credentials")
+                    || combined.contains("login")
+                    || combined.contains("auth")
+            })
+            .collect();
+
+        if !cors_findings.is_empty()
+            && !cred_findings.is_empty()
+            && cors_findings
+                .iter()
+                .any(|f| !cred_findings.iter().any(|c| c.id == f.id))
+        {
             let group_id = Uuid::new_v4().to_string();
             let mut links = Vec::new();
-            if let Some(f) = cors_findings.first() { links.push(CorrelationLink { finding_id: f.id.clone(), relationship_note: "Permissive CORS".into() }); }
-            if let Some(f) = cred_findings.first() { links.push(CorrelationLink { finding_id: f.id.clone(), relationship_note: "Credentialed Endpoint".into() }); }
+            if let Some(f) = cors_findings.first() {
+                links.push(CorrelationLink {
+                    finding_id: f.id.clone(),
+                    relationship_note: "Permissive CORS".into(),
+                });
+            }
+            if let Some(f) = cred_findings.first() {
+                links.push(CorrelationLink {
+                    finding_id: f.id.clone(),
+                    relationship_note: "Credentialed Endpoint".into(),
+                });
+            }
 
             results.push(CorrelationResult {
                 group_id,
@@ -452,7 +506,12 @@ mod tests {
     use super::*;
     use chrono::Utc;
 
-    fn mock_finding(category: FindingCategory, summary: &str, details: &str, severity: SeverityLevel) -> SecurityAuditFinding {
+    fn mock_finding(
+        category: FindingCategory,
+        summary: &str,
+        details: &str,
+        severity: SeverityLevel,
+    ) -> SecurityAuditFinding {
         SecurityAuditFinding {
             id: Uuid::new_v4().to_string(),
             timestamp: Utc::now(),
@@ -489,10 +548,20 @@ mod tests {
     fn test_compound_headers_hygiene_gap() {
         let correlator = CorrelationEngine::new();
         let findings = vec![
-            mock_finding(FindingCategory::SecurityMisconfiguration, "Missing CSP Header", "No dynamic context here", SeverityLevel::Medium),
-            mock_finding(FindingCategory::SecurityMisconfiguration, "Missing HSTS Header", "Just a static page", SeverityLevel::Medium),
+            mock_finding(
+                FindingCategory::SecurityMisconfiguration,
+                "Missing CSP Header",
+                "No dynamic context here",
+                SeverityLevel::Medium,
+            ),
+            mock_finding(
+                FindingCategory::SecurityMisconfiguration,
+                "Missing HSTS Header",
+                "Just a static page",
+                SeverityLevel::Medium,
+            ),
         ];
-        
+
         let mut results = correlator.correlate(&findings);
         assert_eq!(results.len(), 1);
         assert!(results[0].is_hygiene_gap);
@@ -502,8 +571,18 @@ mod tests {
     fn test_compound_headers_with_dynamic_input() {
         let correlator = CorrelationEngine::new();
         let findings = vec![
-            mock_finding(FindingCategory::SecurityMisconfiguration, "Missing CSP Header", "Reflected input affects page", SeverityLevel::High),
-            mock_finding(FindingCategory::SecurityMisconfiguration, "Missing X-Frame-Options Header", "Static", SeverityLevel::Medium),
+            mock_finding(
+                FindingCategory::SecurityMisconfiguration,
+                "Missing CSP Header",
+                "Reflected input affects page",
+                SeverityLevel::High,
+            ),
+            mock_finding(
+                FindingCategory::SecurityMisconfiguration,
+                "Missing X-Frame-Options Header",
+                "Static",
+                SeverityLevel::Medium,
+            ),
         ];
 
         let mut results = correlator.correlate(&findings);
@@ -515,9 +594,24 @@ mod tests {
     fn test_strict_correlation_csp_xss() {
         let correlator = CorrelationEngine::new();
         let findings = vec![
-            mock_finding(FindingCategory::SecurityMisconfiguration, "Content-Security-Policy disabled", "", SeverityLevel::Medium),
-            mock_finding(FindingCategory::InformationDisclosure, "Found inline script block", "", SeverityLevel::Informational),
-            mock_finding(FindingCategory::SuspiciousEndpoint, "Reflected User Input detected", "input exposed", SeverityLevel::Medium),
+            mock_finding(
+                FindingCategory::SecurityMisconfiguration,
+                "Content-Security-Policy disabled",
+                "",
+                SeverityLevel::Medium,
+            ),
+            mock_finding(
+                FindingCategory::InformationDisclosure,
+                "Found inline script block",
+                "",
+                SeverityLevel::Informational,
+            ),
+            mock_finding(
+                FindingCategory::SuspiciousEndpoint,
+                "Reflected User Input detected",
+                "input exposed",
+                SeverityLevel::Medium,
+            ),
         ];
 
         let mut results = correlator.correlate(&findings);

@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use crate::domain::entities::{
-    SecurityHeaderResult, SecurityHeaderStatus, RiskInsight, RiskSeverity, DetectedTechnology,
+    DetectedTechnology, RiskInsight, RiskSeverity, SecurityHeaderResult, SecurityHeaderStatus,
 };
+use std::collections::HashMap;
 
 pub fn audit_headers(headers: &HashMap<String, String>) -> Vec<SecurityHeaderResult> {
     let mut results = Vec::new();
@@ -19,7 +19,8 @@ pub fn audit_headers(headers: &HashMap<String, String>) -> Vec<SecurityHeaderRes
                 status,
                 value: Some(val.clone()),
                 explanation: if status == SecurityHeaderStatus::Weak {
-                    "CSP is present but allows unsafe execution (unsafe-inline / unsafe-eval).".to_string()
+                    "CSP is present but allows unsafe execution (unsafe-inline / unsafe-eval)."
+                        .to_string()
                 } else {
                     "CSP is active, mitigating XSS risks.".to_string()
                 },
@@ -39,12 +40,13 @@ pub fn audit_headers(headers: &HashMap<String, String>) -> Vec<SecurityHeaderRes
     match headers.get("strict-transport-security") {
         Some(val) => {
             // Parse max-age value to catch zero-padded evasion (max-age=0000000)
-            let max_age_value = val.to_lowercase()
+            let max_age_value = val
+                .to_lowercase()
                 .split(';')
                 .find(|s| s.trim().starts_with("max-age"))
                 .and_then(|s| s.split('=').nth(1))
                 .and_then(|s| s.trim().parse::<u64>().ok());
-            
+
             let status = if let Some(age) = max_age_value {
                 if age == 0 {
                     SecurityHeaderStatus::Misconfigured // max-age=0 or max-age=0000000
@@ -230,8 +232,12 @@ pub fn generate_insights(
 
     // 2. Permissive CORS (Enhanced: Wildcard, Null, AND Domain Suffix Attacks)
     if let Some(cors) = headers.get("access-control-allow-origin") {
-        let has_creds = headers.get("access-control-allow-credentials").is_some_and(|v| v.to_lowercase() == "true");
-        let is_sensitive = ["api", "auth", "login", "admin"].iter().any(|&s| final_url.to_lowercase().contains(s));
+        let has_creds = headers
+            .get("access-control-allow-credentials")
+            .is_some_and(|v| v.to_lowercase() == "true");
+        let is_sensitive = ["api", "auth", "login", "admin"]
+            .iter()
+            .any(|&s| final_url.to_lowercase().contains(s));
 
         if cors == "*" || cors == "null" {
             let severity = if has_creds || is_sensitive {
@@ -365,7 +371,11 @@ pub fn generate_insights(
         if let Ok(original_url) = url::Url::parse(&redirect_chain[0].url) {
             let orig_host = original_url.host_str().unwrap_or("").to_lowercase();
             for entry in &redirect_chain[1..] {
-                if entry.status_code == 301 || entry.status_code == 302 || entry.status_code == 307 || entry.status_code == 308 {
+                if entry.status_code == 301
+                    || entry.status_code == 302
+                    || entry.status_code == 307
+                    || entry.status_code == 308
+                {
                     if let Ok(redirect_url) = url::Url::parse(&entry.url) {
                         let redirect_host = redirect_url.host_str().unwrap_or("").to_lowercase();
                         if !redirect_host.is_empty()

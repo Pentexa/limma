@@ -1,10 +1,10 @@
-use super::models::{RuleDefinition, RuleContext, DynamicRuleFinding, LocalizedMessage};
-use super::loader;
-use super::validator;
 use super::evaluator;
+use super::loader;
+use super::models::{DynamicRuleFinding, LocalizedMessage, RuleContext, RuleDefinition};
+use super::validator;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::collections::HashSet;
 
 /// Internal mutable state for the engine's governance configuration
 pub struct RuleEngineGovernance {
@@ -27,21 +27,34 @@ impl DynamicRuleEngine {
     pub fn new(rules_dir: &str) -> Self {
         let rules_path = PathBuf::from(rules_dir);
 
-        tracing::info!("[DynamicRuleEngine] Initializing from: {}", rules_path.display());
+        tracing::info!(
+            "[DynamicRuleEngine] Initializing from: {}",
+            rules_path.display()
+        );
 
         // Phase 1: Load
         let (loaded_rules, load_errors) = loader::load_rules_from_directory(&rules_path);
-        tracing::info!("[DynamicRuleEngine] Loaded {} raw rule definitions ({} load errors)",
-            loaded_rules.len(), load_errors.len());
+        tracing::info!(
+            "[DynamicRuleEngine] Loaded {} raw rule definitions ({} load errors)",
+            loaded_rules.len(),
+            load_errors.len()
+        );
 
         // Phase 2: Validate
         let (valid_rules, validation_errors) = validator::validate_rules(loaded_rules);
-        tracing::info!("[DynamicRuleEngine] {} rules passed validation ({} rejected)",
-            valid_rules.len(), validation_errors.len());
+        tracing::info!(
+            "[DynamicRuleEngine] {} rules passed validation ({} rejected)",
+            valid_rules.len(),
+            validation_errors.len()
+        );
 
         for rule in &valid_rules {
-            tracing::info!("[DynamicRuleEngine] ✓ Active rule: {} [{}] default_severity={}",
-                rule.id, rule.name, rule.default_severity);
+            tracing::info!(
+                "[DynamicRuleEngine] ✓ Active rule: {} [{}] default_severity={}",
+                rule.id,
+                rule.name,
+                rule.default_severity
+            );
         }
 
         Self {
@@ -103,8 +116,12 @@ impl DynamicRuleEngine {
     /// Check if a rule is governed as active
     pub fn is_rule_active(&self, rule: &RuleDefinition) -> bool {
         let gov = self.governance.read().unwrap();
-        if gov.disabled_packs.contains(&rule.pack) { return false; }
-        if gov.disabled_rules.contains(&rule.id) { return false; }
+        if gov.disabled_packs.contains(&rule.pack) {
+            return false;
+        }
+        if gov.disabled_rules.contains(&rule.id) {
+            return false;
+        }
         true
     }
 
@@ -128,17 +145,25 @@ impl DynamicRuleEngine {
     /// This prevents false positives from rules that don't apply to certain contexts.
     fn should_evaluate_rule(&self, rule: &RuleDefinition, ctx: &RuleContext) -> bool {
         // 1. Content-Type kontrolü: HTML dışı yanıtlarda belirli kuralları atla
-        let content_type = ctx.headers.get("content-type").map(|s| s.as_str()).unwrap_or("");
-        
+        let content_type = ctx
+            .headers
+            .get("content-type")
+            .map(|s| s.as_str())
+            .unwrap_or("");
+
         if !content_type.contains("text/html") && !content_type.contains("application/xhtml") {
             // JSON/XML API yanıtlarında CSP ve X-Frame-Options zorunlu değil
             let rule_id_lower = rule.id.to_lowercase();
             let rule_cat_lower = rule.category.to_lowercase();
-            if rule_id_lower.contains("csp") || rule_id_lower.contains("xfo") 
-                || rule_cat_lower.contains("csp") || rule_cat_lower.contains("x-frame") {
+            if rule_id_lower.contains("csp")
+                || rule_id_lower.contains("xfo")
+                || rule_cat_lower.contains("csp")
+                || rule_cat_lower.contains("x-frame")
+            {
                 tracing::debug!(
                     "[ContextFilter] Skipping rule {} — non-HTML content-type: {}",
-                    rule.id, content_type
+                    rule.id,
+                    content_type
                 );
                 return false;
             }
@@ -146,7 +171,14 @@ impl DynamicRuleEngine {
 
         // 2. Safe path pattern kontrolü: Güvenli path'lerde sadece kritik kurallar çalışsın
         let url_lower = ctx.url.to_lowercase();
-        let safe_patterns = ["/safe/", "/docs/", "/api-docs", "/education", "/tutorial", "/example"];
+        let safe_patterns = [
+            "/safe/",
+            "/docs/",
+            "/api-docs",
+            "/education",
+            "/tutorial",
+            "/example",
+        ];
         for pattern in &safe_patterns {
             if url_lower.contains(pattern) {
                 if rule.priority < 80 {
@@ -168,10 +200,14 @@ impl DynamicRuleEngine {
         let mut raw_findings = Vec::new();
 
         for rule in &self.rules {
-            if !self.is_rule_active(rule) { continue; }
+            if !self.is_rule_active(rule) {
+                continue;
+            }
 
             // Pre-filter: Context-aware evaluation (FP reduction)
-            if !self.should_evaluate_rule(rule, ctx) { continue; }
+            if !self.should_evaluate_rule(rule, ctx) {
+                continue;
+            }
 
             // Pre-filter: Check scope
             if let Some(scope) = &rule.scope {
@@ -184,16 +220,20 @@ impl DynamicRuleEngine {
                 // Apply feedback-driven calibration
                 let rep = self.feedback_engine.get_rule_stats(&finding.rule_id);
                 finding.rule_reputation_score = Some(rep.reputation_score);
-                
+
                 if rep.total_feedback > 2 {
                     if rep.reputation_score < 30.0 {
                         // High FP rate
                         finding.effective_confidence = "tentative".to_string();
-                        finding.calibration_reasons.push(LocalizedMessage::new("dre.calib.reputation_dropped")
-                            .with_param("score", &format!("{:.1}", rep.reputation_score)));
-                        finding.feedback_summary = Some(LocalizedMessage::new("dre.calib.summary_high_fp")
-                            .with_param("fp", &rep.false_positives.to_string())
-                            .with_param("total", &rep.total_feedback.to_string()));
+                        finding.calibration_reasons.push(
+                            LocalizedMessage::new("dre.calib.reputation_dropped")
+                                .with_param("score", &format!("{:.1}", rep.reputation_score)),
+                        );
+                        finding.feedback_summary = Some(
+                            LocalizedMessage::new("dre.calib.summary_high_fp")
+                                .with_param("fp", &rep.false_positives.to_string())
+                                .with_param("total", &rep.total_feedback.to_string()),
+                        );
                     } else if rep.reputation_score > 80.0 {
                         // High Confirm rate
                         if finding.effective_confidence == "tentative" {
@@ -201,15 +241,21 @@ impl DynamicRuleEngine {
                         } else if finding.effective_confidence == "firm" {
                             finding.effective_confidence = "certain".to_string();
                         }
-                        finding.calibration_reasons.push(LocalizedMessage::new("dre.calib.reputation_boosted")
-                            .with_param("score", &format!("{:.1}", rep.reputation_score)));
-                        finding.feedback_summary = Some(LocalizedMessage::new("dre.calib.summary_high_confirm")
-                            .with_param("confirmed", &rep.confirmed.to_string())
-                            .with_param("total", &rep.total_feedback.to_string()));
+                        finding.calibration_reasons.push(
+                            LocalizedMessage::new("dre.calib.reputation_boosted")
+                                .with_param("score", &format!("{:.1}", rep.reputation_score)),
+                        );
+                        finding.feedback_summary = Some(
+                            LocalizedMessage::new("dre.calib.summary_high_confirm")
+                                .with_param("confirmed", &rep.confirmed.to_string())
+                                .with_param("total", &rep.total_feedback.to_string()),
+                        );
                     }
                 } else if rep.total_feedback > 0 {
-                  finding.feedback_summary = Some(LocalizedMessage::new("dre.calib.summary_evaluated")
-                      .with_param("total", &rep.total_feedback.to_string()));
+                    finding.feedback_summary = Some(
+                        LocalizedMessage::new("dre.calib.summary_evaluated")
+                            .with_param("total", &rep.total_feedback.to_string()),
+                    );
                 }
 
                 raw_findings.push(finding);
@@ -245,11 +291,15 @@ impl DynamicRuleEngine {
                 }
             }
         }
-        
+
         if let Some(content_types) = &scope.content_types {
             if let Some(ctx_ct) = ctx.headers.get("content-type") {
-                let matches_ct = content_types.iter().any(|ct| ctx_ct.to_lowercase().contains(&ct.to_lowercase()));
-                if !matches_ct { return false; }
+                let matches_ct = content_types
+                    .iter()
+                    .any(|ct| ctx_ct.to_lowercase().contains(&ct.to_lowercase()));
+                if !matches_ct {
+                    return false;
+                }
             } else {
                 return false; // required content types specified but none found
             }
@@ -259,7 +309,8 @@ impl DynamicRuleEngine {
     }
 
     fn deduplicate_findings(&self, findings: Vec<DynamicRuleFinding>) -> Vec<DynamicRuleFinding> {
-        let mut by_dedup: std::collections::HashMap<String, Vec<DynamicRuleFinding>> = std::collections::HashMap::new();
+        let mut by_dedup: std::collections::HashMap<String, Vec<DynamicRuleFinding>> =
+            std::collections::HashMap::new();
         let mut active_findings = Vec::new();
 
         // 1. Group by dedup_key
@@ -291,7 +342,8 @@ impl DynamicRuleEngine {
             }
         }
 
-        active_findings.into_iter()
+        active_findings
+            .into_iter()
             .filter(|f| !superseded_ids.contains(&f.rule_id))
             .collect()
     }

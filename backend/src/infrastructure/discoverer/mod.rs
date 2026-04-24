@@ -1,22 +1,22 @@
+pub mod classifier;
 pub mod fetcher;
 pub mod html_analyzer;
 pub mod js_collector;
 pub mod js_static_analyzer;
 pub mod normalizer;
-pub mod classifier;
 
-use crate::domain::entities::{ApiDiscoveryResult, EndpointDetail, CertaintyLevel, CertaintyNote};
+use crate::domain::entities::{ApiDiscoveryResult, CertaintyLevel, CertaintyNote, EndpointDetail};
 use crate::domain::repositories::ApiDiscoverer;
 use async_trait::async_trait;
-use url::Url;
 use std::collections::{HashMap, HashSet};
+use url::Url;
 
+use classifier::EndpointClassifier;
 use fetcher::CrawlerFetcher;
 use html_analyzer::HtmlAnalyzer;
 use js_collector::JsCollector;
 use js_static_analyzer::JsStaticAnalyzer;
 use normalizer::PathNormalizer;
-use classifier::EndpointClassifier;
 
 pub struct HttpApiDiscoverer {
     fetcher: CrawlerFetcher,
@@ -30,11 +30,37 @@ impl HttpApiDiscoverer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn register_path(&self, endpoints_map: &mut HashMap<String, EndpointDetail>, raw_path: &str, base_url: &Url, source_type: &str, snippet: &str, method: &str, params: Vec<String>, auth_prob: f32, reason: &str, line_number: Option<usize>) {
-        if EndpointClassifier::is_false_positive(raw_path) { return; }
-        
+    fn register_path(
+        &self,
+        endpoints_map: &mut HashMap<String, EndpointDetail>,
+        raw_path: &str,
+        base_url: &Url,
+        source_type: &str,
+        snippet: &str,
+        method: &str,
+        params: Vec<String>,
+        auth_prob: f32,
+        reason: &str,
+        line_number: Option<usize>,
+    ) {
+        if EndpointClassifier::is_false_positive(raw_path) {
+            return;
+        }
+
         let conf = EndpointClassifier::score_confidence(source_type, method);
-        PathNormalizer::resolve_and_merge(endpoints_map, raw_path, base_url, source_type, snippet, method, params, auth_prob, conf, reason, line_number);
+        PathNormalizer::resolve_and_merge(
+            endpoints_map,
+            raw_path,
+            base_url,
+            source_type,
+            snippet,
+            method,
+            params,
+            auth_prob,
+            conf,
+            reason,
+            line_number,
+        );
     }
 }
 
@@ -42,16 +68,16 @@ impl HttpApiDiscoverer {
 impl ApiDiscoverer for HttpApiDiscoverer {
     async fn discover(&self, url_str: &str) -> Result<ApiDiscoveryResult, String> {
         let base_url = Url::parse(url_str).map_err(|e| format!("Invalid Base URL: {}", e))?;
-        
+
         // 1. Fetcher layer
         let html_body = self.fetcher.fetch_html(url_str).await?;
 
         let mut endpoints_map: HashMap<String, EndpointDetail> = HashMap::new();
         let mut tech_stack = HashSet::new();
-        
+
         // 2. HTML Analyzer layer
         let html_res = HtmlAnalyzer::parse(&html_body, &base_url);
-        
+
         let actual_base_url = if let Some(href) = html_res.base_href {
             Url::parse(&href).unwrap_or(base_url.clone())
         } else {
@@ -60,19 +86,52 @@ impl ApiDiscoverer for HttpApiDiscoverer {
 
         for (action, method, params) in html_res.forms {
             let snippet = format!("<form action='{}' method='{}'>", action, method);
-            self.register_path(&mut endpoints_map, &action, &actual_base_url, "HTML Form", &snippet, &method, params, 0.10, "Explicit HTML Form element action pointing to an endpoint", None);
+            self.register_path(
+                &mut endpoints_map,
+                &action,
+                &actual_base_url,
+                "HTML Form",
+                &snippet,
+                &method,
+                params,
+                0.10,
+                "Explicit HTML Form element action pointing to an endpoint",
+                None,
+            );
         }
 
         for link in html_res.links {
             if link.contains("/api/") || link.contains("api.") {
                 let snippet = format!("<a href='{}'>", link);
-                self.register_path(&mut endpoints_map, &link, &actual_base_url, "HTML Link", &snippet, "GET", vec![], 0.0, "HTML Anchor link referencing an API path", None);
+                self.register_path(
+                    &mut endpoints_map,
+                    &link,
+                    &actual_base_url,
+                    "HTML Link",
+                    &snippet,
+                    "GET",
+                    vec![],
+                    0.0,
+                    "HTML Anchor link referencing an API path",
+                    None,
+                );
             }
         }
 
         for path in html_res.data_endpoints {
             let snippet = format!("Data/Meta Attribute: {}", path);
-            self.register_path(&mut endpoints_map, &path, &actual_base_url, "Data Attribute / Meta", &snippet, "UNKNOWN", vec![], 0.05, "Data or Meta attribute holding an endpoint configuration", None);
+            self.register_path(
+                &mut endpoints_map,
+                &path,
+                &actual_base_url,
+                "Data Attribute / Meta",
+                &snippet,
+                "UNKNOWN",
+                vec![],
+                0.05,
+                "Data or Meta attribute holding an endpoint configuration",
+                None,
+            );
         }
 
         let mut js_sources_to_eval = Vec::new();
@@ -81,18 +140,21 @@ impl ApiDiscoverer for HttpApiDiscoverer {
         }
 
         // 3. JS Collector
-        for src in html_res.external_js_src.into_iter().take(15) { 
+        for src in html_res.external_js_src.into_iter().take(15) {
             if let Ok(js_url) = actual_base_url.join(&src) {
                 let host = js_url.host_str().unwrap_or("");
                 let orig_host = actual_base_url.host_str().unwrap_or("");
                 if host == orig_host || host.contains("cdn") || host.contains("unpkg") {
                     if let Ok(js_code) = self.fetcher.fetch_js(js_url.as_str()).await {
                         let metadata = JsCollector::analyze_metadata(&js_code);
-                        
+
                         for chunk in metadata.potential_chunks.into_iter().take(5) {
                             if let Ok(chunk_url) = actual_base_url.join(&chunk) {
-                                if let Ok(chunk_code) = self.fetcher.fetch_js(chunk_url.as_str()).await {
-                                    js_sources_to_eval.push((chunk_code, "External JS (Dynamic Import)"));
+                                if let Ok(chunk_code) =
+                                    self.fetcher.fetch_js(chunk_url.as_str()).await
+                                {
+                                    js_sources_to_eval
+                                        .push((chunk_code, "External JS (Dynamic Import)"));
                                 }
                             }
                         }
@@ -111,28 +173,68 @@ impl ApiDiscoverer for HttpApiDiscoverer {
 
             for (path, snippet, reason, line_num) in analyzer_res.paths_with_evidence {
                 let auth_prob = EndpointClassifier::assess_auth(&code, &path);
-                
+
                 let mut method = "UNKNOWN";
-                
+
                 // Heuristics based on snippet traces
                 let trace_lower = snippet.to_lowercase();
-                if trace_lower.contains(".post") || trace_lower.contains("method: 'post'") || trace_lower.contains("method:\"post\"") { method = "POST"; }
-                else if trace_lower.contains(".put") || trace_lower.contains("method: 'put'") { method = "PUT"; }
-                else if trace_lower.contains(".delete") || trace_lower.contains("method: 'delete'") { method = "DELETE"; }
-                else if trace_lower.contains(".get") || trace_lower.contains("method: 'get'") { method = "GET"; }
+                if trace_lower.contains(".post")
+                    || trace_lower.contains("method: 'post'")
+                    || trace_lower.contains("method:\"post\"")
+                {
+                    method = "POST";
+                } else if trace_lower.contains(".put") || trace_lower.contains("method: 'put'") {
+                    method = "PUT";
+                } else if trace_lower.contains(".delete")
+                    || trace_lower.contains("method: 'delete'")
+                {
+                    method = "DELETE";
+                } else if trace_lower.contains(".get") || trace_lower.contains("method: 'get'") {
+                    method = "GET";
+                }
 
                 let clean_path = path.replace("[VAR]", "");
-                self.register_path(&mut endpoints_map, &clean_path, &actual_base_url, src_label, &snippet, method, vec![], auth_prob, &reason, line_num);
+                self.register_path(
+                    &mut endpoints_map,
+                    &clean_path,
+                    &actual_base_url,
+                    src_label,
+                    &snippet,
+                    method,
+                    vec![],
+                    auth_prob,
+                    &reason,
+                    line_num,
+                );
             }
         }
 
         // Test common endpoints dynamically using the fetcher
-        let common_paths = vec!["/swagger.json", "/openapi.json", "/api-docs", "/api/v1/health"];
+        let common_paths = vec![
+            "/swagger.json",
+            "/openapi.json",
+            "/api-docs",
+            "/api/v1/health",
+        ];
         for path in common_paths {
             if let Ok(test_url) = actual_base_url.join(path) {
                 if self.fetcher.test_endpoint(test_url.as_str()).await {
-                    let snippet = format!("Automated brute-force active ping returned 200 OK for: {}", path);
-                    self.register_path(&mut endpoints_map, path, &actual_base_url, "Common Endpoint Brute-force", &snippet, "GET", vec![], 0.0, "Brute force successful status code 200", None);
+                    let snippet = format!(
+                        "Automated brute-force active ping returned 200 OK for: {}",
+                        path
+                    );
+                    self.register_path(
+                        &mut endpoints_map,
+                        path,
+                        &actual_base_url,
+                        "Common Endpoint Brute-force",
+                        &snippet,
+                        "GET",
+                        vec![],
+                        0.0,
+                        "Brute force successful status code 200",
+                        None,
+                    );
                     if path.contains("swagger") || path.contains("api-docs") {
                         tech_stack.insert("Swagger/OpenAPI".to_string());
                     }
@@ -165,21 +267,39 @@ impl ApiDiscoverer for HttpApiDiscoverer {
 
             let base_str = actual_base_url.as_str().trim_end_matches('/');
             let path_str = ep.path.trim_start_matches('/');
-            let full_url = if ep.path.starts_with("http") { ep.path.clone() } else { format!("{}/{}", base_str, path_str) };
-            
-            if let Some(verification) = self.fetcher.verify_endpoint_deep(&full_url, &ep.method_prediction).await {
+            let full_url = if ep.path.starts_with("http") {
+                ep.path.clone()
+            } else {
+                format!("{}/{}", base_str, path_str)
+            };
+
+            if let Some(verification) = self
+                .fetcher
+                .verify_endpoint_deep(&full_url, &ep.method_prediction)
+                .await
+            {
                 let is_valid = verification.is_valid;
 
                 if ep.confidence_score >= 0.70 {
                     high_conf_total += 1;
-                    if is_valid { high_conf_valid += 1; }
+                    if is_valid {
+                        high_conf_valid += 1;
+                    }
                 } else {
                     low_conf_total += 1;
-                    if is_valid { low_conf_valid += 1; }
+                    if is_valid {
+                        low_conf_valid += 1;
+                    }
                 }
 
                 // Hard filter logic for generic base paths
-                if !is_valid && ep.parameters.is_empty() && (ep.path == "/api" || ep.path == "/api/" || ep.path == "/v1" || ep.path == "/api/v1") {
+                if !is_valid
+                    && ep.parameters.is_empty()
+                    && (ep.path == "/api"
+                        || ep.path == "/api/"
+                        || ep.path == "/v1"
+                        || ep.path == "/api/v1")
+                {
                     continue; // Purge completely
                 }
 
@@ -198,15 +318,17 @@ impl ApiDiscoverer for HttpApiDiscoverer {
             }
 
             // Assign certainty based on verification outcome
-            ep.certainty = Some(if ep.runtime_verification.as_ref().is_some_and(|v| v.is_valid) {
-                CertaintyLevel::Certain
-            } else if ep.confidence_score >= 0.7 {
-                CertaintyLevel::Likely
-            } else if ep.confidence_score >= 0.4 {
-                CertaintyLevel::Uncertain
-            } else {
-                CertaintyLevel::Unknown
-            });
+            ep.certainty = Some(
+                if ep.runtime_verification.as_ref().is_some_and(|v| v.is_valid) {
+                    CertaintyLevel::Certain
+                } else if ep.confidence_score >= 0.7 {
+                    CertaintyLevel::Likely
+                } else if ep.confidence_score >= 0.4 {
+                    CertaintyLevel::Uncertain
+                } else {
+                    CertaintyLevel::Unknown
+                },
+            );
 
             filtered_endpoints.push(ep);
         }
@@ -219,9 +341,17 @@ impl ApiDiscoverer for HttpApiDiscoverer {
             0.0
         };
 
-        let high_acc = if high_conf_total > 0 { high_conf_valid as f32 / high_conf_total as f32 } else { 0.0 };
-        let low_acc = if low_conf_total > 0 { low_conf_valid as f32 / low_conf_total as f32 } else { 0.0 };
-        let correlation = high_acc - low_acc; 
+        let high_acc = if high_conf_total > 0 {
+            high_conf_valid as f32 / high_conf_total as f32
+        } else {
+            0.0
+        };
+        let low_acc = if low_conf_total > 0 {
+            low_conf_valid as f32 / low_conf_total as f32
+        } else {
+            0.0
+        };
+        let correlation = high_acc - low_acc;
 
         let total_evidences: usize = source_counts.values().sum();
         let mut source_distribution = std::collections::HashMap::new();
@@ -249,7 +379,8 @@ impl ApiDiscoverer for HttpApiDiscoverer {
         } else if !filtered_endpoints.is_empty() {
             Some(CertaintyNote {
                 level: CertaintyLevel::Uncertain,
-                reason: "Endpoint'ler tespit edildi ama hiçbiri runtime'da doğrulanamadı".to_string(),
+                reason: "Endpoint'ler tespit edildi ama hiçbiri runtime'da doğrulanamadı"
+                    .to_string(),
             })
         } else {
             Some(CertaintyNote {

@@ -22,11 +22,11 @@ const MAX_RETRIES: u8 = 1;
 
 /// Determines the probe strategy based on port number.
 enum ProbeStrategy {
-    HttpFirst,   // 80, 8080
-    TlsFirst,    // 443, 8443
-    BannerOnly,  // 22 (SSH sends greeting)
+    HttpFirst,     // 80, 8080
+    TlsFirst,      // 443, 8443
+    BannerOnly,    // 22 (SSH sends greeting)
     GreetingFirst, // 3306, 5432, 6379
-    BannerFirst, // everything else
+    BannerFirst,   // everything else
 }
 
 fn strategy_for_port(port: u16) -> ProbeStrategy {
@@ -126,18 +126,32 @@ pub async fn probe_with_fallback(
         ProbeStrategy::HttpFirst => {
             // Try HTTP first, fallback to banner
             let mut stream = stream;
-            if let Some((hs, ev)) = http_probe::probe_http_plain(host, &mut stream, HTTP_TIMEOUT).await {
+            if let Some((hs, ev)) =
+                http_probe::probe_http_plain(host, &mut stream, HTTP_TIMEOUT).await
+            {
                 http_summary = Some(hs);
                 all_evidences.push(ev);
                 log_probe_event(&mut timeline, port, "HTTP_PROBE", "HTTP probe succeeded");
             } else {
                 fallback_used = true;
-                log_probe_event(&mut timeline, port, "FALLBACK_TRIGGERED", "HTTP failed, falling back to banner");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "FALLBACK_TRIGGERED",
+                    "HTTP failed, falling back to banner",
+                );
                 // Reconnect for banner (original stream may be consumed)
                 if let Some(mut new_stream) = try_connect(&addr).await {
-                    if let Some(ev) = banner_probe::probe_banner(&mut new_stream, BANNER_TIMEOUT).await {
+                    if let Some(ev) =
+                        banner_probe::probe_banner(&mut new_stream, BANNER_TIMEOUT).await
+                    {
                         all_evidences.push(ev);
-                        log_probe_event(&mut timeline, port, "BANNER_PROBE", "Banner fallback succeeded");
+                        log_probe_event(
+                            &mut timeline,
+                            port,
+                            "BANNER_PROBE",
+                            "Banner fallback succeeded",
+                        );
                     }
                 }
             }
@@ -148,11 +162,18 @@ pub async fn probe_with_fallback(
             if let Some((ts, ev)) = tls_probe::probe_tls(host, stream, TLS_TIMEOUT).await {
                 tls_summary = Some(ts);
                 all_evidences.push(ev);
-                log_probe_event(&mut timeline, port, "TLS_HANDSHAKE", "TLS handshake succeeded");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "TLS_HANDSHAKE",
+                    "TLS handshake succeeded",
+                );
 
                 // If TLS succeeded, try HTTP over TLS
                 if let Some(new_stream) = try_connect(&addr).await {
-                    if let Some((ts2, _)) = tls_probe::probe_tls(host, new_stream, TLS_TIMEOUT).await {
+                    if let Some((ts2, _)) =
+                        tls_probe::probe_tls(host, new_stream, TLS_TIMEOUT).await
+                    {
                         // We already have TLS summary, skip
                         let _ = ts2;
                     }
@@ -163,29 +184,54 @@ pub async fn probe_with_fallback(
                     let config = build_tls_config();
                     let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
                     if let Ok(sn) = rustls::pki_types::ServerName::try_from(host.to_string()) {
-                        if let Ok(Ok(mut tls_stream)) = tokio::time::timeout(TLS_TIMEOUT, connector.connect(sn, new_stream)).await {
-                            if let Some((hs, ev)) = http_probe::probe_http_tls(host, &mut tls_stream, HTTP_TIMEOUT).await {
+                        if let Ok(Ok(mut tls_stream)) =
+                            tokio::time::timeout(TLS_TIMEOUT, connector.connect(sn, new_stream))
+                                .await
+                        {
+                            if let Some((hs, ev)) =
+                                http_probe::probe_http_tls(host, &mut tls_stream, HTTP_TIMEOUT)
+                                    .await
+                            {
                                 http_summary = Some(hs);
                                 all_evidences.push(ev);
-                                log_probe_event(&mut timeline, port, "HTTP_OVER_TLS", "HTTP over TLS probe succeeded");
+                                log_probe_event(
+                                    &mut timeline,
+                                    port,
+                                    "HTTP_OVER_TLS",
+                                    "HTTP over TLS probe succeeded",
+                                );
                             }
                         }
                     }
                 }
             } else {
                 fallback_used = true;
-                log_probe_event(&mut timeline, port, "FALLBACK_TRIGGERED", "TLS failed, falling back to HTTP plain");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "FALLBACK_TRIGGERED",
+                    "TLS failed, falling back to HTTP plain",
+                );
                 // Fallback: try plain HTTP
                 if let Some(mut new_stream) = try_connect(&addr).await {
-                    if let Some((hs, ev)) = http_probe::probe_http_plain(host, &mut new_stream, HTTP_TIMEOUT).await {
+                    if let Some((hs, ev)) =
+                        http_probe::probe_http_plain(host, &mut new_stream, HTTP_TIMEOUT).await
+                    {
                         http_summary = Some(hs);
                         all_evidences.push(ev);
                     } else {
                         // Final fallback: banner
                         if let Some(mut banner_stream) = try_connect(&addr).await {
-                            if let Some(ev) = banner_probe::probe_banner(&mut banner_stream, BANNER_TIMEOUT).await {
+                            if let Some(ev) =
+                                banner_probe::probe_banner(&mut banner_stream, BANNER_TIMEOUT).await
+                            {
                                 all_evidences.push(ev);
-                                log_probe_event(&mut timeline, port, "BANNER_FALLBACK", "Banner fallback used");
+                                log_probe_event(
+                                    &mut timeline,
+                                    port,
+                                    "BANNER_FALLBACK",
+                                    "Banner fallback used",
+                                );
                             }
                         }
                     }
@@ -197,20 +243,39 @@ pub async fn probe_with_fallback(
             let mut stream = stream;
             if let Some(ev) = banner_probe::probe_banner(&mut stream, BANNER_TIMEOUT).await {
                 all_evidences.push(ev);
-                log_probe_event(&mut timeline, port, "BANNER_PROBE", "Banner probe succeeded");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "BANNER_PROBE",
+                    "Banner probe succeeded",
+                );
             }
         }
 
         ProbeStrategy::GreetingFirst => {
             let mut stream = stream;
-            if let Some(ev) = greeting_probe::probe_greeting(&mut stream, port, GREETING_TIMEOUT).await {
+            if let Some(ev) =
+                greeting_probe::probe_greeting(&mut stream, port, GREETING_TIMEOUT).await
+            {
                 all_evidences.push(ev);
-                log_probe_event(&mut timeline, port, "GREETING_PROBE", "Greeting probe succeeded");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "GREETING_PROBE",
+                    "Greeting probe succeeded",
+                );
             } else {
                 fallback_used = true;
-                log_probe_event(&mut timeline, port, "FALLBACK_TRIGGERED", "Greeting failed, falling back to banner");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "FALLBACK_TRIGGERED",
+                    "Greeting failed, falling back to banner",
+                );
                 if let Some(mut new_stream) = try_connect(&addr).await {
-                    if let Some(ev) = banner_probe::probe_banner(&mut new_stream, BANNER_TIMEOUT).await {
+                    if let Some(ev) =
+                        banner_probe::probe_banner(&mut new_stream, BANNER_TIMEOUT).await
+                    {
                         all_evidences.push(ev);
                     }
                 }
@@ -221,15 +286,32 @@ pub async fn probe_with_fallback(
             let mut stream = stream;
             if let Some(ev) = banner_probe::probe_banner(&mut stream, BANNER_TIMEOUT).await {
                 all_evidences.push(ev);
-                log_probe_event(&mut timeline, port, "BANNER_PROBE", "Banner probe succeeded");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "BANNER_PROBE",
+                    "Banner probe succeeded",
+                );
             } else {
                 fallback_used = true;
-                log_probe_event(&mut timeline, port, "FALLBACK_TRIGGERED", "Banner empty, trying TLS check");
+                log_probe_event(
+                    &mut timeline,
+                    port,
+                    "FALLBACK_TRIGGERED",
+                    "Banner empty, trying TLS check",
+                );
                 if let Some(new_stream) = try_connect(&addr).await {
-                    if let Some((ts, ev)) = tls_probe::probe_tls(host, new_stream, TLS_TIMEOUT).await {
+                    if let Some((ts, ev)) =
+                        tls_probe::probe_tls(host, new_stream, TLS_TIMEOUT).await
+                    {
                         tls_summary = Some(ts);
                         all_evidences.push(ev);
-                        log_probe_event(&mut timeline, port, "TLS_FALLBACK", "TLS fallback succeeded");
+                        log_probe_event(
+                            &mut timeline,
+                            port,
+                            "TLS_FALLBACK",
+                            "TLS fallback succeeded",
+                        );
                     }
                 }
             }
@@ -343,7 +425,10 @@ async fn try_connect_with_retry(
                 timeline,
                 port,
                 "CONNECT_RETRY",
-                &format!("Connection timeout, retrying (attempt {}/{})", 1, MAX_RETRIES),
+                &format!(
+                    "Connection timeout, retrying (attempt {}/{})",
+                    1, MAX_RETRIES
+                ),
             );
         }
     }

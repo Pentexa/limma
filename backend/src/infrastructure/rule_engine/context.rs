@@ -16,15 +16,19 @@ pub fn build_context_from_headers(
         .collect();
 
     let is_https = url.starts_with("https://");
-    
+
     // Parse URL for path and query
     let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").unwrap());
     let path = parsed_url.path().to_lowercase();
-    
+
     // Simple heuristics for semantic flags
     let is_login = path.contains("login") || path.contains("signin") || path.contains("auth");
-    let is_sensitive = is_login || path.contains("admin") || path.contains("dashboard") || path.contains("user");
-    let is_authenticated = normalized.contains_key("authorization") || normalized.get("cookie").is_some_and(|c| c.contains("session"));
+    let is_sensitive =
+        is_login || path.contains("admin") || path.contains("dashboard") || path.contains("user");
+    let is_authenticated = normalized.contains_key("authorization")
+        || normalized
+            .get("cookie")
+            .is_some_and(|c| c.contains("session"));
 
     RuleContext {
         url: url.to_string(),
@@ -56,11 +60,15 @@ pub fn build_context_from_multi_headers(
     // Parse URL for path and query
     let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").unwrap());
     let path = parsed_url.path().to_lowercase();
-    
+
     // Simple heuristics for semantic flags
     let is_login = path.contains("login") || path.contains("signin") || path.contains("auth");
-    let is_sensitive = is_login || path.contains("admin") || path.contains("dashboard") || path.contains("user");
-    let is_authenticated = normalized.contains_key("authorization") || normalized.get("cookie").is_some_and(|c| c.contains("session"));
+    let is_sensitive =
+        is_login || path.contains("admin") || path.contains("dashboard") || path.contains("user");
+    let is_authenticated = normalized.contains_key("authorization")
+        || normalized
+            .get("cookie")
+            .is_some_and(|c| c.contains("session"));
 
     RuleContext {
         url: url.to_string(),

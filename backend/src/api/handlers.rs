@@ -1,18 +1,24 @@
-use axum::{extract::State, Json, http::StatusCode};
-use std::sync::Arc;
-use crate::api::models::{CreateUserRequest, LoginRequest, AuthResponse, UserPublic, AnalysisRequest, ProxyRequest, VerifyPortRequest, VerifyPortResponse, FeedbackRequest};
-use crate::application::use_cases::{RegisterUser, LoginUser, AnalyzeWebsite, InvestigateServer, DiscoverApis, CollectExternalServices, AuditSecurity, MapForms, GenerateMasterReport};
-use crate::error::AppError;
-use crate::infrastructure::persistence::PgUserRepository;
-use crate::infrastructure::scanner::HttpWebsiteScanner;
-use crate::infrastructure::investigator::HttpInvestigator;
-use crate::infrastructure::discoverer::HttpApiDiscoverer;
-use crate::infrastructure::collector::HttpServiceCollector;
-use crate::infrastructure::auditor::HttpSecurityAuditor;
-use crate::infrastructure::mapper::HttpFormMapper;
-use crate::infrastructure::rule_engine::SharedDynamicRuleEngine;
-use crate::infrastructure::burp_bridge::{BurpBridgeManager, SharedBurpBridgeManager};
+use crate::api::models::{
+    AnalysisRequest, AuthResponse, CreateUserRequest, FeedbackRequest, LoginRequest, ProxyRequest,
+    UserPublic, VerifyPortRequest, VerifyPortResponse,
+};
+use crate::application::use_cases::{
+    AnalyzeWebsite, AuditSecurity, CollectExternalServices, DiscoverApis, GenerateMasterReport,
+    InvestigateServer, LoginUser, MapForms, RegisterUser,
+};
 use crate::domain::repositories::SecurityAuditorRepository;
+use crate::error::AppError;
+use crate::infrastructure::auditor::HttpSecurityAuditor;
+use crate::infrastructure::burp_bridge::{BurpBridgeManager, SharedBurpBridgeManager};
+use crate::infrastructure::collector::HttpServiceCollector;
+use crate::infrastructure::discoverer::HttpApiDiscoverer;
+use crate::infrastructure::investigator::HttpInvestigator;
+use crate::infrastructure::mapper::HttpFormMapper;
+use crate::infrastructure::persistence::PgUserRepository;
+use crate::infrastructure::rule_engine::SharedDynamicRuleEngine;
+use crate::infrastructure::scanner::HttpWebsiteScanner;
+use axum::{extract::State, http::StatusCode, Json};
+use std::sync::Arc;
 
 pub struct AppState {
     pub user_repo: Arc<PgUserRepository>,
@@ -33,9 +39,14 @@ pub async fn register_user(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
-    let use_case = RegisterUser { repo: &*state.user_repo };
-    
-    match use_case.execute(payload.name, payload.email, payload.password).await {
+    let use_case = RegisterUser {
+        repo: &*state.user_repo,
+    };
+
+    match use_case
+        .execute(payload.name, payload.email, payload.password)
+        .await
+    {
         Ok(user) => {
             // Auto-login after registration: create token
             let token = crate::infrastructure::auth::create_token(user.id, &state.jwt_secret)
@@ -51,7 +62,7 @@ pub async fn register_user(
             };
             let value = serde_json::to_value(response)?;
             Ok((StatusCode::CREATED, Json(value)))
-        },
+        }
         Err(e) => Err(AppError::BadRequest(e)),
     }
 }
@@ -77,7 +88,7 @@ pub async fn login_user(
             };
             let value = serde_json::to_value(response)?;
             Ok(Json(value))
-        },
+        }
         Err(e) => Err(AppError::BadRequest(e)),
     }
 }
@@ -87,20 +98,21 @@ pub async fn get_me(
     req: axum::http::Request<axum::body::Body>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Extract token from Authorization header
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| AppError::BadRequest("Missing Authorization header".to_string()))?;
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| AppError::BadRequest("Invalid Authorization format. Use: Bearer <token>".to_string()))?;
+    let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+        AppError::BadRequest("Invalid Authorization format. Use: Bearer <token>".to_string())
+    })?;
 
     let claims = crate::infrastructure::auth::verify_token(token, &state.jwt_secret)
         .map_err(AppError::BadRequest)?;
 
-    let user_id = crate::infrastructure::auth::user_id_from_claims(&claims)
-        .map_err(AppError::BadRequest)?;
+    let user_id =
+        crate::infrastructure::auth::user_id_from_claims(&claims).map_err(AppError::BadRequest)?;
 
     // Find user by iterating — simple approach using email lookup from token sub (user id)
     // We query by ID directly
@@ -114,13 +126,16 @@ pub async fn get_me(
         Some(r) => {
             use sqlx::Row;
             let user = UserPublic {
-                id: r.try_get::<uuid::Uuid, _>("id").unwrap_or_default().to_string(),
+                id: r
+                    .try_get::<uuid::Uuid, _>("id")
+                    .unwrap_or_default()
+                    .to_string(),
                 name: r.try_get("name").unwrap_or_default(),
                 email: r.try_get("email").unwrap_or_default(),
             };
             let value = serde_json::to_value(user)?;
             Ok(Json(value))
-        },
+        }
         None => Err(AppError::BadRequest("User not found".to_string())),
     }
 }
@@ -129,20 +144,25 @@ pub async fn analyze_website(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = AnalyzeWebsite { scanner: &*state.website_scanner };
-    
-    let analysis = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = AnalyzeWebsite {
+        scanner: &*state.website_scanner,
+    };
+
+    let analysis = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(analysis)?;
     Ok(Json(value))
 }
 
-use axum::response::sse::{Event, Sse};
-use tokio_stream::StreamExt;
-use std::convert::Infallible;
 use axum::extract::Query;
+use axum::response::sse::{Event, Sse};
 use serde::Deserialize;
+use std::convert::Infallible;
+use tokio_stream::StreamExt;
 
-use crate::domain::repositories::{WebsiteScanner, ServerInvestigator};
+use crate::domain::repositories::{ServerInvestigator, WebsiteScanner};
 
 #[derive(Deserialize)]
 pub struct StreamQuery {
@@ -181,9 +201,14 @@ pub async fn investigate_server(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = InvestigateServer { investigator: &*state.server_investigator };
-    
-    let info = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = InvestigateServer {
+        investigator: &*state.server_investigator,
+    };
+
+    let info = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(info)?;
     Ok(Json(value))
 }
@@ -220,9 +245,14 @@ pub async fn discover_apis(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = DiscoverApis { discoverer: &*state.api_discoverer };
-    
-    let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = DiscoverApis {
+        discoverer: &*state.api_discoverer,
+    };
+
+    let res = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -231,9 +261,14 @@ pub async fn collect_services(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = CollectExternalServices { collector: &*state.service_collector };
-    
-    let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = CollectExternalServices {
+        collector: &*state.service_collector,
+    };
+
+    let res = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -242,9 +277,14 @@ pub async fn audit_security(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = AuditSecurity { auditor: &*state.security_auditor };
-    
-    let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = AuditSecurity {
+        auditor: &*state.security_auditor,
+    };
+
+    let res = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -253,9 +293,14 @@ pub async fn map_forms(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let use_case = MapForms { mapper: &*state.form_mapper };
-    
-    let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    let use_case = MapForms {
+        mapper: &*state.form_mapper,
+    };
+
+    let res = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -275,13 +320,16 @@ pub async fn generate_master_report(
         db_pool: state.db_pool.clone(),
     };
 
-    let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
-    
+    let res = use_case
+        .execute(payload.url)
+        .await
+        .map_err(AppError::Internal)?;
+
     // Save scan to database for historical tracking
     if let Err(e) = state.delta_engine.save_scan(&res).await {
         tracing::error!("Failed to save scan to delta engine: {}", e);
     }
-    
+
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -294,7 +342,7 @@ pub async fn proxy_request(
         "POST" => client.post(&payload.url),
         _ => client.get(&payload.url),
     };
-    
+
     let req = if let Some(body) = payload.body {
         if payload.method.to_uppercase() == "POST" {
             req.header("Content-Type", "application/json").body(body)
@@ -309,10 +357,10 @@ pub async fn proxy_request(
         Ok(res) => {
             let status = res.status();
             let text = res.text().await.unwrap_or_default();
-            let parsed_body: serde_json::Value = serde_json::from_str(&text)
-                .unwrap_or(serde_json::Value::String(text));
+            let parsed_body: serde_json::Value =
+                serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
             Ok((status, Json(parsed_body)))
-        },
+        }
         Err(e) => Err(AppError::BadGateway(e.to_string())),
     }
 }
@@ -320,9 +368,9 @@ pub async fn proxy_request(
 pub async fn verify_port(
     Json(payload): Json<VerifyPortRequest>,
 ) -> (StatusCode, Json<VerifyPortResponse>) {
+    use std::time::Instant;
     use tokio::net::TcpStream;
     use tokio::time::{timeout, Duration};
-    use std::time::Instant;
 
     let target = format!("{}:{}", payload.host, payload.port);
     let start = Instant::now();
@@ -330,7 +378,7 @@ pub async fn verify_port(
     match timeout(Duration::from_secs(3), TcpStream::connect(&target)).await {
         Ok(Ok(mut stream)) => {
             let latency_ms = start.elapsed().as_millis() as u64;
-            
+
             use tokio::io::AsyncReadExt;
             let mut buf = [0; 128];
             let banner = match timeout(Duration::from_millis(500), stream.read(&mut buf)).await {
@@ -338,19 +386,23 @@ pub async fn verify_port(
                 _ => None,
             };
 
-            (StatusCode::OK, Json(VerifyPortResponse {
-                is_active: true,
-                latency_ms: Some(latency_ms),
-                banner,
-            }))
-        },
-        _ => {
-            (StatusCode::OK, Json(VerifyPortResponse {
+            (
+                StatusCode::OK,
+                Json(VerifyPortResponse {
+                    is_active: true,
+                    latency_ms: Some(latency_ms),
+                    banner,
+                }),
+            )
+        }
+        _ => (
+            StatusCode::OK,
+            Json(VerifyPortResponse {
                 is_active: false,
                 latency_ms: None,
                 banner: None,
-            }))
-        }
+            }),
+        ),
     }
 }
 
@@ -358,9 +410,13 @@ pub async fn submit_feedback(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<FeedbackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let engine = crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine::new(state.db_pool.clone());
-    engine.record_feedback(payload.signature.clone(), payload.action.clone()).await;
-    
+    let engine = crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine::new(
+        state.db_pool.clone(),
+    );
+    engine
+        .record_feedback(payload.signature.clone(), payload.action.clone())
+        .await;
+
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Recorded feedback {:?} for signature: {}", payload.action, payload.signature)
@@ -384,7 +440,7 @@ pub async fn submit_rule_feedback(
         "anonymous_user".to_string(),
         payload.action.clone(),
     );
-    
+
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Recorded feedback {:?} for rule: {}", payload.action, payload.rule_id)
@@ -409,29 +465,36 @@ pub async fn get_rule_engine_status(
     let (disabled_packs, disabled_rules) = engine.get_governance_snapshot();
 
     let mut feedback_stats = std::collections::HashMap::new();
-    let rules: Vec<serde_json::Value> = engine.rules().iter().map(|r| {
-        let stats = engine.feedback_engine.get_rule_stats(&r.id);
-        if stats.total_feedback > 0 {
-            feedback_stats.insert(r.id.clone(), serde_json::json!({
-                "total_feedback": stats.total_feedback,
-                "confirmed": stats.confirmed,
-                "false_positives": stats.false_positives,
-                "ignored": stats.ignored,
-                "reputation_score": stats.reputation_score
-            }));
-        }
-        serde_json::json!({
-            "id": r.id,
-            "name": r.name,
-            "category": r.category,
-            "pack": r.pack,
-            "source": r.source,
-            "version": r.version,
-            "default_severity": r.default_severity,
-            "default_confidence": r.default_confidence,
-            "is_active": engine.is_rule_active(r)
+    let rules: Vec<serde_json::Value> = engine
+        .rules()
+        .iter()
+        .map(|r| {
+            let stats = engine.feedback_engine.get_rule_stats(&r.id);
+            if stats.total_feedback > 0 {
+                feedback_stats.insert(
+                    r.id.clone(),
+                    serde_json::json!({
+                        "total_feedback": stats.total_feedback,
+                        "confirmed": stats.confirmed,
+                        "false_positives": stats.false_positives,
+                        "ignored": stats.ignored,
+                        "reputation_score": stats.reputation_score
+                    }),
+                );
+            }
+            serde_json::json!({
+                "id": r.id,
+                "name": r.name,
+                "category": r.category,
+                "pack": r.pack,
+                "source": r.source,
+                "version": r.version,
+                "default_severity": r.default_severity,
+                "default_confidence": r.default_confidence,
+                "is_active": engine.is_rule_active(r)
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(RuleEngineStatus {
         total_rules: engine.rule_count(),
@@ -449,23 +512,27 @@ pub async fn get_feedback_stats(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let engine = &state.dynamic_rule_engine;
     let history = engine.feedback_engine.get_feedback_history();
-    
-    let mut rule_stats: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
-    
+
+    let mut rule_stats: std::collections::HashMap<String, serde_json::Value> =
+        std::collections::HashMap::new();
+
     for rule in engine.rules() {
         let stats = engine.feedback_engine.get_rule_stats(&rule.id);
         if stats.total_feedback > 0 {
-            rule_stats.insert(rule.id.clone(), serde_json::json!({
-                "rule_name": rule.name,
-                "total_feedback": stats.total_feedback,
-                "confirmed": stats.confirmed,
-                "false_positives": stats.false_positives,
-                "ignored": stats.ignored,
-                "reputation_score": stats.reputation_score
-            }));
+            rule_stats.insert(
+                rule.id.clone(),
+                serde_json::json!({
+                    "rule_name": rule.name,
+                    "total_feedback": stats.total_feedback,
+                    "confirmed": stats.confirmed,
+                    "false_positives": stats.false_positives,
+                    "ignored": stats.ignored,
+                    "reputation_score": stats.reputation_score
+                }),
+            );
         }
     }
-    
+
     Ok(Json(serde_json::json!({
         "total_feedback_entries": history.len(),
         "rule_stats": rule_stats,
@@ -484,7 +551,8 @@ pub async fn export_to_burp(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let burp_export = crate::infrastructure::export::burp::BurpExport::from_master_report(&payload);
     let xml = burp_export.to_xml();
-    let filename = format!("{}_limma_burp_export.xml",
+    let filename = format!(
+        "{}_limma_burp_export.xml",
         url::Url::parse(&payload.url)
             .map(|u| u.host_str().unwrap_or("target").to_string())
             .unwrap_or_else(|_| "target".to_string())
@@ -501,7 +569,8 @@ pub async fn export_to_burp(
 pub async fn export_to_nuclei(
     Json(payload): Json<crate::domain::entities::MasterReport>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let nuclei_export = crate::infrastructure::export::nuclei::NucleiExport::from_master_report(&payload);
+    let nuclei_export =
+        crate::infrastructure::export::nuclei::NucleiExport::from_master_report(&payload);
     let yaml = nuclei_export.to_yaml();
 
     Ok(Json(serde_json::json!({
@@ -526,8 +595,13 @@ pub async fn burp_import_traffic(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<crate::domain::entities::BurpImportTrafficRequest>,
 ) -> Result<Json<crate::domain::entities::BurpImportTrafficResponse>, AppError> {
-    let response = state.burp_bridge
-        .import_traffic(&payload.session_id, payload.items, &state.dynamic_rule_engine)
+    let response = state
+        .burp_bridge
+        .import_traffic(
+            &payload.session_id,
+            payload.items,
+            &state.dynamic_rule_engine,
+        )
         .map_err(AppError::BadRequest)?;
     Ok(Json(response))
 }
@@ -538,7 +612,9 @@ pub async fn burp_get_findings(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Result<Json<crate::domain::entities::BurpFindingsResponse>, AppError> {
     // Verify session exists
-    let session = state.burp_bridge.get_session(&session_id)
+    let session = state
+        .burp_bridge
+        .get_session(&session_id)
         .ok_or_else(|| AppError::BadRequest(format!("Session not found: {}", session_id)))?;
 
     // Phase 2: Retrieve findings generated directly from the imported traffic
@@ -558,12 +634,21 @@ pub async fn burp_get_findings(
 pub async fn burp_stream_events(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(session_id): axum::extract::Path<String>,
-) -> Result<axum::response::Sse<impl futures::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>>, AppError> {
+) -> Result<
+    axum::response::Sse<
+        impl futures::stream::Stream<
+            Item = Result<axum::response::sse::Event, std::convert::Infallible>,
+        >,
+    >,
+    AppError,
+> {
     use axum::response::sse::Event;
     use tokio_stream::StreamExt;
 
     // Verify session exists and get a subscriber receiver
-    let rx = state.burp_bridge.subscribe_to_events(&session_id)
+    let rx = state
+        .burp_bridge
+        .subscribe_to_events(&session_id)
         .ok_or_else(|| AppError::BadRequest("Session not found or inactive".to_string()))?;
 
     let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
@@ -600,7 +685,11 @@ pub async fn get_history_trends(
     State(state): State<Arc<AppState>>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<Vec<crate::infrastructure::delta_engine::TrendPoint>>, AppError> {
-    let trends = state.delta_engine.get_trends(&query.target_url).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    let trends = state
+        .delta_engine
+        .get_trends(&query.target_url)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(trends))
 }
 
@@ -615,7 +704,14 @@ pub async fn get_history_delta(
     State(state): State<Arc<AppState>>,
     Query(query): Query<DeltaQuery>,
 ) -> Result<Json<crate::infrastructure::delta_engine::DeltaResult>, AppError> {
-    let delta = state.delta_engine.calculate_delta(&query.target_url, query.current_scan_id, query.previous_scan_id).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    let delta = state
+        .delta_engine
+        .calculate_delta(
+            &query.target_url,
+            query.current_scan_id,
+            query.previous_scan_id,
+        )
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(delta))
 }
-

@@ -12,7 +12,12 @@ impl AutonomousScanStrategyEngine {
         }
     }
 
-    pub async fn compute_strategy(&self, _analysis: &WebScanResult, api_discovery: &ApiDiscoveryResult, form_mapping: &FormMapping) -> Vec<ScanStrategyDecision> {
+    pub async fn compute_strategy(
+        &self,
+        _analysis: &WebScanResult,
+        api_discovery: &ApiDiscoveryResult,
+        form_mapping: &FormMapping,
+    ) -> Vec<ScanStrategyDecision> {
         let mut decisions = Vec::new();
 
         // 1. Analyze Auth Surfaces (Login forms)
@@ -44,7 +49,10 @@ impl AutonomousScanStrategyEngine {
             if learning_impact.priority_modifier < -10 {
                 priority = TargetPriorityLevel::Deprioritized;
                 depth = 1;
-                reasoning.push(format!("Low-value surface deprioritized: {}", learning_impact.reasoning.unwrap_or_default()));
+                reasoning.push(format!(
+                    "Low-value surface deprioritized: {}",
+                    learning_impact.reasoning.unwrap_or_default()
+                ));
             }
 
             decisions.push(ScanStrategyDecision {

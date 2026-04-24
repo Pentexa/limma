@@ -28,9 +28,7 @@ pub async fn probe_tls(
         Ok(Ok(tls_stream)) => {
             let (_, conn) = tls_stream.get_ref();
 
-            let protocol_version = conn
-                .protocol_version()
-                .map(|v| format!("{:?}", v));
+            let protocol_version = conn.protocol_version().map(|v| format!("{:?}", v));
 
             let cipher_suite = conn
                 .negotiated_cipher_suite()

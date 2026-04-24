@@ -11,12 +11,20 @@ impl ConfidenceCalibrationEngine {
     }
 
     pub fn generate_signature(finding: &CanonicalFinding) -> String {
-        let mut modules: Vec<String> = finding.contributing_modules.iter().map(|s| format!("{:?}", s)).collect();
+        let mut modules: Vec<String> = finding
+            .contributing_modules
+            .iter()
+            .map(|s| format!("{:?}", s))
+            .collect();
         modules.sort();
         format!("{}_[{}]", finding.canonical_slug, modules.join(","))
     }
 
-    pub async fn update_from_scan(&mut self, canonical_findings: &mut [CanonicalFinding], learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
+    pub async fn update_from_scan(
+        &mut self,
+        canonical_findings: &mut [CanonicalFinding],
+        learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine,
+    ) {
         for finding in canonical_findings.iter_mut() {
             let sig = Self::generate_signature(finding);
 
@@ -33,7 +41,7 @@ impl ConfidenceCalibrationEngine {
             )
             .bind(&sig)
             .fetch_optional(&self.pool)
-            .await 
+            .await
             {
                 total_obs = row.try_get("total_observations").unwrap_or(0);
                 succ = row.try_get("successful_verifications").unwrap_or(0);
@@ -57,7 +65,8 @@ impl ConfidenceCalibrationEngine {
                 if total_obs == 1 {
                     avg_rep = current_rep;
                 } else {
-                    avg_rep = ((avg_rep * (total_obs - 1) as f32) + current_rep) / (total_obs as f32);
+                    avg_rep =
+                        ((avg_rep * (total_obs - 1) as f32) + current_rep) / (total_obs as f32);
                 }
 
                 let _ = sqlx::query(
@@ -85,9 +94,10 @@ impl ConfidenceCalibrationEngine {
 
             let original = finding.confidence.clone();
             let mut adjusted = original.clone();
-            
+
             let mut impact = "Neutral - Insufficient History".to_string();
-            let mut reasoning = "No historical calibration data exists for this pattern.".to_string();
+            let mut reasoning =
+                "No historical calibration data exists for this pattern.".to_string();
 
             if total_obs >= 2 {
                 if reliability_coefficient > 1.2 {
@@ -115,9 +125,11 @@ impl ConfidenceCalibrationEngine {
 
             let learning_impact = learning_engine.generate_impact(&sig).await;
             reliability_coefficient *= learning_impact.confidence_multiplier;
-            
-            if learning_impact.confidence_multiplier < 0.9 || learning_impact.confidence_multiplier > 1.1 {
-               impact = "Confidence Modified by User Feedback".to_string();
+
+            if learning_impact.confidence_multiplier < 0.9
+                || learning_impact.confidence_multiplier > 1.1
+            {
+                impact = "Confidence Modified by User Feedback".to_string();
             }
 
             finding.confidence = adjusted.clone();

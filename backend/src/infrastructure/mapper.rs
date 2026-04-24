@@ -1,4 +1,4 @@
-use crate::domain::entities::{FormMapping, DetectedForm};
+use crate::domain::entities::{DetectedForm, FormMapping};
 use crate::domain::repositories::FormMapperRepository;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -23,7 +23,12 @@ impl HttpFormMapper {
 #[async_trait]
 impl FormMapperRepository for HttpFormMapper {
     async fn map(&self, url_str: &str) -> Result<FormMapping, String> {
-        let resp = self.client.get(url_str).send().await.map_err(|e| e.to_string())?;
+        let resp = self
+            .client
+            .get(url_str)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
         let body = resp.text().await.map_err(|e| e.to_string())?;
         let document = Html::parse_document(&body);
 
@@ -35,19 +40,20 @@ impl FormMapperRepository for HttpFormMapper {
         for form in document.select(&form_selector) {
             let action = form.value().attr("action").unwrap_or("#").to_string();
             let method = form.value().attr("method").unwrap_or("get").to_string();
-            
+
             let mut fields = Vec::new();
             let input_selector = Selector::parse("input, select, textarea").unwrap();
             for input in form.select(&input_selector) {
                 let name = input.value().attr("name").unwrap_or("unnamed").to_string();
                 let input_type = input.value().attr("type").unwrap_or("text").to_string();
                 fields.push(format!("{}({})", name, input_type));
-                
+
                 // Detection for potential login
                 if (name.contains("password") || name.contains("pwd") || input_type == "password")
-                    && !login_pages.contains(&url_str.to_string()) {
-                        login_pages.push(url_str.to_string());
-                    }
+                    && !login_pages.contains(&url_str.to_string())
+                {
+                    login_pages.push(url_str.to_string());
+                }
             }
 
             detected_forms.push(DetectedForm {

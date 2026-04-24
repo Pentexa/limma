@@ -10,20 +10,20 @@ pub struct RuleDefinition {
     pub description: String,
     pub category: String,
     #[serde(alias = "severity")]
-    pub default_severity: String,          // e.g. "critical", "high", "medium", "low", "informational"
+    pub default_severity: String, // e.g. "critical", "high", "medium", "low", "informational"
     #[serde(default = "default_confidence")]
-    pub default_confidence: String,        // e.g. "certain", "firm", "tentative"
+    pub default_confidence: String, // e.g. "certain", "firm", "tentative"
     pub remediation: Option<String>,
     pub tags: Option<Vec<String>>,
     pub compliance_tags: Option<Vec<String>>,
     #[serde(default = "default_version")]
     pub version: String,
     #[serde(default = "default_source")]
-    pub source: String,                    // e.g. "limma-core" or "user-custom"
+    pub source: String, // e.g. "limma-core" or "user-custom"
     #[serde(default = "default_pack")]
     pub pack: String,
     #[serde(default = "default_priority")]
-    pub priority: u32,             // Higher number = higher priority for dedup
+    pub priority: u32, // Higher number = higher priority for dedup
     pub dedup_key: Option<String>,
     pub supersedes: Option<Vec<String>>,
     pub scope: Option<RuleScope>,
@@ -32,12 +32,24 @@ pub struct RuleDefinition {
     pub condition: RuleConditionNode,
 }
 
-fn default_true() -> bool { true }
-fn default_priority() -> u32 { 100 }
-fn default_confidence() -> String { "tentative".to_string() }
-fn default_version() -> String { "1.0.0".to_string() }
-fn default_source() -> String { "limma-core".to_string() }
-fn default_pack() -> String { "default".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_priority() -> u32 {
+    100
+}
+fn default_confidence() -> String {
+    "tentative".to_string()
+}
+fn default_version() -> String {
+    "1.0.0".to_string()
+}
+fn default_source() -> String {
+    "limma-core".to_string()
+}
+fn default_pack() -> String {
+    "default".to_string()
+}
 
 // ── Rule Scope: Pre-filter before Evaluation ──
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +70,7 @@ pub enum RuleConditionNode {
     HeaderValueMatches { header: String, pattern: String },
     StatusCodeIn { codes: Vec<u16> },
     BodyContains { value: String },
-    BodyContainsDecoded { value: String },  // Searches through decoded layers (unicode, base64, url)
+    BodyContainsDecoded { value: String }, // Searches through decoded layers (unicode, base64, url)
     TlsState { is_https: bool },
     ContextFlag { flag: String },
 
@@ -92,68 +104,112 @@ impl<'de> Deserialize<'de> for RuleConditionNode {
         match key.as_str() {
             "header_missing" => {
                 #[derive(Deserialize)]
-                struct Inner { header: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
-                Ok(RuleConditionNode::HeaderMissing { header: inner.header })
+                struct Inner {
+                    header: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderMissing {
+                    header: inner.header,
+                })
             }
             "header_present" => {
                 #[derive(Deserialize)]
-                struct Inner { header: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
-                Ok(RuleConditionNode::HeaderPresent { header: inner.header })
+                struct Inner {
+                    header: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderPresent {
+                    header: inner.header,
+                })
             }
             "header_value_contains" => {
                 #[derive(Deserialize)]
-                struct Inner { header: String, value: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
-                Ok(RuleConditionNode::HeaderValueContains { header: inner.header, value: inner.value })
+                struct Inner {
+                    header: String,
+                    value: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderValueContains {
+                    header: inner.header,
+                    value: inner.value,
+                })
             }
             "header_value_matches" => {
                 #[derive(Deserialize)]
-                struct Inner { header: String, pattern: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
-                Ok(RuleConditionNode::HeaderValueMatches { header: inner.header, pattern: inner.pattern })
+                struct Inner {
+                    header: String,
+                    pattern: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::HeaderValueMatches {
+                    header: inner.header,
+                    pattern: inner.pattern,
+                })
             }
             "status_code_in" => {
                 #[derive(Deserialize)]
-                struct Inner { codes: Vec<u16> }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                struct Inner {
+                    codes: Vec<u16>,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::StatusCodeIn { codes: inner.codes })
             }
             "body_contains" => {
                 #[derive(Deserialize)]
-                struct Inner { value: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                struct Inner {
+                    value: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::BodyContains { value: inner.value })
             }
             "tls_state" => {
                 #[derive(Deserialize)]
-                struct Inner { is_https: bool }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
-                Ok(RuleConditionNode::TlsState { is_https: inner.is_https })
+                struct Inner {
+                    is_https: bool,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::TlsState {
+                    is_https: inner.is_https,
+                })
             }
             "context_flag" => {
                 #[derive(Deserialize)]
-                struct Inner { flag: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                struct Inner {
+                    flag: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::ContextFlag { flag: inner.flag })
             }
             "body_contains_decoded" => {
                 #[derive(Deserialize)]
-                struct Inner { value: String }
-                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                struct Inner {
+                    value: String,
+                }
+                let inner: Inner =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::BodyContainsDecoded { value: inner.value })
             }
             "all" => {
-                let children: Vec<RuleConditionNode> = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                let children: Vec<RuleConditionNode> =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::All(children))
             }
             "any" => {
-                let children: Vec<RuleConditionNode> = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                let children: Vec<RuleConditionNode> =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::Any(children))
             }
             "not" => {
-                let inner: RuleConditionNode = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                let inner: RuleConditionNode =
+                    serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::Not(Box::new(inner)))
             }
             other => Err(serde::de::Error::custom(format!(
@@ -176,7 +232,7 @@ pub struct RuleContext {
     pub is_sensitive: bool,
     pub is_authenticated: bool,
     pub status_code: u16,
-    pub headers: HashMap<String, String>,  // lowercase keys, joined values
+    pub headers: HashMap<String, String>, // lowercase keys, joined values
     pub body: Option<String>,
     pub is_https: bool,
 }
@@ -190,7 +246,10 @@ pub struct LocalizedMessage {
 
 impl LocalizedMessage {
     pub fn new(key: &str) -> Self {
-        Self { key: key.to_string(), params: HashMap::new() }
+        Self {
+            key: key.to_string(),
+            params: HashMap::new(),
+        }
     }
     pub fn with_param(mut self, k: &str, v: &str) -> Self {
         self.params.insert(k.to_string(), v.to_string());
@@ -223,7 +282,7 @@ pub struct DynamicRuleFinding {
     pub evaluation_trace: Option<EvaluationTrace>, // Add structured trace
     pub rule_reputation_score: Option<f64>,
     pub feedback_summary: Option<LocalizedMessage>,
-    pub source: String,   // e.g. "limma-core"
+    pub source: String, // e.g. "limma-core"
 }
 
 // ── Evaluation Trace: Structured reason for rule execution ──

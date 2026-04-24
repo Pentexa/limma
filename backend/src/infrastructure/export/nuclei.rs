@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
 use crate::domain::entities::{
-    MasterReport, CanonicalFinding, SecurityAuditFinding,
-    SeverityLevel, ConfidenceLevel, FindingCategory,
+    CanonicalFinding, ConfidenceLevel, FindingCategory, MasterReport, SecurityAuditFinding,
+    SeverityLevel,
 };
+use serde::{Deserialize, Serialize};
 
 /// Nuclei template export format.
 ///
@@ -29,7 +29,7 @@ pub struct NucleiTemplate {
 pub struct NucleiMatcher {
     pub matcher_type: String, // "word", "regex", "status", "dsl"
     pub words: Vec<String>,
-    pub part: String, // "header", "body", "status"
+    pub part: String,      // "header", "body", "status"
     pub condition: String, // "and", "or"
     pub negative: bool,
 }
@@ -59,7 +59,14 @@ impl NucleiExport {
 
     fn finding_to_template(finding: &CanonicalFinding, target_url: &str) -> Option<NucleiTemplate> {
         let severity = severity_to_nuclei(&finding.severity);
-        let id = format!("limma-{}", finding.canonical_slug.replace('/', "-").replace(' ', "-").to_lowercase());
+        let id = format!(
+            "limma-{}",
+            finding
+                .canonical_slug
+                .replace('/', "-")
+                .replace(' ', "-")
+                .to_lowercase()
+        );
         let tags = build_tags(finding);
 
         let (matchers, requests) = build_detection_logic(finding, target_url);
@@ -79,9 +86,7 @@ impl NucleiExport {
                 confidence_to_string(&finding.confidence),
                 finding.merged_evidence_count
             ),
-            reference: vec![
-                "https://limma.io/docs".to_string(),
-            ],
+            reference: vec!["https://limma.io/docs".to_string()],
             tags,
             matchers,
             requests,
@@ -99,7 +104,10 @@ impl NucleiExport {
             output.push_str(&format!("  name: {}\n", yaml_escape(&template.name)));
             output.push_str("  author: limma\n");
             output.push_str(&format!("  severity: {}\n", template.severity));
-            output.push_str(&format!("  description: {}\n", yaml_escape(&template.description)));
+            output.push_str(&format!(
+                "  description: {}\n",
+                yaml_escape(&template.description)
+            ));
 
             if !template.tags.is_empty() {
                 output.push_str(&format!("  tags: {}\n", template.tags.join(",")));
@@ -214,7 +222,9 @@ fn build_detection_logic(
     let paths: Vec<String> = if finding.affected_routes.is_empty() {
         vec!["{{BaseURL}}/".to_string()]
     } else {
-        finding.affected_routes.iter()
+        finding
+            .affected_routes
+            .iter()
             .map(|r| format!("{{{{BaseURL}}}}{}", r))
             .collect()
     };
@@ -269,7 +279,8 @@ fn extract_header_name(slug: &str) -> String {
     // Try to extract header name from slugs like "missing-csp-header" or "missing-x-frame-options"
     let parts: Vec<&str> = slug.split('-').collect();
     if let Some(idx) = parts.iter().position(|&p| p == "missing") {
-        let header_parts: Vec<&str> = parts[idx + 1..].iter()
+        let header_parts: Vec<&str> = parts[idx + 1..]
+            .iter()
             .filter(|&&p| p != "header")
             .copied()
             .collect();
@@ -282,7 +293,12 @@ fn extract_header_name(slug: &str) -> String {
 }
 
 fn yaml_escape(s: &str) -> String {
-    if s.contains(':') || s.contains('#') || s.contains('"') || s.contains('\'') || s.starts_with(' ') {
+    if s.contains(':')
+        || s.contains('#')
+        || s.contains('"')
+        || s.contains('\'')
+        || s.starts_with(' ')
+    {
         format!("\"{}\"", s.replace('"', "\\\""))
     } else {
         s.to_string()

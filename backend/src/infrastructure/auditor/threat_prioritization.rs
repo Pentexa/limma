@@ -7,7 +7,12 @@ impl ThreatPrioritizationEngine {
         Self
     }
 
-    pub async fn evaluate_all(&self, canonical_findings: &mut [CanonicalFinding], attack_paths: &mut [AttackPath], learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine) {
+    pub async fn evaluate_all(
+        &self,
+        canonical_findings: &mut [CanonicalFinding],
+        attack_paths: &mut [AttackPath],
+        learning_engine: &crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine,
+    ) {
         // Evaluate Attack Paths first
         for path in attack_paths.iter_mut() {
             let mut score: i32 = 40; // Base score for any correlated path
@@ -18,11 +23,11 @@ impl ThreatPrioritizationEngine {
                 ExploitabilityLevel::Actionable => {
                     score += 30;
                     reasons.push("Actionable multi-step attack chain".to_string());
-                },
+                }
                 ExploitabilityLevel::Theoretical => {
                     score += 10;
                     reasons.push("Theoretical attack path".to_string());
-                },
+                }
                 ExploitabilityLevel::Inert => {
                     score -= 20;
                     reasons.push("Inert path - conditions cannot be met".to_string());
@@ -51,7 +56,11 @@ impl ThreatPrioritizationEngine {
 
             // Context checking
             let ctx_joined = path.shared_context.join(" ").to_lowercase();
-            if ctx_joined.contains("auth") || ctx_joined.contains("login") || ctx_joined.contains("session") || ctx_joined.contains("credential") {
+            if ctx_joined.contains("auth")
+                || ctx_joined.contains("login")
+                || ctx_joined.contains("session")
+                || ctx_joined.contains("credential")
+            {
                 score += 20;
                 reasons.push("Involves authentication or session boundaries".to_string());
             }
@@ -67,8 +76,16 @@ impl ThreatPrioritizationEngine {
 
         // Sort Attack Paths
         attack_paths.sort_by(|a, b| {
-            let s_a = a.priority_assessment.as_ref().map(|x| x.priority_score).unwrap_or(0);
-            let s_b = b.priority_assessment.as_ref().map(|x| x.priority_score).unwrap_or(0);
+            let s_a = a
+                .priority_assessment
+                .as_ref()
+                .map(|x| x.priority_score)
+                .unwrap_or(0);
+            let s_b = b
+                .priority_assessment
+                .as_ref()
+                .map(|x| x.priority_score)
+                .unwrap_or(0);
             s_b.cmp(&s_a)
         });
 
@@ -100,15 +117,19 @@ impl ThreatPrioritizationEngine {
             if let Some(cal) = &cf.confidence_calibration {
                 if cal.reliability_coefficient < 0.6 {
                     score -= 15;
-                    reasons.push("Penalized due to historically low pattern reliability".to_string());
+                    reasons
+                        .push("Penalized due to historically low pattern reliability".to_string());
                 } else if cal.reliability_coefficient > 1.2 {
                     score += 10;
-                    reasons.push("Boosted due to historically high pattern reliability".to_string());
+                    reasons
+                        .push("Boosted due to historically high pattern reliability".to_string());
                 }
             }
 
             // Attack chain linkage check
-            let is_in_path = attack_paths.iter().any(|ap| ap.involved_canonical_slugs.contains(&cf.canonical_slug));
+            let is_in_path = attack_paths
+                .iter()
+                .any(|ap| ap.involved_canonical_slugs.contains(&cf.canonical_slug));
             if is_in_path {
                 score += 15;
                 reasons.push("Critical component of a correlated Attack Path".to_string());
@@ -117,7 +138,10 @@ impl ThreatPrioritizationEngine {
             // Sensitive Surface Context
             let has_sensitive_surface = cf.attack_surface_tags.iter().any(|t| {
                 let tag = t.to_lowercase();
-                tag.contains("auth") || tag.contains("login") || tag.contains("admin") || tag.contains("api")
+                tag.contains("auth")
+                    || tag.contains("login")
+                    || tag.contains("admin")
+                    || tag.contains("api")
             });
             if has_sensitive_surface {
                 score += 15;
@@ -125,7 +149,9 @@ impl ThreatPrioritizationEngine {
             } else if cf.severity == SeverityLevel::High || cf.severity == SeverityLevel::Critical {
                 // High severity but non-sensitive, so dampen
                 score -= 10;
-                reasons.push("Dampened: High severity but lacks sensitive surface exposure".to_string());
+                reasons.push(
+                    "Dampened: High severity but lacks sensitive surface exposure".to_string(),
+                );
             }
 
             // Active Verification Overrides
@@ -149,7 +175,7 @@ impl ThreatPrioritizationEngine {
             // Apply Learning Modifier
             let sig = crate::infrastructure::auditor::confidence_calibration::ConfidenceCalibrationEngine::generate_signature(cf);
             let learning_impact = learning_engine.generate_impact(&sig).await;
-            
+
             if learning_impact.priority_modifier != 0 {
                 score += learning_impact.priority_modifier;
                 if let Some(reason) = &learning_impact.reasoning {
@@ -168,8 +194,16 @@ impl ThreatPrioritizationEngine {
 
         // Sort Canonical Findings
         canonical_findings.sort_by(|a, b| {
-            let s_a = a.priority_assessment.as_ref().map(|x| x.priority_score).unwrap_or(0);
-            let s_b = b.priority_assessment.as_ref().map(|x| x.priority_score).unwrap_or(0);
+            let s_a = a
+                .priority_assessment
+                .as_ref()
+                .map(|x| x.priority_score)
+                .unwrap_or(0);
+            let s_b = b
+                .priority_assessment
+                .as_ref()
+                .map(|x| x.priority_score)
+                .unwrap_or(0);
             s_b.cmp(&s_a)
         });
     }

@@ -1,8 +1,8 @@
-use sqlx::PgPool;
-use uuid::Uuid;
+use crate::domain::entities::MasterReport;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use crate::domain::entities::MasterReport;
+use sqlx::PgPool;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrendPoint {
@@ -50,8 +50,16 @@ impl DeltaEngine {
         let timestamp_sec = Utc::now().timestamp();
         let score = report.overall_health_score as f32;
 
-        let total_endpoints = report.api_discovery.as_ref().map(|d| d.detected_endpoints.len()).unwrap_or(0) as i32;
-        let total_findings = report.normalized_audit.as_ref().map(|a| a.findings.len()).unwrap_or(0) as i32;
+        let total_endpoints = report
+            .api_discovery
+            .as_ref()
+            .map(|d| d.detected_endpoints.len())
+            .unwrap_or(0) as i32;
+        let total_findings = report
+            .normalized_audit
+            .as_ref()
+            .map(|a| a.findings.len())
+            .unwrap_or(0) as i32;
 
         // Insert scan session
         sqlx::query(
@@ -70,7 +78,7 @@ impl DeltaEngine {
         if let Some(discovery) = &report.api_discovery {
             for ep in &discovery.detected_endpoints {
                 sqlx::query(
-                    "INSERT INTO scan_endpoints (scan_id, url, method) VALUES ($1, $2, $3)"
+                    "INSERT INTO scan_endpoints (scan_id, url, method) VALUES ($1, $2, $3)",
                 )
                 .bind(scan_id)
                 .bind(&ep.path)
@@ -118,7 +126,7 @@ impl DeltaEngine {
             WHERE target_url = $1 
             ORDER BY timestamp_sec ASC
             LIMIT 50
-            "#
+            "#,
         )
         .bind(target_url)
         .fetch_all(&self.pool)
@@ -138,12 +146,24 @@ impl DeltaEngine {
         Ok(trends)
     }
 
-    pub async fn calculate_delta(&self, target_url: &str, current_scan_id: Uuid, previous_scan_id: Uuid) -> Result<DeltaResult, sqlx::Error> {
+    pub async fn calculate_delta(
+        &self,
+        target_url: &str,
+        current_scan_id: Uuid,
+        previous_scan_id: Uuid,
+    ) -> Result<DeltaResult, sqlx::Error> {
         #[derive(sqlx::FromRow)]
-        struct EpRow { url: String, method: String }
-        
+        struct EpRow {
+            url: String,
+            method: String,
+        }
+
         #[derive(sqlx::FromRow)]
-        struct FdRow { name: String, severity: String, url: String }
+        struct FdRow {
+            name: String,
+            severity: String,
+            url: String,
+        }
 
         // Find new endpoints (in current but not in previous)
         let new_eps: Vec<EpRow> = sqlx::query_as(
@@ -151,7 +171,7 @@ impl DeltaEngine {
             SELECT url, method FROM scan_endpoints WHERE scan_id = $1
             EXCEPT
             SELECT url, method FROM scan_endpoints WHERE scan_id = $2
-            "#
+            "#,
         )
         .bind(current_scan_id)
         .bind(previous_scan_id)
@@ -164,7 +184,7 @@ impl DeltaEngine {
             SELECT name, severity, url FROM scan_findings WHERE scan_id = $2
             EXCEPT
             SELECT name, severity, url FROM scan_findings WHERE scan_id = $1
-            "#
+            "#,
         )
         .bind(current_scan_id)
         .bind(previous_scan_id)
@@ -177,7 +197,7 @@ impl DeltaEngine {
             SELECT name, severity, url FROM scan_findings WHERE scan_id = $1
             EXCEPT
             SELECT name, severity, url FROM scan_findings WHERE scan_id = $2
-            "#
+            "#,
         )
         .bind(current_scan_id)
         .bind(previous_scan_id)
@@ -187,9 +207,29 @@ impl DeltaEngine {
         Ok(DeltaResult {
             base_scan_id: previous_scan_id,
             compare_scan_id: current_scan_id,
-            new_endpoints: new_eps.into_iter().map(|r| DeltaEndpoint { url: r.url, method: r.method }).collect(),
-            resolved_findings: resolved_fds.into_iter().map(|r| DeltaFinding { name: r.name, severity: r.severity, url: r.url }).collect(),
-            new_findings: new_fds.into_iter().map(|r| DeltaFinding { name: r.name, severity: r.severity, url: r.url }).collect(),
+            new_endpoints: new_eps
+                .into_iter()
+                .map(|r| DeltaEndpoint {
+                    url: r.url,
+                    method: r.method,
+                })
+                .collect(),
+            resolved_findings: resolved_fds
+                .into_iter()
+                .map(|r| DeltaFinding {
+                    name: r.name,
+                    severity: r.severity,
+                    url: r.url,
+                })
+                .collect(),
+            new_findings: new_fds
+                .into_iter()
+                .map(|r| DeltaFinding {
+                    name: r.name,
+                    severity: r.severity,
+                    url: r.url,
+                })
+                .collect(),
         })
     }
 }

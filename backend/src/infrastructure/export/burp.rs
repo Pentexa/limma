@@ -1,8 +1,7 @@
-use serde::{Serialize, Deserialize};
 use crate::domain::entities::{
-    MasterReport, SecurityAuditFinding, CanonicalFinding,
-    SeverityLevel, ConfidenceLevel,
+    CanonicalFinding, ConfidenceLevel, MasterReport, SecurityAuditFinding, SeverityLevel,
 };
+use serde::{Deserialize, Serialize};
 
 /// Burp Suite XML export format.
 ///
@@ -55,7 +54,8 @@ impl BurpExport {
                         request: format!("GET {} HTTP/1.1\r\nHost: {}\r\n\r\n", route, host),
                         status_code: 0,
                         response: String::new(),
-                        comment: format!("{}: {} ({})",
+                        comment: format!(
+                            "{}: {} ({})",
                             priority,
                             finding.title,
                             confidence_to_signal(&finding.confidence)
@@ -77,7 +77,8 @@ impl BurpExport {
                         request: format!("GET / HTTP/1.1\r\nHost: {}\r\n\r\n", host),
                         status_code: 0,
                         response: String::new(),
-                        comment: format!("{}: {} ({})",
+                        comment: format!(
+                            "{}: {} ({})",
                             priority,
                             finding.title,
                             confidence_to_signal(&finding.confidence)
@@ -99,16 +100,26 @@ impl BurpExport {
                     method: endpoint.method_prediction.clone(),
                     path: endpoint.path.clone(),
                     extension: extract_extension(&endpoint.path),
-                    request: format!("{} {} HTTP/1.1\r\nHost: {}\r\n\r\n",
-                        endpoint.method_prediction, endpoint.path, host),
-                    status_code: endpoint.runtime_verification.as_ref()
-                        .map(|rv| rv.status_code as i32).unwrap_or(0),
+                    request: format!(
+                        "{} {} HTTP/1.1\r\nHost: {}\r\n\r\n",
+                        endpoint.method_prediction, endpoint.path, host
+                    ),
+                    status_code: endpoint
+                        .runtime_verification
+                        .as_ref()
+                        .map(|rv| rv.status_code as i32)
+                        .unwrap_or(0),
                     response: String::new(),
-                    comment: format!("API Endpoint — Auth likelihood: {}, Confidence: {:.0}%",
+                    comment: format!(
+                        "API Endpoint — Auth likelihood: {}, Confidence: {:.0}%",
                         endpoint.auth_likelihood,
-                        endpoint.confidence_score * 100.0),
-                    highlight: if endpoint.auth_probability < 0.3 { "orange".to_string() }
-                        else { "blue".to_string() },
+                        endpoint.confidence_score * 100.0
+                    ),
+                    highlight: if endpoint.auth_probability < 0.3 {
+                        "orange".to_string()
+                    } else {
+                        "blue".to_string()
+                    },
                 });
             }
         }
@@ -132,20 +143,47 @@ impl BurpExport {
 
         for item in &self.items {
             xml.push_str("  <item>\n");
-            xml.push_str(&format!("    <time>{}</time>\n", chrono::Utc::now().format("%a %b %d %H:%M:%S %Z %Y")));
-            xml.push_str(&format!("    <url><![CDATA[{}]]></url>\n", xml_escape(&item.url)));
-            xml.push_str(&format!("    <host ip=\"\">{}</host>\n", xml_escape(&item.host)));
+            xml.push_str(&format!(
+                "    <time>{}</time>\n",
+                chrono::Utc::now().format("%a %b %d %H:%M:%S %Z %Y")
+            ));
+            xml.push_str(&format!(
+                "    <url><![CDATA[{}]]></url>\n",
+                xml_escape(&item.url)
+            ));
+            xml.push_str(&format!(
+                "    <host ip=\"\">{}</host>\n",
+                xml_escape(&item.host)
+            ));
             xml.push_str(&format!("    <port>{}</port>\n", item.port));
-            xml.push_str(&format!("    <protocol>{}</protocol>\n", xml_escape(&item.protocol)));
-            xml.push_str(&format!("    <method><![CDATA[{}]]></method>\n", xml_escape(&item.method)));
-            xml.push_str(&format!("    <path><![CDATA[{}]]></path>\n", xml_escape(&item.path)));
-            xml.push_str(&format!("    <extension>{}</extension>\n", xml_escape(&item.extension)));
-            xml.push_str(&format!("    <request base64=\"false\"><![CDATA[{}]]></request>\n", item.request));
+            xml.push_str(&format!(
+                "    <protocol>{}</protocol>\n",
+                xml_escape(&item.protocol)
+            ));
+            xml.push_str(&format!(
+                "    <method><![CDATA[{}]]></method>\n",
+                xml_escape(&item.method)
+            ));
+            xml.push_str(&format!(
+                "    <path><![CDATA[{}]]></path>\n",
+                xml_escape(&item.path)
+            ));
+            xml.push_str(&format!(
+                "    <extension>{}</extension>\n",
+                xml_escape(&item.extension)
+            ));
+            xml.push_str(&format!(
+                "    <request base64=\"false\"><![CDATA[{}]]></request>\n",
+                item.request
+            ));
             xml.push_str(&format!("    <status>{}</status>\n", item.status_code));
             xml.push_str("    <responselength>0</responselength>\n");
             xml.push_str("    <mimetype></mimetype>\n");
             xml.push_str("    <response base64=\"false\"><![CDATA[]]></response>\n");
-            xml.push_str(&format!("    <comment><![CDATA[{}]]></comment>\n", item.comment));
+            xml.push_str(&format!(
+                "    <comment><![CDATA[{}]]></comment>\n",
+                item.comment
+            ));
             xml.push_str(&format!("    <highlight>{}</highlight>\n", item.highlight));
             xml.push_str("  </item>\n");
         }
@@ -159,13 +197,14 @@ impl BurpExport {
 
 fn parse_target_url(url: &str) -> (String, i32, String) {
     let parsed = url::Url::parse(url).unwrap_or_else(|_| {
-        url::Url::parse(&format!("https://{}", url)).unwrap_or_else(|_| {
-            url::Url::parse("https://unknown").unwrap()
-        })
+        url::Url::parse(&format!("https://{}", url))
+            .unwrap_or_else(|_| url::Url::parse("https://unknown").unwrap())
     });
     let host = parsed.host_str().unwrap_or("unknown").to_string();
     let protocol = parsed.scheme().to_string();
-    let port = parsed.port().unwrap_or(if protocol == "https" { 443 } else { 80 }) as i32;
+    let port = parsed
+        .port()
+        .unwrap_or(if protocol == "https" { 443 } else { 80 }) as i32;
     (host, port, protocol)
 }
 
@@ -206,8 +245,8 @@ fn extract_extension(path: &str) -> String {
 
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
-     .replace('\'', "&apos;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }

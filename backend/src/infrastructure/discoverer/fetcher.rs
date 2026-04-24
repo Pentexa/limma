@@ -1,6 +1,6 @@
+use crate::domain::entities::RuntimeVerification;
 use reqwest::{Client, ClientBuilder};
 use std::time::{Duration, Instant};
-use crate::domain::entities::RuntimeVerification;
 
 pub struct CrawlerFetcher {
     client: Client,
@@ -23,10 +23,16 @@ impl CrawlerFetcher {
     }
 
     pub async fn fetch_html(&self, url: &str) -> Result<String, String> {
-        let resp = self.client.get(url).send().await.map_err(|e| e.to_string())?;
-        
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
         // Ensure we are only parsing text-based formats
-        let content_type = resp.headers()
+        let content_type = resp
+            .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("text/html");
@@ -39,15 +45,24 @@ impl CrawlerFetcher {
     }
 
     pub async fn fetch_js(&self, url: &str) -> Result<String, String> {
-        let resp = self.client.get(url).send().await.map_err(|e| e.to_string())?;
-        
-        let content_type = resp.headers()
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let content_type = resp
+            .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
 
         // Prevent downloading massive PDFs or binary chunks masquerading as JS
-        if content_type.contains("image") || content_type.contains("video") || content_type.contains("font") {
+        if content_type.contains("image")
+            || content_type.contains("video")
+            || content_type.contains("font")
+        {
             return Err("Static asset detected via MIME".to_string());
         }
 
@@ -56,13 +71,20 @@ impl CrawlerFetcher {
 
     pub async fn test_endpoint(&self, url: &str) -> bool {
         // Quick HEAD/GET test for common endpoints
-        if let Ok(resp) = self.client.get(url).timeout(Duration::from_secs(3)).send().await {
+        if let Ok(resp) = self
+            .client
+            .get(url)
+            .timeout(Duration::from_secs(3))
+            .send()
+            .await
+        {
             if resp.status().is_success() {
-                let content_type = resp.headers()
+                let content_type = resp
+                    .headers()
                     .get(reqwest::header::CONTENT_TYPE)
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                
+
                 // If it's returning HTML it might be a catch-all soft-404 SPA fallback.
                 return !content_type.contains("text/html");
             }
@@ -70,7 +92,11 @@ impl CrawlerFetcher {
         false
     }
 
-    pub async fn verify_endpoint_deep(&self, url: &str, predicted_method: &str) -> Option<RuntimeVerification> {
+    pub async fn verify_endpoint_deep(
+        &self,
+        url: &str,
+        predicted_method: &str,
+    ) -> Option<RuntimeVerification> {
         let attempts = match predicted_method {
             "POST" | "PUT" | "PATCH" | "DELETE" => vec!["OPTIONS", predicted_method, "GET"],
             "GET" => vec!["HEAD", "GET"],
@@ -96,23 +122,42 @@ impl CrawlerFetcher {
                 let duration = start_time.elapsed().as_millis() as u64;
                 let status = resp.status();
                 let status_u16 = status.as_u16();
-                
-                let content_type = resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
-                let server = resp.headers().get(reqwest::header::SERVER).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
-                
+
+                let content_type = resp
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string());
+                let server = resp
+                    .headers()
+                    .get(reqwest::header::SERVER)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string());
+
                 // Ensure we fully finish the request and measure body if applicable
                 let has_body = if method != "HEAD" && method != "OPTIONS" {
                     if let Ok(bytes) = resp.bytes().await {
                         !bytes.is_empty()
-                    } else { false }
-                } else { false };
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
 
-                let is_spa_fallback = status.is_success() && method == "GET" && content_type.as_deref().unwrap_or("").contains("text/html");
+                let is_spa_fallback = status.is_success()
+                    && method == "GET"
+                    && content_type.as_deref().unwrap_or("").contains("text/html");
 
                 let is_valid = if is_spa_fallback {
                     false
                 } else {
-                    status.is_success() || status.is_redirection() || status_u16 == 401 || status_u16 == 403 || status_u16 == 405 || status_u16 == 422
+                    status.is_success()
+                        || status.is_redirection()
+                        || status_u16 == 401
+                        || status_u16 == 403
+                        || status_u16 == 405
+                        || status_u16 == 422
                 };
 
                 let current_verification = RuntimeVerification {
@@ -132,7 +177,7 @@ impl CrawlerFetcher {
                 }
             }
         }
-        
+
         best_result
     }
 }

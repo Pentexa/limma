@@ -1,7 +1,7 @@
 use crate::domain::entities::{
-    AmbiguityReason, DecisionOutcome, EvidenceItem, EvidenceKind, EvidenceStrength,
-    FingerprintMatch, HttpSummary, MatchStrength, ProbeEvidence, ProbeMethod,
-    ServiceCandidate, TlsSummary, ConfidenceBreakdown, DecisionTreeStep,
+    AmbiguityReason, ConfidenceBreakdown, DecisionOutcome, DecisionTreeStep, EvidenceItem,
+    EvidenceKind, EvidenceStrength, FingerprintMatch, HttpSummary, MatchStrength, ProbeEvidence,
+    ProbeMethod, ServiceCandidate, TlsSummary,
 };
 
 /// Well-known port-to-service mappings used as a weak base signal.
@@ -103,7 +103,10 @@ pub fn evaluate(
 
         verification_trail.push(DecisionTreeStep {
             step: "Initial Fingerprint".to_string(),
-            detail: format!("Matched fingerprint {} with {:?} coverage", fp_match.fingerprint_id, fp_match.coverage),
+            detail: format!(
+                "Matched fingerprint {} with {:?} coverage",
+                fp_match.fingerprint_id, fp_match.coverage
+            ),
         });
 
         let mut decision = match fp_match.confidence_level {
@@ -113,21 +116,23 @@ pub fn evaluate(
                     detail: "Strong protocol-level proof confirmed Verified status".to_string(),
                 });
                 DecisionOutcome::Verified
-            },
+            }
             crate::domain::entities::FingerprintConfidence::High if !has_conflicts => {
                 verification_trail.push(DecisionTreeStep {
                     step: "Protocol Validation".to_string(),
-                    detail: "High confidence with no conflicts confirmed Verified status".to_string(),
+                    detail: "High confidence with no conflicts confirmed Verified status"
+                        .to_string(),
                 });
                 DecisionOutcome::Verified
-            },
+            }
             _ => {
                 verification_trail.push(DecisionTreeStep {
                     step: "Protocol Validation".to_string(),
-                    detail: "Confidence insufficient for Verification. Downgraded to Suspected".to_string(),
+                    detail: "Confidence insufficient for Verification. Downgraded to Suspected"
+                        .to_string(),
                 });
                 DecisionOutcome::Suspected
-            },
+            }
         };
 
         let mut redirect_penalty = 0.0;
@@ -136,9 +141,10 @@ pub fn evaluate(
         let mut header_reliability = fp_match.confidence;
 
         if fp_match.tier == crate::domain::entities::FingerprintTier::Generic
-            && header_reliability > 0.6 {
-                header_reliability = 0.6;
-            }
+            && header_reliability > 0.6
+        {
+            header_reliability = 0.6;
+        }
 
         if let Some(http) = http_summary {
             if let Some(code) = http.status_code {
@@ -154,13 +160,16 @@ pub fn evaluate(
 
             let cdn_indicators = ["cloudflare", "fastly", "akamai"];
             let mut is_cdn = false;
-            
+
             if let Some(server) = &http.server_header {
-                if cdn_indicators.iter().any(|c| server.to_lowercase().contains(c)) {
+                if cdn_indicators
+                    .iter()
+                    .any(|c| server.to_lowercase().contains(c))
+                {
                     is_cdn = true;
                 }
             }
-            
+
             if !is_cdn {
                 for (k, v) in &http.headers {
                     let combined = format!("{}:{}", k, v).to_lowercase();
@@ -170,16 +179,17 @@ pub fn evaluate(
                     }
                 }
             }
-            
+
             if is_cdn {
                 decision = DecisionOutcome::CdnEdge;
                 cdn_penalty = 0.3;
                 verification_trail.push(DecisionTreeStep {
                     step: "Edge Detection".to_string(),
-                    detail: "CDN/Proxy indicators found. Edge Detected - Origin Unknown".to_string(),
+                    detail: "CDN/Proxy indicators found. Edge Detected - Origin Unknown"
+                        .to_string(),
                 });
             }
-            
+
             if http.response_length.unwrap_or(0) == 0 {
                 response_quality = 0.9;
                 verification_trail.push(DecisionTreeStep {
@@ -198,7 +208,11 @@ pub fn evaluate(
 
         let breakdown = ConfidenceBreakdown {
             port_evidence: base_port_evidence,
-            protocol_validation: if decision == DecisionOutcome::Verified { 1.0 } else { 0.5 },
+            protocol_validation: if decision == DecisionOutcome::Verified {
+                1.0
+            } else {
+                0.5
+            },
             fingerprint_strength: fp_match.confidence,
             header_reliability,
             redirect_penalty,
@@ -207,20 +221,32 @@ pub fn evaluate(
             final_score: final_score.max(0.0),
         };
 
-        let ambiguity = if has_conflicts || decision == DecisionOutcome::Suspected || !fp_match.penalties.is_empty() {
+        let ambiguity = if has_conflicts
+            || decision == DecisionOutcome::Suspected
+            || !fp_match.penalties.is_empty()
+        {
             let mut conf_evs: Vec<String> = conflicting
                 .iter()
                 .map(|e| e.interpretation.clone())
                 .chain(
-                    fp_match.conflicting_rules.iter().map(|r| format!("Conflicting rule: expected {}", r.expected)),
+                    fp_match
+                        .conflicting_rules
+                        .iter()
+                        .map(|r| format!("Conflicting rule: expected {}", r.expected)),
                 )
                 .chain(
-                    fp_match.penalties.iter().map(|p| format!("Penalty applied: -{:.2} ({})", p.amount, p.reason)),
+                    fp_match
+                        .penalties
+                        .iter()
+                        .map(|p| format!("Penalty applied: -{:.2} ({})", p.amount, p.reason)),
                 )
                 .collect();
 
             if conf_evs.is_empty() {
-                conf_evs.push(format!("Partial fingerprint coverage: {:?}", fp_match.coverage));
+                conf_evs.push(format!(
+                    "Partial fingerprint coverage: {:?}",
+                    fp_match.coverage
+                ));
             }
 
             Some(AmbiguityReason {
@@ -246,11 +272,16 @@ pub fn evaluate(
         };
 
         // Determine best probe method from fingerprint evidence
-        let probe_method = if fp_match.fingerprint_id.contains("tls") || fp_match.fingerprint_id.contains("https") {
+        let probe_method = if fp_match.fingerprint_id.contains("tls")
+            || fp_match.fingerprint_id.contains("https")
+        {
             ProbeMethod::Tls
         } else if fp_match.fingerprint_id.contains("http") {
             ProbeMethod::Http
-        } else if fp_match.fingerprint_id.contains("mysql") || fp_match.fingerprint_id.contains("postgresql") || fp_match.fingerprint_id.contains("redis") {
+        } else if fp_match.fingerprint_id.contains("mysql")
+            || fp_match.fingerprint_id.contains("postgresql")
+            || fp_match.fingerprint_id.contains("redis")
+        {
             ProbeMethod::Greeting
         } else if supporting.iter().any(|e| e.source == ProbeMethod::Banner) {
             ProbeMethod::Banner
@@ -275,10 +306,8 @@ pub fn evaluate(
     }
 
     // ── Layer 2: Add evidence-only candidates not covered by fingerprints ──
-    let fp_services: std::collections::HashSet<String> = candidates
-        .iter()
-        .map(|c| c.service_name.clone())
-        .collect();
+    let fp_services: std::collections::HashSet<String> =
+        candidates.iter().map(|c| c.service_name.clone()).collect();
 
     for ev in evidence_items {
         if ev.is_negative {
@@ -295,15 +324,15 @@ pub fn evaluate(
                 };
 
                 let breakdown = ConfidenceBreakdown {
-            port_evidence: score,
-            protocol_validation: 0.0,
-            fingerprint_strength: 0.0,
-            header_reliability: score,
-            redirect_penalty: 0.0,
-            cdn_penalty: 0.0,
-            response_quality: 1.0,
-            final_score: score,
-        };
+                    port_evidence: score,
+                    protocol_validation: 0.0,
+                    fingerprint_strength: 0.0,
+                    header_reliability: score,
+                    redirect_penalty: 0.0,
+                    cdn_penalty: 0.0,
+                    response_quality: 1.0,
+                    final_score: score,
+                };
 
                 candidates.push(ServiceCandidate {
                     service_name: svc.clone(),
@@ -326,7 +355,8 @@ pub fn evaluate(
                     fingerprint_match: None,
                     verification_trail: vec![DecisionTreeStep {
                         step: "Evidence Fallback".to_string(),
-                        detail: "No fingerprint match. Marked as Suspected from evidence.".to_string(),
+                        detail: "No fingerprint match. Marked as Suspected from evidence."
+                            .to_string(),
                     }],
                 });
             }
@@ -335,7 +365,8 @@ pub fn evaluate(
 
     // ── Sort by confidence descending ──
     candidates.sort_by(|a, b| {
-        b.confidence_breakdown.final_score
+        b.confidence_breakdown
+            .final_score
             .partial_cmp(&a.confidence_breakdown.final_score)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
@@ -353,7 +384,11 @@ fn classify_evidence(ev: &ProbeEvidence) -> (EvidenceKind, EvidenceStrength, Opt
     match ev.method {
         ProbeMethod::Greeting => {
             let svc = extract_service(&interp_lower);
-            (EvidenceKind::ProtocolGreeting, EvidenceStrength::Strong, svc)
+            (
+                EvidenceKind::ProtocolGreeting,
+                EvidenceStrength::Strong,
+                svc,
+            )
         }
         ProbeMethod::Tls => {
             let svc = if interp_lower.contains("tls active") {
@@ -376,21 +411,37 @@ fn classify_evidence(ev: &ProbeEvidence) -> (EvidenceKind, EvidenceStrength, Opt
             };
             (EvidenceKind::BannerText, strength, svc)
         }
-        ProbeMethod::PortDefault => {
-            (EvidenceKind::PortAssumption, EvidenceStrength::Weak, None)
-        }
+        ProbeMethod::PortDefault => (EvidenceKind::PortAssumption, EvidenceStrength::Weak, None),
     }
 }
 
 fn extract_service(text: &str) -> Option<String> {
-    if text.contains("ssh") { return Some("SSH".into()); }
-    if text.contains("ftp") { return Some("FTP".into()); }
-    if text.contains("smtp") { return Some("SMTP".into()); }
-    if text.contains("pop3") { return Some("POP3".into()); }
-    if text.contains("imap") { return Some("IMAP".into()); }
-    if text.contains("mysql") || text.contains("mariadb") { return Some("MySQL".into()); }
-    if text.contains("postgresql") || text.contains("postgres") { return Some("PostgreSQL".into()); }
-    if text.contains("redis") { return Some("Redis".into()); }
-    if text.contains("http") { return Some("HTTP".into()); }
+    if text.contains("ssh") {
+        return Some("SSH".into());
+    }
+    if text.contains("ftp") {
+        return Some("FTP".into());
+    }
+    if text.contains("smtp") {
+        return Some("SMTP".into());
+    }
+    if text.contains("pop3") {
+        return Some("POP3".into());
+    }
+    if text.contains("imap") {
+        return Some("IMAP".into());
+    }
+    if text.contains("mysql") || text.contains("mariadb") {
+        return Some("MySQL".into());
+    }
+    if text.contains("postgresql") || text.contains("postgres") {
+        return Some("PostgreSQL".into());
+    }
+    if text.contains("redis") {
+        return Some("Redis".into());
+    }
+    if text.contains("http") {
+        return Some("HTTP".into());
+    }
     None
 }

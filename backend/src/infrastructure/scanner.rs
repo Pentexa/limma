@@ -1,16 +1,16 @@
-pub mod fingerprint;
-pub mod security;
-pub mod crawler;
 pub mod consistency;
 pub mod correlation;
+pub mod crawler;
+pub mod fingerprint;
+pub mod security;
 
-use crate::domain::entities::{WebScanResult, CertaintyLevel, CertaintyNote};
+use crate::domain::entities::{CertaintyLevel, CertaintyNote, WebScanResult};
 use crate::domain::repositories::WebsiteScanner;
 use async_trait::async_trait;
-use reqwest::{Client, redirect::Policy};
+use chrono::Utc;
+use reqwest::{redirect::Policy, Client};
 use std::collections::HashMap;
 use std::time::Instant;
-use chrono::Utc;
 
 pub struct HttpWebsiteScanner {
     client: Client,
@@ -41,14 +41,16 @@ impl WebsiteScanner for HttpWebsiteScanner {
         let total_start = Instant::now();
 
         let mut crawl_res = crawler::crawl(&self.client, &self.fingerprinter, url, 5, None).await?;
-        let summary = consistency::analyze_consistency(&mut crawl_res.pages, &mut crawl_res.events, &None);
-        let correlation_report = correlation::analyze_target(&crawl_res.pages, &mut crawl_res.events, &None);
+        let summary =
+            consistency::analyze_consistency(&mut crawl_res.pages, &mut crawl_res.events, &None);
+        let correlation_report =
+            correlation::analyze_target(&crawl_res.pages, &mut crawl_res.events, &None);
 
         let scan_end_time = Utc::now();
         let total_duration_ms = total_start.elapsed().as_millis() as u64;
 
         let main_page = crawl_res.pages.first().cloned();
-        
+
         let mut final_status_code = 0;
         let mut latency_ms = 0;
         let mut headers = HashMap::new();
@@ -67,7 +69,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
             latency_ms = mp.latency_ms;
             headers = mp.headers.clone();
             content_type = mp.content_type.clone();
-            
+
             for (k, v) in &mp.headers {
                 match k.as_str() {
                     "content-length" => content_length = v.parse::<u64>().ok(),
@@ -76,7 +78,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
                     _ => {}
                 }
             }
-            
+
             detected_technologies = mp.detected_technologies;
             security_headers = mp.security_headers.clone();
             risk_insights = mp.risk_insights.clone();
@@ -92,7 +94,10 @@ impl WebsiteScanner for HttpWebsiteScanner {
         } else if has_page_data {
             Some(CertaintyNote {
                 level: CertaintyLevel::Likely,
-                reason: format!("Sayfa tarandı ama HTTP {} yanıtı alındı — bazı veriler eksik olabilir", final_status_code),
+                reason: format!(
+                    "Sayfa tarandı ama HTTP {} yanıtı alındı — bazı veriler eksik olabilir",
+                    final_status_code
+                ),
             })
         } else {
             Some(CertaintyNote {
@@ -128,19 +133,29 @@ impl WebsiteScanner for HttpWebsiteScanner {
         })
     }
 
-    async fn scan_stream(&self, url: &str, tx: tokio::sync::mpsc::UnboundedSender<crate::domain::entities::ScanEvent>) -> Result<WebScanResult, String> {
+    async fn scan_stream(
+        &self,
+        url: &str,
+        tx: tokio::sync::mpsc::UnboundedSender<crate::domain::entities::ScanEvent>,
+    ) -> Result<WebScanResult, String> {
         let scan_start_time = Utc::now();
         let total_start = Instant::now();
 
-        let mut crawl_res = crawler::crawl(&self.client, &self.fingerprinter, url, 5, Some(tx.clone())).await?;
-        let summary = consistency::analyze_consistency(&mut crawl_res.pages, &mut crawl_res.events, &Some(tx.clone()));
-        let correlation_report = correlation::analyze_target(&crawl_res.pages, &mut crawl_res.events, &Some(tx.clone()));
+        let mut crawl_res =
+            crawler::crawl(&self.client, &self.fingerprinter, url, 5, Some(tx.clone())).await?;
+        let summary = consistency::analyze_consistency(
+            &mut crawl_res.pages,
+            &mut crawl_res.events,
+            &Some(tx.clone()),
+        );
+        let correlation_report =
+            correlation::analyze_target(&crawl_res.pages, &mut crawl_res.events, &Some(tx.clone()));
 
         let scan_end_time = Utc::now();
         let total_duration_ms = total_start.elapsed().as_millis() as u64;
 
         let main_page = crawl_res.pages.first().cloned();
-        
+
         let mut final_status_code = 0;
         let mut latency_ms = 0;
         let mut headers = HashMap::new();
@@ -159,7 +174,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
             latency_ms = mp.latency_ms;
             headers = mp.headers.clone();
             content_type = mp.content_type.clone();
-            
+
             for (k, v) in &mp.headers {
                 match k.as_str() {
                     "content-length" => content_length = v.parse::<u64>().ok(),
@@ -168,7 +183,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
                     _ => {}
                 }
             }
-            
+
             detected_technologies = mp.detected_technologies;
             security_headers = mp.security_headers.clone();
             risk_insights = mp.risk_insights.clone();
@@ -184,7 +199,10 @@ impl WebsiteScanner for HttpWebsiteScanner {
         } else if has_page_data {
             Some(CertaintyNote {
                 level: CertaintyLevel::Likely,
-                reason: format!("Sayfa tarandı ama HTTP {} yanıtı alındı — bazı veriler eksik olabilir", final_status_code),
+                reason: format!(
+                    "Sayfa tarandı ama HTTP {} yanıtı alındı — bazı veriler eksik olabilir",
+                    final_status_code
+                ),
             })
         } else {
             Some(CertaintyNote {

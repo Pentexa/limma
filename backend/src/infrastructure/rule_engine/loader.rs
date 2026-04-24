@@ -8,21 +8,36 @@ pub fn load_rules_from_directory(dir: &Path) -> (Vec<RuleDefinition>, Vec<String
     let mut errors = Vec::new();
 
     if !dir.exists() {
-        errors.push(format!("[RuleLoader] Rules directory does not exist: {}", dir.display()));
+        errors.push(format!(
+            "[RuleLoader] Rules directory does not exist: {}",
+            dir.display()
+        ));
         return (rules, errors);
     }
 
     let files = discover_rule_files(dir);
-    tracing::info!("[RuleLoader] Discovered {} rule files in {}", files.len(), dir.display());
+    tracing::info!(
+        "[RuleLoader] Discovered {} rule files in {}",
+        files.len(),
+        dir.display()
+    );
 
     for file_path in files {
         match load_single_file(&file_path) {
             Ok(rule) => {
-                tracing::debug!("[RuleLoader] Loaded rule '{}' from {}", rule.id, file_path.display());
+                tracing::debug!(
+                    "[RuleLoader] Loaded rule '{}' from {}",
+                    rule.id,
+                    file_path.display()
+                );
                 rules.push(rule);
             }
             Err(e) => {
-                let msg = format!("[RuleLoader] Failed to parse {}: {}", file_path.display(), e);
+                let msg = format!(
+                    "[RuleLoader] Failed to parse {}: {}",
+                    file_path.display(),
+                    e
+                );
                 tracing::warn!("{}", msg);
                 errors.push(msg);
             }
@@ -55,26 +70,21 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-
 /// Loads and parses a single rule file (YAML or JSON).
 fn load_single_file(path: &Path) -> Result<RuleDefinition, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("IO error: {}", e))?;
+    let content = std::fs::read_to_string(path).map_err(|e| format!("IO error: {}", e))?;
 
-    let ext = path.extension()
+    let ext = path
+        .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
 
     match ext.as_str() {
-        "yaml" | "yml" => {
-            serde_yaml::from_str::<RuleDefinition>(&content)
-                .map_err(|e| format!("YAML parse error: {}", e))
-        }
-        "json" => {
-            serde_json::from_str::<RuleDefinition>(&content)
-                .map_err(|e| format!("JSON parse error: {}", e))
-        }
+        "yaml" | "yml" => serde_yaml::from_str::<RuleDefinition>(&content)
+            .map_err(|e| format!("YAML parse error: {}", e)),
+        "json" => serde_json::from_str::<RuleDefinition>(&content)
+            .map_err(|e| format!("JSON parse error: {}", e)),
         _ => Err(format!("Unsupported file extension: {}", ext)),
     }
 }

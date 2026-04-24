@@ -1,6 +1,6 @@
 use crate::domain::entities::*;
-use uuid::Uuid;
 use std::collections::HashSet;
+use uuid::Uuid;
 
 pub struct AttackPathEngine;
 
@@ -54,19 +54,27 @@ impl AttackPathEngine {
     }
 
     fn is_xss_escalation(&self, inject: &CanonicalFinding, infra: &CanonicalFinding) -> bool {
-        let is_reflect = inject.title.to_lowercase().contains("cross-site") 
-                         || inject.title.to_lowercase().contains("xss")
-                         || inject.canonical_slug.contains("xss");
-        
+        let is_reflect = inject.title.to_lowercase().contains("cross-site")
+            || inject.title.to_lowercase().contains("xss")
+            || inject.canonical_slug.contains("xss");
+
         let missing_csp = infra.canonical_slug.contains("missing-csp");
 
         is_reflect && missing_csp && self.shares_route_or_global(inject, infra)
     }
 
-    fn build_xss_chain(&self, inject: &CanonicalFinding, infra: &CanonicalFinding) -> Option<AttackPath> {
+    fn build_xss_chain(
+        &self,
+        inject: &CanonicalFinding,
+        infra: &CanonicalFinding,
+    ) -> Option<AttackPath> {
         let shared: Vec<String> = self.get_shared_routes(inject, infra).into_iter().collect();
-        let route_msg = if shared.is_empty() { "Global Scope".to_string() } else { format!("Route: {}", shared.join(", ")) };
-        
+        let route_msg = if shared.is_empty() {
+            "Global Scope".to_string()
+        } else {
+            format!("Route: {}", shared.join(", "))
+        };
+
         Some(AttackPath {
             id: Uuid::new_v4().to_string(),
             attack_path_score: 80, // High severity path
@@ -82,19 +90,32 @@ impl AttackPathEngine {
 
     fn is_session_hijack(&self, cookie: &CanonicalFinding, intercept: &CanonicalFinding) -> bool {
         let insecure_cookie = cookie.canonical_slug.contains("insecure-cookie");
-        let network_interception = intercept.canonical_slug.contains("missing-hsts") || intercept.canonical_slug.contains("weak-tls");
+        let network_interception = intercept.canonical_slug.contains("missing-hsts")
+            || intercept.canonical_slug.contains("weak-tls");
 
         insecure_cookie && network_interception
     }
 
-    fn build_session_chain(&self, cookie: &CanonicalFinding, intercept: &CanonicalFinding) -> Option<AttackPath> {
-        let _shared: Vec<String> = self.get_shared_routes(cookie, intercept).into_iter().collect();
-        let auth_related = cookie.attack_surface_tags.contains(&"requires_authentication".to_string()) || intercept.attack_surface_tags.contains(&"requires_authentication".to_string());
-        
+    fn build_session_chain(
+        &self,
+        cookie: &CanonicalFinding,
+        intercept: &CanonicalFinding,
+    ) -> Option<AttackPath> {
+        let _shared: Vec<String> = self
+            .get_shared_routes(cookie, intercept)
+            .into_iter()
+            .collect();
+        let auth_related = cookie
+            .attack_surface_tags
+            .contains(&"requires_authentication".to_string())
+            || intercept
+                .attack_surface_tags
+                .contains(&"requires_authentication".to_string());
+
         let mut score = 50;
         let mut level = ExploitabilityLevel::Theoretical;
         let mut reqs = vec!["Attacker resides on the same network or performs MitM".to_string()];
-        
+
         if auth_related {
             score = 95;
             level = ExploitabilityLevel::Actionable;
@@ -115,7 +136,9 @@ impl AttackPathEngine {
     }
 
     fn shares_route_or_global(&self, f1: &CanonicalFinding, f2: &CanonicalFinding) -> bool {
-        if f1.affected_routes.is_empty() || f2.affected_routes.is_empty() { return true; }
+        if f1.affected_routes.is_empty() || f2.affected_routes.is_empty() {
+            return true;
+        }
         for r1 in &f1.affected_routes {
             if f2.affected_routes.contains(r1) {
                 return true;
@@ -123,7 +146,7 @@ impl AttackPathEngine {
         }
         false
     }
-    
+
     fn get_shared_routes(&self, f1: &CanonicalFinding, f2: &CanonicalFinding) -> HashSet<String> {
         let s2: HashSet<_> = f2.affected_routes.iter().cloned().collect();
         let mut overlap = HashSet::new();

@@ -1,4 +1,4 @@
-use super::models::{RuleDefinition, RuleConditionNode};
+use super::models::{RuleConditionNode, RuleDefinition};
 use std::collections::HashSet;
 
 /// Validates a batch of loaded rules for correctness.
@@ -19,7 +19,10 @@ pub fn validate_rules(rules: Vec<RuleDefinition>) -> (Vec<RuleDefinition>, Vec<S
             rule_errors.push(format!("Rule '{}' missing required 'name' field", rule.id));
         }
         if rule.default_severity.trim().is_empty() {
-            rule_errors.push(format!("Rule '{}' missing required 'default_severity' (or 'severity') field", rule.id));
+            rule_errors.push(format!(
+                "Rule '{}' missing required 'default_severity' (or 'severity') field",
+                rule.id
+            ));
         }
 
         // Validate severity value

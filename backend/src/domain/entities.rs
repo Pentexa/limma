@@ -16,10 +16,10 @@ pub struct User {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CertaintyLevel {
-    Certain,     // Doğrudan kanıtla doğrulanmış
-    Likely,      // Güçlü göstergeler var ama tam doğrulama yok
-    Uncertain,   // Zayıf kanıt, tahmin içeriyor
-    Unknown,     // Bilgi yok — bilmiyorum
+    Certain,   // Doğrudan kanıtla doğrulanmış
+    Likely,    // Güçlü göstergeler var ama tam doğrulama yok
+    Uncertain, // Zayıf kanıt, tahmin içeriyor
+    Unknown,   // Bilgi yok — bilmiyorum
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,7 +97,7 @@ pub struct ScannedPage {
 pub struct ScanEvent {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub event_type: String, // e.g. "SCAN_STARTED", "PAGE_CRAWLED", "RISK_GENERATED"
-    pub level: String, // "INFO", "WARN", "ERROR"
+    pub level: String,      // "INFO", "WARN", "ERROR"
     pub message: String,
     pub payload: Option<serde_json::Value>,
 }
@@ -204,7 +204,8 @@ pub struct ServerInfo {
     pub status_code: u16,
     pub latency_ms: u64,
     pub raw_headers: std::collections::HashMap<String, Vec<String>>,
-    pub categorized_headers: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
+    pub categorized_headers:
+        std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
     pub infrastructure_signals: Vec<InfrastructureSignal>,
     pub fingerprints: Vec<InvestigatorFingerprint>,
     pub delivery_insights: Vec<DeliveryInsight>,
@@ -264,10 +265,10 @@ pub struct EndpointDetail {
     pub path: String,
     pub method_prediction: String,
     pub parameters: Vec<ParamDetail>,
-    pub auth_probability: f32, // 0.0 to 1.0
+    pub auth_probability: f32,   // 0.0 to 1.0
     pub auth_likelihood: String, // "None", "Low", "Likely"
-    pub confidence_score: f32, // 0.3 to 0.95
-    pub evidences: Vec<Evidence>, 
+    pub confidence_score: f32,   // 0.3 to 0.95
+    pub evidences: Vec<Evidence>,
     pub runtime_verification: Option<RuntimeVerification>,
     pub certainty: Option<CertaintyLevel>,
 }
@@ -358,19 +359,19 @@ pub struct HttpSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
-    ProtocolGreeting,   // SSH banner, MySQL handshake, etc.
-    TlsHandshake,       // TLS metadata (ALPN, cert, cipher)
-    HttpResponse,       // HTTP status, headers
-    BannerText,         // Raw text banner
-    PortAssumption,     // Default port mapping
+    ProtocolGreeting, // SSH banner, MySQL handshake, etc.
+    TlsHandshake,     // TLS metadata (ALPN, cert, cipher)
+    HttpResponse,     // HTTP status, headers
+    BannerText,       // Raw text banner
+    PortAssumption,   // Default port mapping
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceStrength {
-    Strong,   // Protocol greeting, TLS ALPN match
-    Medium,   // HTTP headers, banner patterns
-    Weak,     // Port-based assumption only
+    Strong, // Protocol greeting, TLS ALPN match
+    Medium, // HTTP headers, banner patterns
+    Weak,   // Port-based assumption only
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -420,45 +421,45 @@ pub enum RuleCategory {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RuleWeight {
-    Critical,     // Protocol-level proof (greeting, ALPN) — dominates scoring
-    Strong,       // High-quality signal (TLS cert, specific banner)
-    Medium,       // Moderate signal (HTTP headers, generic banner)
-    Weak,         // Low-quality hint (port number alone)
-    Contextual,   // Only applies when a prerequisite rule already matched
+    Critical,   // Protocol-level proof (greeting, ALPN) — dominates scoring
+    Strong,     // High-quality signal (TLS cert, specific banner)
+    Medium,     // Moderate signal (HTTP headers, generic banner)
+    Weak,       // Low-quality hint (port number alone)
+    Contextual, // Only applies when a prerequisite rule already matched
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum FingerprintTier {
-    Specific,   // Concrete service (e.g., OpenSSH, MySQL 8.x)
-    Generic,    // Category (e.g., "HTTP server", "Database")
-    Fallback,   // Catch-all (e.g., "Unknown TLS", "Unknown service")
+    Specific, // Concrete service (e.g., OpenSSH, MySQL 8.x)
+    Generic,  // Category (e.g., "HTTP server", "Database")
+    Fallback, // Catch-all (e.g., "Unknown TLS", "Unknown service")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverageLevel {
-    Full,       // All rules evaluated and matched
-    High,       // Required rules + most optional matched
-    Partial,    // Some rules matched, gaps remain
-    Minimal,    // Very few rules matched
+    Full,    // All rules evaluated and matched
+    High,    // Required rules + most optional matched
+    Partial, // Some rules matched, gaps remain
+    Minimal, // Very few rules matched
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum FingerprintConfidence {
-    Confirmed,  // Strong protocol-level proof
-    High,       // Multiple aligned signals
-    Medium,     // Moderate evidence
-    Low,        // Weak or partial evidence
-    Tentative,  // Partial match, may be wrong
+    Confirmed, // Strong protocol-level proof
+    High,      // Multiple aligned signals
+    Medium,    // Moderate evidence
+    Low,       // Weak or partial evidence
+    Tentative, // Partial match, may be wrong
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExplanationItem {
-    pub category: String,    // "boost", "decay", "penalty", "info", "contextual"
+    pub category: String, // "boost", "decay", "penalty", "info", "contextual"
     pub description: String,
-    pub impact: f32,         // positive = boost, negative = penalty
+    pub impact: f32, // positive = boost, negative = penalty
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -605,7 +606,7 @@ pub enum ChangeType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangeEvent {
     pub change_type: ChangeType,
-    pub resource: String,      // e.g., "Port 80", "Service on Port 443"
+    pub resource: String, // e.g., "Port 80", "Service on Port 443"
     pub before: Option<String>,
     pub after: Option<String>,
     pub description: String,
@@ -773,8 +774,8 @@ pub struct SecurityAuditFinding {
     pub technical_details: String,
     pub source_module: SourceModule,
     pub evidence: Vec<AuditEvidenceItem>,
-    pub raw_reference: Option<serde_json::Value>, 
-    
+    pub raw_reference: Option<serde_json::Value>,
+
     // Correlation Enhancement Info
     pub correlation_group_id: Option<String>,
     pub correlation_count: usize,
@@ -1260,8 +1261,8 @@ pub struct BurpImportTrafficResponse {
 pub struct BurpNativeFinding {
     pub name: String,
     pub detail: String,
-    pub severity: String,     // "High", "Medium", "Low", "Information"
-    pub confidence: String,   // "Certain", "Firm", "Tentative"
+    pub severity: String,   // "High", "Medium", "Low", "Information"
+    pub confidence: String, // "Certain", "Firm", "Tentative"
     pub url: String,
     pub path: String,
     pub host: String,
@@ -1291,5 +1292,8 @@ pub enum BurpSseEvent {
     #[serde(rename = "finding_detected")]
     FindingDetected(BurpNativeFinding),
     #[serde(rename = "sync_status")]
-    SyncStatus { status: BurpSessionStatus, message: String },
+    SyncStatus {
+        status: BurpSessionStatus,
+        message: String,
+    },
 }

@@ -6,6 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
+    "lint": "next lint",
     "test:e2e": "npx playwright test",
     "test:verify": "npx playwright test tests/e2e/frontend-verification.spec.ts",
     "test:verify:target": "npx playwright test tests/e2e/frontend-verification.spec.ts",

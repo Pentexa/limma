@@ -1,18 +1,17 @@
 use crate::domain::entities::{
-    CoverageLevel, EvidenceItem, EvidenceKind, EvidenceStrength,
-    ExplanationItem, FingerprintConfidence, FingerprintDefinition,
-    FingerprintMatch, FingerprintTier, HttpSummary, MatchPenalty,
-    MatchStrength, RuleCategory, RuleEvaluation, RuleWeight, TlsSummary,
+    CoverageLevel, EvidenceItem, EvidenceKind, EvidenceStrength, ExplanationItem,
+    FingerprintConfidence, FingerprintDefinition, FingerprintMatch, FingerprintTier, HttpSummary,
+    MatchPenalty, MatchStrength, RuleCategory, RuleEvaluation, RuleWeight, TlsSummary,
 };
 
 // ── Scoring constants ──
-const BOOST_CRITICAL: f32 = 1.5;   // Critical rule match multiplier
-const BOOST_STRONG: f32 = 1.2;     // Strong rule match multiplier
-const DECAY_MISSING_REQUIRED: f32 = 0.30;  // Penalty for missing required
-const DECAY_MISSING_STRONG: f32 = 0.12;    // Decay per missing strong rule
-const DECAY_MISSING_MEDIUM: f32 = 0.05;    // Decay per missing medium rule
-const PENALTY_CONTRADICTION: f32 = 0.15;   // Per conflicting signal
-const WEAK_ONLY_CAP: f32 = 0.30;           // Max score if ONLY weak rules matched
+const BOOST_CRITICAL: f32 = 1.5; // Critical rule match multiplier
+const BOOST_STRONG: f32 = 1.2; // Strong rule match multiplier
+const DECAY_MISSING_REQUIRED: f32 = 0.30; // Penalty for missing required
+const DECAY_MISSING_STRONG: f32 = 0.12; // Decay per missing strong rule
+const DECAY_MISSING_MEDIUM: f32 = 0.05; // Decay per missing medium rule
+const PENALTY_CONTRADICTION: f32 = 0.15; // Per conflicting signal
+const WEAK_ONLY_CAP: f32 = 0.30; // Max score if ONLY weak rules matched
 
 /// Evaluates a single FingerprintDefinition against collected evidence.
 /// Phase 5: non-additive scoring with boosts, decay, penalties, contextual rules,
@@ -62,7 +61,10 @@ pub fn evaluate_fingerprint(
             });
             explanations.push(ExplanationItem {
                 category: "contextual".into(),
-                description: format!("{}: skipped (prerequisite {:?} not met)", rule.description, rule.contextual_requires),
+                description: format!(
+                    "{}: skipped (prerequisite {:?} not met)",
+                    rule.description, rule.contextual_requires
+                ),
                 impact: 0.0,
             });
             continue;
@@ -96,7 +98,10 @@ pub fn evaluate_fingerprint(
                 only_weak_rules = false;
                 explanations.push(ExplanationItem {
                     category: "boost".into(),
-                    description: format!("CRITICAL: {} (×{:.1} boost)", rule.description, multiplier),
+                    description: format!(
+                        "CRITICAL: {} (×{:.1} boost)",
+                        rule.description, multiplier
+                    ),
                     impact: contribution,
                 });
             } else if rule.rule_weight == RuleWeight::Strong {
@@ -143,7 +148,10 @@ pub fn evaluate_fingerprint(
                 raw_score -= decay;
                 explanations.push(ExplanationItem {
                     category: "decay".into(),
-                    description: format!("Missing: {} (expected: {})", rule.description, rule.expected_value),
+                    description: format!(
+                        "Missing: {} (expected: {})",
+                        rule.description, rule.expected_value
+                    ),
                     impact: -decay,
                 });
             }
@@ -164,9 +172,7 @@ pub fn evaluate_fingerprint(
     // ── Pass 2: Check for contradicting evidence ──
     for ev in evidence {
         if let Some(ref svc) = ev.suggests_service {
-            if svc != &fp.service_name
-                && ev.strength == EvidenceStrength::Strong
-            {
+            if svc != &fp.service_name && ev.strength == EvidenceStrength::Strong {
                 let pen = PENALTY_CONTRADICTION;
                 raw_score -= pen;
                 penalties.push(MatchPenalty {
@@ -193,11 +199,17 @@ pub fn evaluate_fingerprint(
     }
 
     // ── Pass 3: Apply weak-only cap ──
-    if only_weak_rules && !matched_rules.is_empty() && raw_score > WEAK_ONLY_CAP * total_possible.max(1.0) {
+    if only_weak_rules
+        && !matched_rules.is_empty()
+        && raw_score > WEAK_ONLY_CAP * total_possible.max(1.0)
+    {
         let capped = WEAK_ONLY_CAP * total_possible.max(1.0);
         explanations.push(ExplanationItem {
             category: "penalty".into(),
-            description: format!("Weak-only cap: score reduced from {:.2} to {:.2} (no strong/critical evidence)", raw_score, capped),
+            description: format!(
+                "Weak-only cap: score reduced from {:.2} to {:.2} (no strong/critical evidence)",
+                raw_score, capped
+            ),
             impact: capped - raw_score,
         });
         penalties.push(MatchPenalty {
@@ -219,11 +231,18 @@ pub fn evaluate_fingerprint(
     let strength = if required_failed {
         MatchStrength::NoMatch
     } else {
-        compute_strength(confidence, has_critical_match, has_strong_match, &matched_rules, &fp.rules)
+        compute_strength(
+            confidence,
+            has_critical_match,
+            has_strong_match,
+            &matched_rules,
+            &fp.rules,
+        )
     };
 
     let coverage = compute_coverage(&matched_rules, &missing_rules);
-    let confidence_level = compute_confidence_level(confidence, &strength, has_critical_match, &fp.tier);
+    let confidence_level =
+        compute_confidence_level(confidence, &strength, has_critical_match, &fp.tier);
 
     // Add tier-based explanation
     match fp.tier {
@@ -251,9 +270,15 @@ pub fn evaluate_fingerprint(
     }
 
     let reasoning = build_reasoning(
-        &fp.service_name, &strength, &confidence_level, &coverage,
-        confidence, matched_rules.len(), missing_rules.len(),
-        conflicting_rules.len(), &fp.tier,
+        &fp.service_name,
+        &strength,
+        &confidence_level,
+        &coverage,
+        confidence,
+        matched_rules.len(),
+        missing_rules.len(),
+        conflicting_rules.len(),
+        &fp.tier,
     );
 
     FingerprintMatch {
@@ -284,25 +309,39 @@ fn evaluate_rule(
     match category {
         RuleCategory::BannerContains => {
             for ev in evidence {
-                if (ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting)
-                    && (expected.is_empty() || ev.raw_signal.to_lowercase().contains(&expected.to_lowercase())) {
-                        return (true, Some(truncate(&ev.raw_signal, 80)));
-                    }
+                if (ev.kind == EvidenceKind::BannerText
+                    || ev.kind == EvidenceKind::ProtocolGreeting)
+                    && (expected.is_empty()
+                        || ev
+                            .raw_signal
+                            .to_lowercase()
+                            .contains(&expected.to_lowercase()))
+                {
+                    return (true, Some(truncate(&ev.raw_signal, 80)));
+                }
             }
             (false, None)
         }
         RuleCategory::BannerStartsWith => {
             for ev in evidence {
-                if (ev.kind == EvidenceKind::BannerText || ev.kind == EvidenceKind::ProtocolGreeting)
-                    && ev.raw_signal.trim().to_uppercase().starts_with(&expected.to_uppercase()) {
-                        return (true, Some(truncate(&ev.raw_signal, 80)));
-                    }
+                if (ev.kind == EvidenceKind::BannerText
+                    || ev.kind == EvidenceKind::ProtocolGreeting)
+                    && ev
+                        .raw_signal
+                        .trim()
+                        .to_uppercase()
+                        .starts_with(&expected.to_uppercase())
+                {
+                    return (true, Some(truncate(&ev.raw_signal, 80)));
+                }
             }
             (false, None)
         }
         RuleCategory::TlsPresent => {
             if let Some(ref tls) = tls_summary {
-                if tls.has_tls { return (true, Some("TLS active".into())); }
+                if tls.has_tls {
+                    return (true, Some("TLS active".into()));
+                }
             }
             (false, None)
         }
@@ -331,7 +370,8 @@ fn evaluate_rule(
                 if let Some(status) = http.status_code {
                     let parts: Vec<&str> = expected.split('-').collect();
                     if parts.len() == 2 {
-                        if let (Ok(lo), Ok(hi)) = (parts[0].parse::<u16>(), parts[1].parse::<u16>()) {
+                        if let (Ok(lo), Ok(hi)) = (parts[0].parse::<u16>(), parts[1].parse::<u16>())
+                        {
                             if status >= lo && status <= hi {
                                 return (true, Some(format!("{}", status)));
                             }
@@ -344,7 +384,9 @@ fn evaluate_rule(
         RuleCategory::HttpServerContains => {
             if let Some(ref http) = http_summary {
                 if let Some(ref server) = http.server_header {
-                    if expected.is_empty() || server.to_lowercase().contains(&expected.to_lowercase()) {
+                    if expected.is_empty()
+                        || server.to_lowercase().contains(&expected.to_lowercase())
+                    {
                         return (true, Some(server.clone()));
                     }
                 }
@@ -364,9 +406,14 @@ fn evaluate_rule(
         RuleCategory::GreetingSignature => {
             for ev in evidence {
                 if ev.kind == EvidenceKind::ProtocolGreeting
-                    && (expected.is_empty() || ev.interpretation.to_lowercase().contains(&expected.to_lowercase())) {
-                        return (true, Some(truncate(&ev.raw_signal, 80)));
-                    }
+                    && (expected.is_empty()
+                        || ev
+                            .interpretation
+                            .to_lowercase()
+                            .contains(&expected.to_lowercase()))
+                {
+                    return (true, Some(truncate(&ev.raw_signal, 80)));
+                }
             }
             (false, None)
         }
@@ -388,7 +435,10 @@ fn compute_strength(
     matched: &[RuleEvaluation],
     all_rules: &[crate::domain::entities::FingerprintRule],
 ) -> MatchStrength {
-    let total = all_rules.iter().filter(|r| r.contextual_requires.is_none()).count();
+    let total = all_rules
+        .iter()
+        .filter(|r| r.contextual_requires.is_none())
+        .count();
     let matched_count = matched.len();
 
     if matched_count == total && confidence >= 0.70 {
@@ -406,12 +456,19 @@ fn compute_strength(
 
 fn compute_coverage(matched: &[RuleEvaluation], missing: &[RuleEvaluation]) -> CoverageLevel {
     let total = matched.len() + missing.iter().filter(|m| !m.skipped_contextual).count();
-    if total == 0 { return CoverageLevel::Minimal; }
+    if total == 0 {
+        return CoverageLevel::Minimal;
+    }
     let ratio = matched.len() as f32 / total as f32;
-    if ratio >= 0.90 { CoverageLevel::Full }
-    else if ratio >= 0.65 { CoverageLevel::High }
-    else if ratio >= 0.35 { CoverageLevel::Partial }
-    else { CoverageLevel::Minimal }
+    if ratio >= 0.90 {
+        CoverageLevel::Full
+    } else if ratio >= 0.65 {
+        CoverageLevel::High
+    } else if ratio >= 0.35 {
+        CoverageLevel::Partial
+    } else {
+        CoverageLevel::Minimal
+    }
 }
 
 fn compute_confidence_level(
@@ -485,12 +542,27 @@ fn build_reasoning(
 
     format!(
         "{} [{}]: {} match, {} confidence ({:.0}%), {} coverage ({}/{} rules{}) — {}",
-        service, tier_label, strength_label, conf_label,
-        confidence * 100.0, cov_label, matched, matched + missing,
-        conflict_note, if *strength == MatchStrength::Partial { "tentative" } else { "committed" },
+        service,
+        tier_label,
+        strength_label,
+        conf_label,
+        confidence * 100.0,
+        cov_label,
+        matched,
+        matched + missing,
+        conflict_note,
+        if *strength == MatchStrength::Partial {
+            "tentative"
+        } else {
+            "committed"
+        },
     )
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() > max { format!("{}…", &s[..max]) } else { s.to_string() }
+    if s.len() > max {
+        format!("{}…", &s[..max])
+    } else {
+        s.to_string()
+    }
 }

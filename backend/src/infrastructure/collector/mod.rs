@@ -1,19 +1,19 @@
 pub mod banner_probe;
-pub mod tls_probe;
-pub mod http_probe;
-pub mod greeting_probe;
 pub mod confidence_engine;
-pub mod fallback_router;
-pub mod fingerprint_registry;
-pub mod fingerprint_matcher;
-pub mod signature_evaluator;
-pub mod history_store;
 pub mod diff_engine;
+pub mod fallback_router;
+pub mod fingerprint_matcher;
+pub mod fingerprint_registry;
+pub mod greeting_probe;
+pub mod history_store;
+pub mod http_probe;
 pub mod nmap_validator;
+pub mod signature_evaluator;
+pub mod tls_probe;
 
 use crate::domain::entities::{
-    ActivityEvent, ActivitySeverity, CollectorSnapshot, CollectorStatus,
-    PortProbeResult, PortState, ResolvedTarget, TargetInput,
+    ActivityEvent, ActivitySeverity, CollectorSnapshot, CollectorStatus, PortProbeResult,
+    PortState, ResolvedTarget, TargetInput,
 };
 use crate::domain::repositories::ServiceCollector;
 use async_trait::async_trait;
@@ -69,7 +69,10 @@ impl ServiceCollector for HttpServiceCollector {
             timestamp: Utc::now(),
             severity: ActivitySeverity::Info,
             event_type: "TARGET_NORMALIZED".to_string(),
-            message: format!("Normalized to host: {} (default port: {})", host, default_port),
+            message: format!(
+                "Normalized to host: {} (default port: {})",
+                host, default_port
+            ),
             metadata: None,
         });
 
@@ -117,8 +120,8 @@ impl ServiceCollector for HttpServiceCollector {
 
         // === 3. Safe Port Probing ===
         let safe_ports: Vec<u16> = vec![
-            21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306,
-            3389, 5432, 6379, 8080, 8443,
+            21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306, 3389,
+            5432, 6379, 8080, 8443,
         ];
 
         let target_ip = primary_ip.ok_or("No primary IP resolved")?;
@@ -127,7 +130,11 @@ impl ServiceCollector for HttpServiceCollector {
             timestamp: Utc::now(),
             severity: ActivitySeverity::Info,
             event_type: "SCAN_STARTED".to_string(),
-            message: format!("Starting protocol-aware scan of {} ports against {}", safe_ports.len(), target_ip),
+            message: format!(
+                "Starting protocol-aware scan of {} ports against {}",
+                safe_ports.len(),
+                target_ip
+            ),
             metadata: None,
         });
 
@@ -137,9 +144,7 @@ impl ServiceCollector for HttpServiceCollector {
         let probe_results = stream::iter(safe_ports.iter().copied().map(|port| {
             let host = host_for_probes.clone();
             let ip = ip_for_probes.clone();
-            async move {
-                fallback_router::probe_with_fallback(&host, &ip, port).await
-            }
+            async move { fallback_router::probe_with_fallback(&host, &ip, port).await }
         }))
         .buffer_unordered(10)
         .collect::<Vec<(PortProbeResult, Vec<ActivityEvent>)>>()
@@ -163,7 +168,10 @@ impl ServiceCollector for HttpServiceCollector {
         nmap_validator::validate_parity(&mut port_results, &mock_truth_ports);
 
         // === 4. Final Summary ===
-        let open_count = port_results.iter().filter(|p| p.state == PortState::Open).count();
+        let open_count = port_results
+            .iter()
+            .filter(|p| p.state == PortState::Open)
+            .count();
         let total_count = port_results.len();
         let error_count = errors.len();
 
@@ -204,7 +212,7 @@ impl ServiceCollector for HttpServiceCollector {
         // === 5. Change Detection (Diff Engine) ===
         if let Some(prev) = history_store::get_previous_snapshot(&target_input.normalized_url) {
             let diff = diff_engine::compare(&prev, &snapshot);
-            
+
             snapshot.activity_timeline.push(ActivityEvent {
                 timestamp: Utc::now(),
                 severity: ActivitySeverity::Info,
@@ -214,7 +222,9 @@ impl ServiceCollector for HttpServiceCollector {
                     prev.timestamp.format("%H:%M:%S"),
                     diff.summaries.join(", ")
                 ),
-                metadata: Some(serde_json::to_value(&diff.summaries).unwrap_or(serde_json::Value::Null)),
+                metadata: Some(
+                    serde_json::to_value(&diff.summaries).unwrap_or(serde_json::Value::Null),
+                ),
             });
 
             snapshot.diff = Some(diff);
@@ -223,7 +233,8 @@ impl ServiceCollector for HttpServiceCollector {
                 timestamp: Utc::now(),
                 severity: ActivitySeverity::Info,
                 event_type: "FIRST_SCAN".to_string(),
-                message: "No previous history found for this target. Baseline established.".to_string(),
+                message: "No previous history found for this target. Baseline established."
+                    .to_string(),
                 metadata: None,
             });
         }

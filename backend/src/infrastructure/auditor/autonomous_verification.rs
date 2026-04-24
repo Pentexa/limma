@@ -1,5 +1,5 @@
 use crate::domain::entities::*;
-use reqwest::{Client, header};
+use reqwest::{header, Client};
 use std::time::Duration;
 
 pub struct AutonomousVerificationEngine {
@@ -14,11 +14,16 @@ impl AutonomousVerificationEngine {
             .danger_accept_invalid_certs(true)
             .build()
             .unwrap_or_default();
-        
+
         Self { client }
     }
 
-    pub async fn verify_all(&self, target: &str, findings: &mut [CanonicalFinding], paths: &mut [AttackPath]) {
+    pub async fn verify_all(
+        &self,
+        target: &str,
+        findings: &mut [CanonicalFinding],
+        paths: &mut [AttackPath],
+    ) {
         for f in findings.iter_mut() {
             if let Some(av) = self.verify_finding(target, f).await {
                 f.active_verification = Some(av);
@@ -31,8 +36,16 @@ impl AutonomousVerificationEngine {
         }
     }
 
-    async fn verify_finding(&self, target: &str, f: &CanonicalFinding) -> Option<ActiveVerificationData> {
-        let base_url = if target.starts_with("http") { target.to_string() } else { format!("https://{}", target) };
+    async fn verify_finding(
+        &self,
+        target: &str,
+        f: &CanonicalFinding,
+    ) -> Option<ActiveVerificationData> {
+        let base_url = if target.starts_with("http") {
+            target.to_string()
+        } else {
+            format!("https://{}", target)
+        };
         let mut routes_to_test = f.affected_routes.clone();
         if routes_to_test.is_empty() {
             routes_to_test.push("/".to_string());
@@ -51,13 +64,19 @@ impl AutonomousVerificationEngine {
         }
 
         for route in &routes_to_test {
-            let url = if route.starts_with('/') { format!("{}{}", base_url, route) } else { format!("{}/{}", base_url, route) };
-            
+            let url = if route.starts_with('/') {
+                format!("{}{}", base_url, route)
+            } else {
+                format!("{}/{}", base_url, route)
+            };
+
             if let Ok(resp) = self.client.head(&url).send().await {
                 let headers = format!("{:?}", resp.headers());
-                
+
                 let is_vuln = if is_hsts {
-                    !resp.headers().contains_key(header::STRICT_TRANSPORT_SECURITY)
+                    !resp
+                        .headers()
+                        .contains_key(header::STRICT_TRANSPORT_SECURITY)
                 } else if is_csp {
                     !resp.headers().contains_key("content-security-policy")
                 } else {
@@ -90,9 +109,19 @@ impl AutonomousVerificationEngine {
         let reproducibility_score = ((success_count as f32 / traces.len() as f32) * 100.0) as u8;
 
         let (status, reasoning) = if reproducibility_score == 100 {
-            (VerificationStatus::VerifiedActionable, format!("Vulnerability is uniformly consistent across {} tested endpoints.", traces.len()))
+            (
+                VerificationStatus::VerifiedActionable,
+                format!(
+                    "Vulnerability is uniformly consistent across {} tested endpoints.",
+                    traces.len()
+                ),
+            )
         } else if reproducibility_score == 0 {
-            (VerificationStatus::VerifiedInert, "Vulnerability could not be reproduced. Issue is mitigated or structurally inert.".to_string())
+            (
+                VerificationStatus::VerifiedInert,
+                "Vulnerability could not be reproduced. Issue is mitigated or structurally inert."
+                    .to_string(),
+            )
         } else {
             (VerificationStatus::PartiallyVerified, format!("Inconsistent behavior detected ({}% reproducibility). Vulnerability exists on some endpoints but mitigated on others.", reproducibility_score))
         };
@@ -106,13 +135,19 @@ impl AutonomousVerificationEngine {
     }
 
     async fn verify_path(&self, target: &str, p: &AttackPath) -> Option<ActiveVerificationData> {
-        let base_url = if target.starts_with("http") { target.to_string() } else { format!("https://{}", target) };
-        
-        let mut auth_endpoints = p.shared_context.iter()
+        let base_url = if target.starts_with("http") {
+            target.to_string()
+        } else {
+            format!("https://{}", target)
+        };
+
+        let mut auth_endpoints = p
+            .shared_context
+            .iter()
             .filter(|c| c.starts_with("Route: "))
             .map(|c| c.replace("Route: ", ""))
             .collect::<Vec<_>>();
-        
+
         if auth_endpoints.is_empty() {
             auth_endpoints.push("/login".to_string());
         }
@@ -120,18 +155,23 @@ impl AutonomousVerificationEngine {
         let mut traces = Vec::new();
         let mut success_count = 0;
 
-        let is_session_hijack = p.narrative.contains("downgrade") || p.narrative.contains("intercepts");
+        let is_session_hijack =
+            p.narrative.contains("downgrade") || p.narrative.contains("intercepts");
 
         if !is_session_hijack {
             return None; // Fallback
         }
 
         for route in auth_endpoints {
-            let url = if route.starts_with('/') { format!("{}{}", base_url, route) } else { format!("{}/{}", base_url, route) };
-            
+            let url = if route.starts_with('/') {
+                format!("{}{}", base_url, route)
+            } else {
+                format!("{}/{}", base_url, route)
+            };
+
             // For session hijack, we test if HTTP endpoint serves sensitive content without forcing HTTPS
             let http_url = url.replace("https://", "http://");
-            
+
             if let Ok(resp) = self.client.get(&http_url).send().await {
                 // If it doesn't redirect or HSTS isn't present
                 let redirected = resp.url().as_str().starts_with("https://");
@@ -141,11 +181,17 @@ impl AutonomousVerificationEngine {
                     endpoint: http_url.clone(),
                     method: "GET".to_string(),
                     request_snapshot: format!("GET {} HTTP/1.1", http_url),
-                    response_snapshot: format!("HTTP Status: {}\nRedirected to HTTPS: {}", resp.status(), redirected),
+                    response_snapshot: format!(
+                        "HTTP Status: {}\nRedirected to HTTPS: {}",
+                        resp.status(),
+                        redirected
+                    ),
                     is_successful: is_vuln,
                 });
 
-                if is_vuln { success_count += 1; }
+                if is_vuln {
+                    success_count += 1;
+                }
             }
         }
 
@@ -160,7 +206,10 @@ impl AutonomousVerificationEngine {
         } else if reproducibility_score == 0 {
             (VerificationStatus::VerifiedInert, "Attack path broken: Critical prerequisite (HTTP downgrade) failed because server forced HTTPS redirect.".to_string())
         } else {
-            (VerificationStatus::PartiallyVerified, "Inconsistent attack surface constraints. Manual chaining required.".to_string())
+            (
+                VerificationStatus::PartiallyVerified,
+                "Inconsistent attack surface constraints. Manual chaining required.".to_string(),
+            )
         };
 
         Some(ActiveVerificationData {

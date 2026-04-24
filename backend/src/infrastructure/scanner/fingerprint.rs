@@ -1,6 +1,6 @@
 use crate::domain::entities::{DetectedTechnology, TechEvidence};
-use std::collections::HashMap;
 use scraper::{Html, Selector};
+use std::collections::HashMap;
 
 // Struct to store parsed HTML contexts so we don't parse multiple times
 pub struct ScanContext<'a> {
@@ -16,7 +16,7 @@ impl<'a> ScanContext<'a> {
         let mut script_urls = Vec::new();
         let mut meta_tags = HashMap::new();
         let mut cookies = HashMap::new();
-        
+
         if let Some(cookie_val) = headers.get("set-cookie") {
             // Rough extraction of cookie names
             for part in cookie_val.split(',') {
@@ -29,7 +29,7 @@ impl<'a> ScanContext<'a> {
 
         if !html_body.is_empty() {
             let document = Html::parse_document(html_body);
-            
+
             if let Ok(meta_selector) = Selector::parse("meta") {
                 for meta in document.select(&meta_selector) {
                     if let Some(name) = meta.value().attr("name") {
@@ -38,7 +38,7 @@ impl<'a> ScanContext<'a> {
                         }
                     } else if let Some(property) = meta.value().attr("property") {
                         if let Some(content) = meta.value().attr("content") {
-                             meta_tags.insert(property.to_lowercase(), content.to_string());
+                            meta_tags.insert(property.to_lowercase(), content.to_string());
                         }
                     }
                 }
@@ -64,11 +64,11 @@ impl<'a> ScanContext<'a> {
 }
 
 pub enum RuleMatch {
-    Header(&'static str, &'static str, f32),          // (Key, Substring, Weight)
-    Cookie(&'static str, f32),                        // (Substring in Name, Weight)
-    HtmlBody(&'static str, f32),                      // (Substring in HTML, Weight)
-    ScriptSrc(&'static str, f32),                     // (Substring in SRC, Weight)
-    MetaTag(&'static str, &'static str, f32),         // (Name, Substring in Content, Weight)
+    Header(&'static str, &'static str, f32), // (Key, Substring, Weight)
+    Cookie(&'static str, f32),               // (Substring in Name, Weight)
+    HtmlBody(&'static str, f32),             // (Substring in HTML, Weight)
+    ScriptSrc(&'static str, f32),            // (Substring in SRC, Weight)
+    MetaTag(&'static str, &'static str, f32), // (Name, Substring in Content, Weight)
 }
 
 pub struct TechRule {
@@ -87,63 +87,107 @@ impl FingerprintEngine {
         Self {
             db: vec![
                 // CMS
-                TechRule { name: "WordPress", category: "CMS", rules: vec![
-                    RuleMatch::MetaTag("generator", "wordpress", 0.9),
-                    RuleMatch::HtmlBody("wp-content/themes", 0.6),
-                    RuleMatch::HtmlBody("wp-includes", 0.4),
-                    RuleMatch::Cookie("wp-settings", 0.8),
-                ]},
-                TechRule { name: "Shopify", category: "CMS / E-Commerce", rules: vec![
-                    RuleMatch::ScriptSrc("cdn.shopify.com", 0.9),
-                    RuleMatch::HtmlBody("Shopify.theme", 0.7),
-                    RuleMatch::Cookie("_shopify_s", 0.8),
-                ]},
+                TechRule {
+                    name: "WordPress",
+                    category: "CMS",
+                    rules: vec![
+                        RuleMatch::MetaTag("generator", "wordpress", 0.9),
+                        RuleMatch::HtmlBody("wp-content/themes", 0.6),
+                        RuleMatch::HtmlBody("wp-includes", 0.4),
+                        RuleMatch::Cookie("wp-settings", 0.8),
+                    ],
+                },
+                TechRule {
+                    name: "Shopify",
+                    category: "CMS / E-Commerce",
+                    rules: vec![
+                        RuleMatch::ScriptSrc("cdn.shopify.com", 0.9),
+                        RuleMatch::HtmlBody("Shopify.theme", 0.7),
+                        RuleMatch::Cookie("_shopify_s", 0.8),
+                    ],
+                },
                 // Frameworks
-                TechRule { name: "Next.js", category: "Frontend Framework", rules: vec![
-                    RuleMatch::Header("x-powered-by", "next.js", 0.9),
-                    RuleMatch::HtmlBody("id=\"__next\"", 0.8),
-                    RuleMatch::ScriptSrc("/_next/static", 0.9),
-                ]},
-                TechRule { name: "React", category: "UI Library", rules: vec![
-                    RuleMatch::HtmlBody("data-reactroot", 0.8),
-                    RuleMatch::HtmlBody("react-dom.production", 0.7),
-                ]},
-                TechRule { name: "Vue.js", category: "Frontend Framework", rules: vec![
-                    RuleMatch::HtmlBody("data-v-", 0.5),
-                ]},
-                TechRule { name: "Laravel", category: "Backend Framework", rules: vec![
-                    RuleMatch::Cookie("laravel_session", 0.9),
-                    RuleMatch::Cookie("XSRF-TOKEN", 0.2), // common but not definitive
-                ]},
-                TechRule { name: "Express.js", category: "Backend Framework", rules: vec![
-                    RuleMatch::Header("x-powered-by", "express", 0.9),
-                ]},
-                TechRule { name: "PHP", category: "Language", rules: vec![
-                    RuleMatch::Header("x-powered-by", "php", 0.9),
-                    RuleMatch::Cookie("PHPSESSID", 0.9),
-                ]},
+                TechRule {
+                    name: "Next.js",
+                    category: "Frontend Framework",
+                    rules: vec![
+                        RuleMatch::Header("x-powered-by", "next.js", 0.9),
+                        RuleMatch::HtmlBody("id=\"__next\"", 0.8),
+                        RuleMatch::ScriptSrc("/_next/static", 0.9),
+                    ],
+                },
+                TechRule {
+                    name: "React",
+                    category: "UI Library",
+                    rules: vec![
+                        RuleMatch::HtmlBody("data-reactroot", 0.8),
+                        RuleMatch::HtmlBody("react-dom.production", 0.7),
+                    ],
+                },
+                TechRule {
+                    name: "Vue.js",
+                    category: "Frontend Framework",
+                    rules: vec![RuleMatch::HtmlBody("data-v-", 0.5)],
+                },
+                TechRule {
+                    name: "Laravel",
+                    category: "Backend Framework",
+                    rules: vec![
+                        RuleMatch::Cookie("laravel_session", 0.9),
+                        RuleMatch::Cookie("XSRF-TOKEN", 0.2), // common but not definitive
+                    ],
+                },
+                TechRule {
+                    name: "Express.js",
+                    category: "Backend Framework",
+                    rules: vec![RuleMatch::Header("x-powered-by", "express", 0.9)],
+                },
+                TechRule {
+                    name: "PHP",
+                    category: "Language",
+                    rules: vec![
+                        RuleMatch::Header("x-powered-by", "php", 0.9),
+                        RuleMatch::Cookie("PHPSESSID", 0.9),
+                    ],
+                },
                 // WAF & Infrastructure
-                TechRule { name: "Cloudflare", category: "CDN / WAF", rules: vec![
-                    RuleMatch::Header("server", "cloudflare", 0.95),
-                    RuleMatch::Header("cf-ray", "", 0.9),
-                    RuleMatch::Cookie("__cfduid", 0.9),
-                    RuleMatch::Cookie("cf_clearance", 0.8),
-                ]},
-                TechRule { name: "Nginx", category: "Web Server", rules: vec![
-                    RuleMatch::Header("server", "nginx", 0.9),
-                ]},
-                TechRule { name: "Apache", category: "Web Server", rules: vec![
-                    RuleMatch::Header("server", "apache", 0.9),
-                ]},
-                TechRule { name: "Vercel", category: "Hosting / PaaS", rules: vec![
-                    RuleMatch::Header("server", "vercel", 0.95),
-                    RuleMatch::Header("x-vercel-id", "", 0.95),
-                ]},
+                TechRule {
+                    name: "Cloudflare",
+                    category: "CDN / WAF",
+                    rules: vec![
+                        RuleMatch::Header("server", "cloudflare", 0.95),
+                        RuleMatch::Header("cf-ray", "", 0.9),
+                        RuleMatch::Cookie("__cfduid", 0.9),
+                        RuleMatch::Cookie("cf_clearance", 0.8),
+                    ],
+                },
+                TechRule {
+                    name: "Nginx",
+                    category: "Web Server",
+                    rules: vec![RuleMatch::Header("server", "nginx", 0.9)],
+                },
+                TechRule {
+                    name: "Apache",
+                    category: "Web Server",
+                    rules: vec![RuleMatch::Header("server", "apache", 0.9)],
+                },
+                TechRule {
+                    name: "Vercel",
+                    category: "Hosting / PaaS",
+                    rules: vec![
+                        RuleMatch::Header("server", "vercel", 0.95),
+                        RuleMatch::Header("x-vercel-id", "", 0.95),
+                    ],
+                },
                 // Analytics
-                TechRule { name: "Google Analytics", category: "Analytics", rules: vec![
-                    RuleMatch::ScriptSrc("google-analytics.com/analytics.js", 0.9),
-                    RuleMatch::ScriptSrc("googletagmanager.com/gtag/js", 0.8),
-                ]},
+                TechRule {
+                    name: "Google Analytics",
+                    category: "Analytics",
+                    rules: vec![
+                        RuleMatch::ScriptSrc("google-analytics.com/analytics.js", 0.9),
+                        RuleMatch::ScriptSrc("googletagmanager.com/gtag/js", 0.8),
+                    ],
+                },
             ],
         }
     }
@@ -171,7 +215,7 @@ impl FingerprintEngine {
                                 total_confidence += w;
                             }
                         }
-                    },
+                    }
                     RuleMatch::Cookie(c, w) => {
                         for cookie_name in ctx.cookies.keys() {
                             if cookie_name.to_lowercase().contains(&c.to_lowercase()) {
@@ -183,7 +227,7 @@ impl FingerprintEngine {
                                 total_confidence += w;
                             }
                         }
-                    },
+                    }
                     RuleMatch::HtmlBody(p, w) => {
                         if lbody.contains(&p.to_lowercase()) {
                             has_match = true;
@@ -193,7 +237,7 @@ impl FingerprintEngine {
                             });
                             total_confidence += w;
                         }
-                    },
+                    }
                     RuleMatch::ScriptSrc(s, w) => {
                         for url in &ctx.script_urls {
                             if url.to_lowercase().contains(&s.to_lowercase()) {
@@ -206,7 +250,7 @@ impl FingerprintEngine {
                                 break; // one match is enough for this rule
                             }
                         }
-                    },
+                    }
                     RuleMatch::MetaTag(n, c, w) => {
                         if let Some(val) = ctx.meta_tags.get(*n) {
                             if val.to_lowercase().contains(&c.to_lowercase()) {
@@ -218,7 +262,7 @@ impl FingerprintEngine {
                                 total_confidence += w;
                             }
                         }
-                    },
+                    }
                 }
             }
 
@@ -227,11 +271,23 @@ impl FingerprintEngine {
                 let mut merge = 1.0;
                 for r in &rule.rules {
                     let matched = match r {
-                        RuleMatch::Header(k, v, _) => ctx.headers.get(*k).is_some_and(|val| val.to_lowercase().contains(v) || v.is_empty()),
-                        RuleMatch::Cookie(c, _) => ctx.cookies.keys().any(|k| k.to_lowercase().contains(&c.to_lowercase())),
+                        RuleMatch::Header(k, v, _) => ctx
+                            .headers
+                            .get(*k)
+                            .is_some_and(|val| val.to_lowercase().contains(v) || v.is_empty()),
+                        RuleMatch::Cookie(c, _) => ctx
+                            .cookies
+                            .keys()
+                            .any(|k| k.to_lowercase().contains(&c.to_lowercase())),
                         RuleMatch::HtmlBody(p, _) => lbody.contains(&p.to_lowercase()),
-                        RuleMatch::ScriptSrc(s, _) => ctx.script_urls.iter().any(|u| u.to_lowercase().contains(&s.to_lowercase())),
-                        RuleMatch::MetaTag(n, c, _) => ctx.meta_tags.get(*n).is_some_and(|v| v.to_lowercase().contains(&c.to_lowercase())),
+                        RuleMatch::ScriptSrc(s, _) => ctx
+                            .script_urls
+                            .iter()
+                            .any(|u| u.to_lowercase().contains(&s.to_lowercase())),
+                        RuleMatch::MetaTag(n, c, _) => ctx
+                            .meta_tags
+                            .get(*n)
+                            .is_some_and(|v| v.to_lowercase().contains(&c.to_lowercase())),
                     };
                     if matched {
                         let w = match r {
@@ -244,7 +300,7 @@ impl FingerprintEngine {
                         merge *= 1.0 - w;
                     }
                 }
-                
+
                 let combined_confidence = 1.0 - merge;
 
                 results.push(DetectedTechnology {
@@ -257,7 +313,11 @@ impl FingerprintEngine {
         }
 
         // Sort by confidence DESC
-        results.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.confidence_score
+                .partial_cmp(&a.confidence_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 }

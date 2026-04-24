@@ -1,5 +1,5 @@
 use crate::domain::entities::{
-    ChangeEvent, ChangeType, CollectorSnapshot, SnapshotDiff, PortProbeResult
+    ChangeEvent, ChangeType, CollectorSnapshot, PortProbeResult, SnapshotDiff,
 };
 use std::collections::HashMap;
 
@@ -31,26 +31,40 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
             match (prev_top, curr_top) {
                 (Some(prev), Some(curr)) => {
                     let mut is_changed = false;
-                    
+
                     if prev.service_name != curr.service_name {
                         changes.push(ChangeEvent {
                             change_type: ChangeType::Changed,
                             resource: format!("Service on Port {}", port),
                             before: Some(prev.service_name.clone()),
                             after: Some(curr.service_name.clone()),
-                            description: format!("Service changed from {} to {}", prev.service_name, curr.service_name),
+                            description: format!(
+                                "Service changed from {} to {}",
+                                prev.service_name, curr.service_name
+                            ),
                         });
                         changed_services += 1;
                         is_changed = true;
                     } else {
                         // Same service, check confidence
-                        let conf_diff = (curr.confidence_breakdown.final_score - prev.confidence_breakdown.final_score).abs();
+                        let conf_diff = (curr.confidence_breakdown.final_score
+                            - prev.confidence_breakdown.final_score)
+                            .abs();
                         if conf_diff > 0.15 {
                             changes.push(ChangeEvent {
                                 change_type: ChangeType::Changed,
-                                resource: format!("Confidence for {} on Port {}", curr.service_name, port),
-                                before: Some(format!("{:.0}%", prev.confidence_breakdown.final_score * 100.0)),
-                                after: Some(format!("{:.0}%", curr.confidence_breakdown.final_score * 100.0)),
+                                resource: format!(
+                                    "Confidence for {} on Port {}",
+                                    curr.service_name, port
+                                ),
+                                before: Some(format!(
+                                    "{:.0}%",
+                                    prev.confidence_breakdown.final_score * 100.0
+                                )),
+                                after: Some(format!(
+                                    "{:.0}%",
+                                    curr.confidence_breakdown.final_score * 100.0
+                                )),
                                 description: "Confidence shifted significantly".to_string(),
                             });
                             changed_confidences += 1;
@@ -64,10 +78,13 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
                             resource: format!("Port {}", port),
                             before: None,
                             after: None,
-                            description: format!("No significant changes for {}", curr.service_name),
+                            description: format!(
+                                "No significant changes for {}",
+                                curr.service_name
+                            ),
                         });
                     }
-                },
+                }
                 (None, Some(curr)) => {
                     changes.push(ChangeEvent {
                         change_type: ChangeType::Changed,
@@ -77,7 +94,7 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
                         description: format!("Service newly identified as {}", curr.service_name),
                     });
                     changed_services += 1;
-                },
+                }
                 (Some(prev), None) => {
                     changes.push(ChangeEvent {
                         change_type: ChangeType::Changed,
@@ -87,7 +104,7 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
                         description: format!("Lost identification of {}", prev.service_name),
                     });
                     changed_services += 1;
-                },
+                }
                 (None, None) => {
                     // Both have no top candidate, unchanged
                 }
@@ -118,10 +135,24 @@ pub fn compare(previous: &CollectorSnapshot, current: &CollectorSnapshot) -> Sna
         }
     }
 
-    if added_ports > 0 { summaries.push(format!("{} new port(s) opened", added_ports)); }
-    if removed_ports > 0 { summaries.push(format!("{} port(s) closed", removed_ports)); }
-    if changed_services > 0 { summaries.push(format!("{} service identification(s) changed", changed_services)); }
-    if changed_confidences > 0 { summaries.push(format!("{} significant confidence shift(s)", changed_confidences)); }
+    if added_ports > 0 {
+        summaries.push(format!("{} new port(s) opened", added_ports));
+    }
+    if removed_ports > 0 {
+        summaries.push(format!("{} port(s) closed", removed_ports));
+    }
+    if changed_services > 0 {
+        summaries.push(format!(
+            "{} service identification(s) changed",
+            changed_services
+        ));
+    }
+    if changed_confidences > 0 {
+        summaries.push(format!(
+            "{} significant confidence shift(s)",
+            changed_confidences
+        ));
+    }
 
     if summaries.is_empty() {
         summaries.push("No significant changes detected".to_string());

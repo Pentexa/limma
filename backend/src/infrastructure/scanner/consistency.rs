@@ -1,29 +1,30 @@
-use crate::domain::entities::{ScannedPage, ScanEvent, ScanSummary};
-use std::collections::HashMap;
+use crate::domain::entities::{ScanEvent, ScanSummary, ScannedPage};
 use chrono::Utc;
+use std::collections::HashMap;
 
 pub fn analyze_consistency(
     pages: &mut [ScannedPage],
     events: &mut Vec<ScanEvent>,
     tx: &Option<tokio::sync::mpsc::UnboundedSender<ScanEvent>>,
 ) -> ScanSummary {
-    let mut emit_event = |event_type: &str, level: &str, message: String, payload: Option<serde_json::Value>| {
-        let ev = ScanEvent {
-            timestamp: Utc::now(),
-            event_type: event_type.to_string(),
-            level: level.to_string(),
-            message,
-            payload,
+    let mut emit_event =
+        |event_type: &str, level: &str, message: String, payload: Option<serde_json::Value>| {
+            let ev = ScanEvent {
+                timestamp: Utc::now(),
+                event_type: event_type.to_string(),
+                level: level.to_string(),
+                message,
+                payload,
+            };
+            events.push(ev.clone());
+            if let Some(ref t) = tx {
+                let _ = t.send(ev);
+            }
         };
-        events.push(ev.clone());
-        if let Some(ref t) = tx {
-            let _ = t.send(ev);
-        }
-    };
 
     let total_pages = pages.len() as u32;
     let mut total_latency = 0;
-    
+
     // tech_name -> occurrences
     let mut tech_counts = HashMap::new();
 
@@ -49,22 +50,29 @@ pub fn analyze_consistency(
     for (tech_name, count) in &counts_vec {
         if *count > 1 {
             emit_event(
-                "TECH_CONFIDENCE_BOOST", 
-                "INFO", 
-                format!("Consistency check: '{}' found on {} pages. Boosting confidence.", tech_name, count), 
-                None
+                "TECH_CONFIDENCE_BOOST",
+                "INFO",
+                format!(
+                    "Consistency check: '{}' found on {} pages. Boosting confidence.",
+                    tech_name, count
+                ),
+                None,
             );
 
             // Boost on the first page
             if let Some(main_page) = pages.first_mut() {
-                if let Some(tech) = main_page.detected_technologies.iter_mut().find(|t| t.name == *tech_name) {
+                if let Some(tech) = main_page
+                    .detected_technologies
+                    .iter_mut()
+                    .find(|t| t.name == *tech_name)
+                {
                     tech.confidence_score = (tech.confidence_score + 0.15).min(1.0);
                 } else {
                     emit_event(
-                        "TECH_ISOLATED", 
-                        "WARN", 
-                        format!("Technology '{}' isolated to subpages only.", tech_name), 
-                        None
+                        "TECH_ISOLATED",
+                        "WARN",
+                        format!("Technology '{}' isolated to subpages only.", tech_name),
+                        None,
                     );
                 }
             }
@@ -78,10 +86,13 @@ pub fn analyze_consistency(
             let this_server = page.headers.get("server").cloned();
             if this_server != first_server {
                 emit_event(
-                    "HEADER_DISCREPANCY", 
-                    "WARN", 
-                    format!("Header discrepancy: Server identity changed on {}", page.url), 
-                    None
+                    "HEADER_DISCREPANCY",
+                    "WARN",
+                    format!(
+                        "Header discrepancy: Server identity changed on {}",
+                        page.url
+                    ),
+                    None,
                 );
             }
         }

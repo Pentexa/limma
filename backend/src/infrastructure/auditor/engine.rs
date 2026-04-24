@@ -25,7 +25,11 @@ impl RuleEngine {
         results
     }
 
-    fn evaluate_rule(&self, finding: &SecurityAuditFinding, rule: &AuditRule) -> Option<RuleMatchResult> {
+    fn evaluate_rule(
+        &self,
+        finding: &SecurityAuditFinding,
+        rule: &AuditRule,
+    ) -> Option<RuleMatchResult> {
         let mut evaluations = Vec::new();
         let mut mandatory_met_count = 0;
         let mut total_mandatory = 0;
@@ -41,8 +45,9 @@ impl RuleEngine {
 
             let is_met = match condition.condition_type {
                 RuleConditionType::CategoryIs => {
-                    format!("{:?}", finding.category).to_lowercase() == condition.expected_value.to_lowercase()
-                },
+                    format!("{:?}", finding.category).to_lowercase()
+                        == condition.expected_value.to_lowercase()
+                }
                 RuleConditionType::SeverityMin => {
                     let finding_sev_val = match finding.severity {
                         SeverityLevel::Critical => 4,
@@ -60,9 +65,9 @@ impl RuleEngine {
                         _ => 0,
                     };
                     finding_sev_val >= exp_sev_val
-                },
+                }
                 RuleConditionType::ConfidenceMin => {
-                     let finding_conf_val = match finding.confidence {
+                    let finding_conf_val = match finding.confidence {
                         ConfidenceLevel::Certain => 3,
                         ConfidenceLevel::Firm => 2,
                         ConfidenceLevel::Tentative => 1,
@@ -76,29 +81,33 @@ impl RuleEngine {
                         _ => 0,
                     };
                     finding_conf_val >= exp_conf_val
-                },
-                RuleConditionType::SummaryContains => {
-                    finding.summary.to_lowercase().contains(&condition.expected_value.to_lowercase())
-                },
-                RuleConditionType::HasEvidence => {
-                    finding.evidence.iter().any(|e| e.raw_data.to_lowercase().contains(&condition.expected_value.to_lowercase()))
-                },
+                }
+                RuleConditionType::SummaryContains => finding
+                    .summary
+                    .to_lowercase()
+                    .contains(&condition.expected_value.to_lowercase()),
+                RuleConditionType::HasEvidence => finding.evidence.iter().any(|e| {
+                    e.raw_data
+                        .to_lowercase()
+                        .contains(&condition.expected_value.to_lowercase())
+                }),
                 RuleConditionType::ProtocolIs => {
                     if let Some(ref p) = finding.protocol {
                         p.to_lowercase() == condition.expected_value.to_lowercase()
                     } else {
                         false
                     }
-                },
+                }
                 RuleConditionType::MethodIs => {
                     if let Some(ref m) = finding.method {
                         m.to_lowercase() == condition.expected_value.to_lowercase()
                     } else {
                         false
                     }
-                },
+                }
                 RuleConditionType::SourceModuleIs => {
-                    format!("{:?}", finding.source_module).to_lowercase() == condition.expected_value.to_lowercase()
+                    format!("{:?}", finding.source_module).to_lowercase()
+                        == condition.expected_value.to_lowercase()
                 }
             };
 
@@ -113,12 +122,16 @@ impl RuleEngine {
             evaluations.push(AuditConditionEvaluation {
                 condition: condition.clone(),
                 is_met,
-                detail: if is_met { "Condition satisfied.".into() } else { "Condition failed.".into() }
+                detail: if is_met {
+                    "Condition satisfied.".into()
+                } else {
+                    "Condition failed.".into()
+                },
             });
         }
 
         if total_mandatory > 0 && mandatory_met_count < total_mandatory {
-            return None; 
+            return None;
         }
 
         let outcome = if total_optional > 0 && optional_met_count < total_optional {
@@ -177,7 +190,7 @@ impl RuleEngine {
                     RuleCondition {
                         condition_type: RuleConditionType::SummaryContains,
                         expected_value: "admin".into(),
-                        is_mandatory: false, 
+                        is_mandatory: false,
                     },
                     RuleCondition {
                         condition_type: RuleConditionType::ConfidenceMin,

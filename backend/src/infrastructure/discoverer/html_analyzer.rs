@@ -40,9 +40,11 @@ impl HtmlAnalyzer {
         if let Ok(form_sel) = Selector::parse("form") {
             for form in document.select(&form_sel) {
                 if let Some(action) = form.value().attr("action") {
-                    if action == "#" || action.is_empty() { continue; }
+                    if action == "#" || action.is_empty() {
+                        continue;
+                    }
                     let method = form.value().attr("method").unwrap_or("GET").to_uppercase();
-                    
+
                     let mut params = Vec::new();
                     if let Ok(input_sel) = Selector::parse("input, select, textarea") {
                         for input in form.select(&input_sel) {
@@ -60,7 +62,9 @@ impl HtmlAnalyzer {
         if let Ok(a_sel) = Selector::parse("a[href]") {
             for a in document.select(&a_sel) {
                 if let Some(href) = a.value().attr("href") {
-                    if href.starts_with("#") || href.starts_with("javascript:") { continue; }
+                    if href.starts_with("#") || href.starts_with("javascript:") {
+                        continue;
+                    }
                     res.links.push(href.to_string());
                 }
             }
@@ -75,7 +79,10 @@ impl HtmlAnalyzer {
                     let text = script.text().collect::<Vec<_>>().join(" ");
                     if !text.trim().is_empty() {
                         // Check if it's SPA hydration data
-                        if text.contains("\"props\":") || text.contains("__NEXT_DATA__") || text.contains("window.__PRELOADED_STATE__") {
+                        if text.contains("\"props\":")
+                            || text.contains("__NEXT_DATA__")
+                            || text.contains("window.__PRELOADED_STATE__")
+                        {
                             res.spa_states.push(text);
                         } else {
                             res.inline_scripts.push(text);
@@ -91,13 +98,21 @@ impl HtmlAnalyzer {
                 for (attr, val) in node.value().attrs() {
                     if attr.starts_with("data-") {
                         // Very rough heuristic to see if the data attribute holds an endpoint
-                        if val.starts_with('/') || val.starts_with("http") || val.contains(".php") || val.contains(".do") {
+                        if val.starts_with('/')
+                            || val.starts_with("http")
+                            || val.contains(".php")
+                            || val.contains(".do")
+                        {
                             res.data_endpoints.push(val.to_string());
                         }
                     }
                     // Extract common meta config
                     if node.value().name() == "meta" {
-                        let name_or_prop = node.value().attr("name").or(node.value().attr("property")).unwrap_or("");
+                        let name_or_prop = node
+                            .value()
+                            .attr("name")
+                            .or(node.value().attr("property"))
+                            .unwrap_or("");
                         if name_or_prop.contains("api-base") || name_or_prop.contains("endpoint") {
                             if let Some(content) = node.value().attr("content") {
                                 res.data_endpoints.push(content.to_string());

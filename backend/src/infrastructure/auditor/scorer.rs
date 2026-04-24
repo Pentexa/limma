@@ -34,33 +34,45 @@ impl RiskScorer {
             ConfidenceLevel::Tentative => 1.0,
             ConfidenceLevel::Low => 0.8,
         };
-        
+
         let scaled_base = (base as f32 * conf_multiplier) as i32;
         let conf_delta = scaled_base - base;
 
         if conf_delta != 0 {
             contributions.push(RiskContribution {
-                factor: if conf_delta > 0 { RiskFactor::ConfidenceMultiplier } else { RiskFactor::LowConfidencePenalty },
+                factor: if conf_delta > 0 {
+                    RiskFactor::ConfidenceMultiplier
+                } else {
+                    RiskFactor::LowConfidencePenalty
+                },
                 delta: conf_delta,
-                explanation: format!("Confidence level multiplier ({:.2}x): {:?}", conf_multiplier, finding.confidence),
+                explanation: format!(
+                    "Confidence level multiplier ({:.2}x): {:?}",
+                    conf_multiplier, finding.confidence
+                ),
             });
             raw += conf_delta;
         }
 
         // ── 3. Evidence Quality & Weight ──
         let ev_count = finding.evidence.len();
-        let has_validation = finding.evidence.iter().any(|e| e.validation_context.is_some());
-        
+        let has_validation = finding
+            .evidence
+            .iter()
+            .any(|e| e.validation_context.is_some());
+
         if let Some(ref weight) = finding.evidence_weight {
             match weight {
                 EvidenceWeight::Strong => {
                     contributions.push(RiskContribution {
                         factor: RiskFactor::EvidenceQuality,
                         delta: 15,
-                        explanation: "Strong, high-fidelity evidence directly supports this finding".to_string(),
+                        explanation:
+                            "Strong, high-fidelity evidence directly supports this finding"
+                                .to_string(),
                     });
                     raw += 15;
-                },
+                }
                 EvidenceWeight::Weak | EvidenceWeight::Zero => {
                     contributions.push(RiskContribution {
                         factor: RiskFactor::WeakEvidencePenalty,
@@ -68,7 +80,7 @@ impl RiskScorer {
                         explanation: "Weak or generic contextual evidence".to_string(),
                     });
                     raw -= 15;
-                },
+                }
                 _ => {}
             }
         } else {
@@ -76,7 +88,10 @@ impl RiskScorer {
                 contributions.push(RiskContribution {
                     factor: RiskFactor::EvidenceQuality,
                     delta: 15,
-                    explanation: format!("{} evidence items with active validation context", ev_count),
+                    explanation: format!(
+                        "{} evidence items with active validation context",
+                        ev_count
+                    ),
                 });
                 raw += 15;
             } else if ev_count >= 1 {
@@ -114,7 +129,9 @@ impl RiskScorer {
             };
             let mut corr_total = corr_confidence;
 
-            if finding.correlation_type == Some(CorrelationType::CompoundRisk) && !finding.correlation_is_hygiene_gap {
+            if finding.correlation_type == Some(CorrelationType::CompoundRisk)
+                && !finding.correlation_is_hygiene_gap
+            {
                 corr_total += 10;
             }
 
@@ -132,22 +149,26 @@ impl RiskScorer {
 
             // Systemic finding rule: correlated but NO exploit indicators => cap at Low severity
             let has_exploit_signals = self.has_exploit_indicators(finding, &combined);
-            if !has_exploit_signals
-                && raw > 30 {
-                    let cap_delta = raw - 30;
-                    contributions.push(RiskContribution {
+            if !has_exploit_signals && raw > 30 {
+                let cap_delta = raw - 30;
+                contributions.push(RiskContribution {
                         factor: RiskFactor::NoisyCorrelationPenalty,
                         delta: -cap_delta,
                         explanation: "Systemic finding without exploit indicators: capped at Low severity, High confidence".to_string(),
                     });
-                    raw -= cap_delta;
-                }
+                raw -= cap_delta;
+            }
         }
 
         // ── 5. Sensitive Endpoint / Auth Boost ──
 
-        if combined.contains("auth") || combined.contains("login") || combined.contains("session")
-            || combined.contains("token") || combined.contains("credential") || combined.contains("password") {
+        if combined.contains("auth")
+            || combined.contains("login")
+            || combined.contains("session")
+            || combined.contains("token")
+            || combined.contains("credential")
+            || combined.contains("password")
+        {
             contributions.push(RiskContribution {
                 factor: RiskFactor::AuthenticationExposure,
                 delta: 15,
@@ -157,7 +178,8 @@ impl RiskScorer {
         }
 
         if finding.category == FindingCategory::SuspiciousEndpoint
-            || finding.category == FindingCategory::AuthenticationBypass {
+            || finding.category == FindingCategory::AuthenticationBypass
+        {
             contributions.push(RiskContribution {
                 factor: RiskFactor::SensitiveEndpoint,
                 delta: 10,
@@ -191,18 +213,19 @@ impl RiskScorer {
 
         // ── 8. Header Risk Dampening ──
         if finding.category == FindingCategory::SecurityMisconfiguration
-            && finding.evidence_weight != Some(EvidenceWeight::Strong) {
-                // dampen score to max out at Low priority (e.g. max 44).
-                if raw >= 45 {
-                    let damp_amount = raw - 40;
-                    contributions.push(RiskContribution {
+            && finding.evidence_weight != Some(EvidenceWeight::Strong)
+        {
+            // dampen score to max out at Low priority (e.g. max 44).
+            if raw >= 45 {
+                let damp_amount = raw - 40;
+                contributions.push(RiskContribution {
                         factor: RiskFactor::GenericMatchPenalty,
                         delta: -damp_amount,
                         explanation: "Defaulting missing header impact to Low severity due to lacking exploit context or strong evidence".to_string(),
                     });
-                    raw -= damp_amount;
-                }
+                raw -= damp_amount;
             }
+        }
 
         let finding_score = raw.clamp(0, 100) as u32;
 
@@ -244,16 +267,17 @@ impl RiskScorer {
             }
         }
 
-
-
         // ── Aggressive Risk Dampening ──
         let mut final_total = total_score;
         let mut final_finding_score = finding_score;
         let has_exploit_signals = self.has_exploit_indicators(finding, &combined);
-        let has_dynamic_interaction = combined.contains("input") || combined.contains("script") 
-            || combined.contains("parameter") || combined.contains("execute") || combined.contains("reflected");
+        let has_dynamic_interaction = combined.contains("input")
+            || combined.contains("script")
+            || combined.contains("parameter")
+            || combined.contains("execute")
+            || combined.contains("reflected");
         let has_weak_evidence = finding.evidence_weight != Some(EvidenceWeight::Strong);
-        
+
         let is_weak_context = !has_exploit_signals && !has_dynamic_interaction;
         let is_hygiene_issue = is_weak_context || (has_weak_evidence && !has_exploit_signals);
 
@@ -264,7 +288,7 @@ impl RiskScorer {
                 if drop_amount > 0 {
                     final_total = 44;
                     final_finding_score = final_finding_score.min(44);
-                    
+
                     contributions.push(RiskContribution {
                         factor: RiskFactor::GenericMatchPenalty,
                         delta: -(drop_amount as i32),
@@ -283,13 +307,16 @@ impl RiskScorer {
                 contributions.push(RiskContribution {
                     factor: RiskFactor::WeakEvidencePenalty,
                     delta: -(drop as i32),
-                    explanation: "Informational Dampening: Hygiene issue with zero evidentiary support.".to_string(),
+                    explanation:
+                        "Informational Dampening: Hygiene issue with zero evidentiary support."
+                            .to_string(),
                 });
                 level = RiskLevel::Info;
             }
         }
 
-        let mut priority_statement = self.generate_priority_statement(finding, final_total, &contributions);
+        let mut priority_statement =
+            self.generate_priority_statement(finding, final_total, &contributions);
         if is_hygiene_issue && finding.category == FindingCategory::SecurityMisconfiguration {
             priority_statement = format!("Hygiene Issue: {}", priority_statement);
         } else if is_hygiene_issue {
@@ -308,13 +335,15 @@ impl RiskScorer {
     }
 
     fn has_exploit_indicators(&self, finding: &SecurityAuditFinding, combined_text: &str) -> bool {
-        let has_auth = combined_text.contains("auth") || combined_text.contains("login") 
-            || combined_text.contains("session") || combined_text.contains("credential") 
+        let has_auth = combined_text.contains("auth")
+            || combined_text.contains("login")
+            || combined_text.contains("session")
+            || combined_text.contains("credential")
             || combined_text.contains("password");
-            
+
         let is_sensitive = finding.category == FindingCategory::SuspiciousEndpoint
             || finding.category == FindingCategory::AuthenticationBypass;
-            
+
         let has_dangerous_method = if let Some(ref m) = finding.method {
             let u = m.to_uppercase();
             u == "DELETE" || u == "PUT" || u == "PATCH"
@@ -322,7 +351,10 @@ impl RiskScorer {
             false
         };
 
-        let has_concrete_evidence = finding.evidence.iter().any(|e| e.validation_context.is_some());
+        let has_concrete_evidence = finding
+            .evidence
+            .iter()
+            .any(|e| e.validation_context.is_some());
 
         has_auth || is_sensitive || has_dangerous_method || has_concrete_evidence
     }
@@ -353,9 +385,15 @@ impl RiskScorer {
         score: u32,
         contributions: &[RiskContribution],
     ) -> String {
-        let has_correlation = contributions.iter().any(|c| c.factor == RiskFactor::CorrelationBoost);
-        let has_auth = contributions.iter().any(|c| c.factor == RiskFactor::AuthenticationExposure);
-        let has_compound = contributions.iter().any(|c| c.factor == RiskFactor::MultiModuleConfirmation);
+        let has_correlation = contributions
+            .iter()
+            .any(|c| c.factor == RiskFactor::CorrelationBoost);
+        let has_auth = contributions
+            .iter()
+            .any(|c| c.factor == RiskFactor::AuthenticationExposure);
+        let has_compound = contributions
+            .iter()
+            .any(|c| c.factor == RiskFactor::MultiModuleConfirmation);
 
         if score >= 90 {
             if has_compound {
@@ -364,7 +402,8 @@ impl RiskScorer {
             if has_auth {
                 return "Critical priority: authentication-related exposure with high confidence evidence.".to_string();
             }
-            return "Critical priority: severe vulnerability with strong evidence base.".to_string();
+            return "Critical priority: severe vulnerability with strong evidence base."
+                .to_string();
         }
 
         if score >= 70 {
@@ -374,21 +413,25 @@ impl RiskScorer {
             if has_auth {
                 return "High priority: sensitive authentication surface is exposed.".to_string();
             }
-            return "High priority: significant security weakness detected with reliable evidence.".to_string();
+            return "High priority: significant security weakness detected with reliable evidence."
+                .to_string();
         }
 
         if score >= 45 {
             if has_correlation {
-                return "Medium priority: elevated risk due to supporting correlation signals.".to_string();
+                return "Medium priority: elevated risk due to supporting correlation signals."
+                    .to_string();
             }
-            return "Medium priority: notable security observation that should be reviewed.".to_string();
+            return "Medium priority: notable security observation that should be reviewed."
+                .to_string();
         }
 
         if score >= 20 {
             return "Low priority: minor observation with limited immediate impact.".to_string();
         }
 
-        "Informational: general hardening recommendation with no confirmed exploit path.".to_string()
+        "Informational: general hardening recommendation with no confirmed exploit path."
+            .to_string()
     }
 
     pub fn score_all(&self, findings: &mut [SecurityAuditFinding]) -> ScoringStats {
@@ -398,13 +441,25 @@ impl RiskScorer {
         for finding in findings.iter_mut() {
             let score = self.score_finding(finding);
 
-            let has_boost = score.contributions.iter().any(|c| c.delta > 0 && 
-                matches!(c.factor, RiskFactor::CorrelationBoost | RiskFactor::MultiModuleConfirmation | RiskFactor::AuthenticationExposure | RiskFactor::SensitiveEndpoint | RiskFactor::DangerousMethod));
+            let has_boost = score.contributions.iter().any(|c| {
+                c.delta > 0
+                    && matches!(
+                        c.factor,
+                        RiskFactor::CorrelationBoost
+                            | RiskFactor::MultiModuleConfirmation
+                            | RiskFactor::AuthenticationExposure
+                            | RiskFactor::SensitiveEndpoint
+                            | RiskFactor::DangerousMethod
+                    )
+            });
             let has_penalty = score.contributions.iter().any(|c| c.delta < 0);
 
-            if has_boost { boosted += 1; }
-            if has_penalty { downgraded += 1; }
-
+            if has_boost {
+                boosted += 1;
+            }
+            if has_penalty {
+                downgraded += 1;
+            }
 
             finding.risk_score = Some(score);
         }
@@ -417,19 +472,36 @@ impl RiskScorer {
         });
 
         let total_scored = findings.len();
-        
+
         let mut overall_risk_score: f64 = 0.0;
         if total_scored > 0 {
             // Base the domain's risk primarily on its most severe vulnerability
-            overall_risk_score = findings[0].risk_score.as_ref().map(|s| s.total_score as f64).unwrap_or(0.0);
-            
+            overall_risk_score = findings[0]
+                .risk_score
+                .as_ref()
+                .map(|s| s.total_score as f64)
+                .unwrap_or(0.0);
+
             let mut hygiene_issues_seen = 0.0;
-            
+
             // Add diminishing margins for the rest, completely capping hygiene gap contributions
             for (i, finding) in findings.iter().skip(1).enumerate() {
-                let s = finding.risk_score.as_ref().map(|sc| sc.total_score).unwrap_or(0) as f64;
-                let is_hygiene = finding.risk_score.as_ref().map(|sc| sc.priority_statement.contains("Hygiene Issue") || sc.priority_statement.contains("Low-Exploitability Weakness")).unwrap_or(false);
-                
+                let s = finding
+                    .risk_score
+                    .as_ref()
+                    .map(|sc| sc.total_score)
+                    .unwrap_or(0) as f64;
+                let is_hygiene = finding
+                    .risk_score
+                    .as_ref()
+                    .map(|sc| {
+                        sc.priority_statement.contains("Hygiene Issue")
+                            || sc
+                                .priority_statement
+                                .contains("Low-Exploitability Weakness")
+                    })
+                    .unwrap_or(false);
+
                 let weight = if is_hygiene {
                     hygiene_issues_seen += 1.0;
                     if hygiene_issues_seen > 5.0 {
@@ -444,15 +516,19 @@ impl RiskScorer {
                 } else {
                     f64::min(s * 0.02, 2.0) / ((i as f64) + 1.0)
                 };
-                
+
                 overall_risk_score += weight;
             }
-            
+
             overall_risk_score = overall_risk_score.min(100.0);
         }
 
         let top_risk_summary = findings.first().map(|f| {
-            format!("{} (Score: {})", f.summary, f.risk_score.as_ref().map(|s| s.total_score).unwrap_or(0))
+            format!(
+                "{} (Score: {})",
+                f.summary,
+                f.risk_score.as_ref().map(|s| s.total_score).unwrap_or(0)
+            )
         });
 
         ScoringStats {

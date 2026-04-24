@@ -16,7 +16,10 @@ pub async fn probe_http_plain(
         host
     );
 
-    if tokio::time::timeout(timeout, stream.write_all(request.as_bytes())).await.is_err() {
+    if tokio::time::timeout(timeout, stream.write_all(request.as_bytes()))
+        .await
+        .is_err()
+    {
         return None;
     }
 
@@ -43,7 +46,10 @@ pub async fn probe_http_tls(
         host
     );
 
-    if tokio::time::timeout(timeout, tls_stream.write_all(request.as_bytes())).await.is_err() {
+    if tokio::time::timeout(timeout, tls_stream.write_all(request.as_bytes()))
+        .await
+        .is_err()
+    {
         return None;
     }
 
@@ -95,7 +101,8 @@ fn parse_http_response(response: &str) -> Option<(HttpSummary, ProbeEvidence)> {
         }
     }
 
-    let response_length = headers.get("content-length")
+    let response_length = headers
+        .get("content-length")
         .and_then(|l| l.parse::<u64>().ok())
         .or({
             if !body.is_empty() {

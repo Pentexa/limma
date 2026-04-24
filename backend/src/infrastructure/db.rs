@@ -1,10 +1,12 @@
-use sqlx::{postgres::{PgPoolOptions, PgConnectOptions, PgSslMode}, PgPool, ConnectOptions};
-use std::time::Duration;
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
+    ConnectOptions, PgPool,
+};
 use std::str::FromStr;
+use std::time::Duration;
 
 pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
-    let connect_options = PgConnectOptions::from_str(database_url)?
-        .ssl_mode(PgSslMode::Disable);
+    let connect_options = PgConnectOptions::from_str(database_url)?.ssl_mode(PgSslMode::Disable);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -22,7 +24,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             password_hash VARCHAR(255) NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
@@ -31,7 +33,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::query(
         r#"
         ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255) NOT NULL DEFAULT '';
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
@@ -44,7 +46,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             action VARCHAR(50) NOT NULL,
             timestamp_sec BIGINT NOT NULL
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
@@ -59,7 +61,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             partial_verifications INTEGER NOT NULL DEFAULT 0,
             average_reproducibility REAL NOT NULL DEFAULT 0.0
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
@@ -75,7 +77,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             total_endpoints INTEGER NOT NULL,
             total_findings INTEGER NOT NULL
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
@@ -88,12 +90,16 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             url VARCHAR(2048) NOT NULL,
             method VARCHAR(20) NOT NULL
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
-    
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_endpoints_scan_id ON scan_endpoints(scan_id);").execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_scan_endpoints_scan_id ON scan_endpoints(scan_id);",
+    )
+    .execute(&pool)
+    .await?;
 
     sqlx::query(
         r#"
@@ -105,12 +111,14 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             url VARCHAR(2048) NOT NULL,
             status VARCHAR(50) NOT NULL DEFAULT 'Open'
         );
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;
-    
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_findings_scan_id ON scan_findings(scan_id);").execute(&pool).await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_findings_scan_id ON scan_findings(scan_id);")
+        .execute(&pool)
+        .await?;
 
     Ok(pool)
 }
