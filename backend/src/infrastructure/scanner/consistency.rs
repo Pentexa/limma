@@ -43,7 +43,7 @@ pub fn analyze_consistency(
 
     // Calculate common technologies
     let mut counts_vec: Vec<(String, u32)> = tech_counts.into_iter().collect();
-    counts_vec.sort_by(|a, b| b.1.cmp(&a.1));
+    counts_vec.sort_by_key(|b| std::cmp::Reverse(b.1));
     let common_technologies: Vec<String> = counts_vec.iter().map(|(n, _)| n.clone()).collect();
 
     // Boost confidence and log events
