@@ -49,8 +49,32 @@ jobs:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      - name: Setup Java
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Java Plugin
+        if: matrix.language == 'java-kotlin'
+        run: |
+          cd limma-burp-plugin
+          chmod +x gradlew
+          ./gradlew clean build -x test --no-daemon
+
+      - name: Setup Node
+        if: matrix.language == 'javascript-typescript'
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Build JS Frontend
+        if: matrix.language == 'javascript-typescript'
+        run: |
+          cd frontend
+          npm ci
+          npm run build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
