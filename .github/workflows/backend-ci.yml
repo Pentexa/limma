@@ -16,6 +16,8 @@ jobs:
   build_and_test:
     name: Build & Test (Rust)
     runs-on: ubuntu-latest
+    env:
+      LD_LIBRARY_PATH: ""
     defaults:
       run:
         working-directory: ./backend
@@ -64,6 +66,8 @@ jobs:
   security_audit:
     name: Dependency Security Audit
     runs-on: ubuntu-latest
+    env:
+      LD_LIBRARY_PATH: ""
     defaults:
       run:
         working-directory: ./backend
