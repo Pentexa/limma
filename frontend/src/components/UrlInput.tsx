@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Globe, Zap, Loader2, ArrowRight } from 'lucide-react';
+import { useScanSessionStore } from '@/lib/scanSessionStore';
 
 interface UrlInputProps {
   onSubmit: (url: string) => void;
@@ -25,12 +26,24 @@ export default function UrlInput({ onSubmit, loading, placeholder, buttonLabel }
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const store = useScanSessionStore();
   const normalized = normalizeUrl(url);
   const showHint = url.trim().length > 0 && !/^https?:\/\//i.test(url.trim());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (normalized && !loading) {
+      // Check if there's an active session for a different URL
+      if (store.activeSession && store.activeSession.targetUrl !== normalized) {
+        const confirm = window.confirm(
+          `An active session exists for ${store.activeSession.targetUrl}.\n\nDo you want to close it and start a new session for ${normalized}?`
+        );
+        if (!confirm) return;
+        
+        // Close the old session, the new page will automatically create the new one
+        store.closeSession(store.activeSession.id);
+      }
+      
       onSubmit(normalized);
     }
   };

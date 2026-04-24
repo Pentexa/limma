@@ -1,34 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ErrorAlert from '@/components/ErrorAlert';
 import { discoverApis } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import type { ApiDiscoveryResult } from '@/lib/api';
 import {
   Search, Globe, Lock, Unlock, CheckCircle2, XCircle, Eye, ChevronDown, ChevronRight,
-  Code, Key, Activity, BarChart3
+  Code, Key, Activity, BarChart3, Info, RotateCcw
 } from 'lucide-react';
 
 export default function ApiDiscoveryPage() {
-  const [result, setResult] = useState<ApiDiscoveryResult | null>(null);
+  const store = useScanSessionStore();
+  const persisted = useModuleResult('api-discovery');
+  const [liveResult, setLiveResult] = useState<ApiDiscoveryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedEp, setExpandedEp] = useState<number | null>(null);
 
-  const handleScan = async (url: string) => {
+  const result = liveResult || (persisted?.result as ApiDiscoveryResult | undefined) || null;
+  const isRestored = !liveResult && !!persisted?.result;
+
+  const handleScan = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
-    setResult(null);
+    setLiveResult(null);
+
+    // Session management
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'api-discovery');
+
     try {
       const res = await discoverApis(url);
-      setResult(res);
+      setLiveResult(res);
+      store.setModuleResult(sessionId, 'api-discovery', {
+        moduleId: 'api-discovery',
+        moduleName: 'API Discovery',
+        targetUrl: url,
+        result: res,
+        status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Discovery failed');
+      const msg = e instanceof Error ? e.message : 'Discovery failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'api-discovery', msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [store]);
 
   return (
     <div className="fade-in">

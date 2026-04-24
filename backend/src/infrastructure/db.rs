@@ -64,5 +64,53 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
+    // Delta Engine & Historical Data Tables
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS scan_sessions (
+            id UUID PRIMARY KEY,
+            target_url VARCHAR(512) NOT NULL,
+            timestamp_sec BIGINT NOT NULL,
+            score REAL NOT NULL,
+            total_endpoints INTEGER NOT NULL,
+            total_findings INTEGER NOT NULL
+        );
+        "#
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS scan_endpoints (
+            id SERIAL PRIMARY KEY,
+            scan_id UUID NOT NULL REFERENCES scan_sessions(id) ON DELETE CASCADE,
+            url VARCHAR(2048) NOT NULL,
+            method VARCHAR(20) NOT NULL
+        );
+        "#
+    )
+    .execute(&pool)
+    .await?;
+    
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_endpoints_scan_id ON scan_endpoints(scan_id);").execute(&pool).await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS scan_findings (
+            id SERIAL PRIMARY KEY,
+            scan_id UUID NOT NULL REFERENCES scan_sessions(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            severity VARCHAR(50) NOT NULL,
+            url VARCHAR(2048) NOT NULL,
+            status VARCHAR(50) NOT NULL DEFAULT 'Open'
+        );
+        "#
+    )
+    .execute(&pool)
+    .await?;
+    
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_findings_scan_id ON scan_findings(scan_id);").execute(&pool).await?;
+
     Ok(pool)
 }

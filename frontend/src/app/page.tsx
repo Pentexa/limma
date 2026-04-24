@@ -1,33 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ScoreGauge from '@/components/ScoreGauge';
 import ErrorAlert from '@/components/ErrorAlert';
-import { generateMasterReport, getSeverityClass } from '@/lib/api';
+import PartialScanWarning from '@/components/PartialScanWarning';
+import SignalBadge from '@/components/SignalBadge';
+import FindingFeedback from '@/components/FindingFeedback';
+import ExportButtons from '@/components/ExportButtons';
+import TemporalTrends from '@/components/TemporalTrends';
+import BurpSessionsWidget from '@/components/BurpSessionsWidget';
+import { generateMasterReport, getSeverityClass, getPriorityFromSeverity } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import type { MasterReport } from '@/lib/api';
 import {
   Shield, Clock, Globe, Cpu, AlertTriangle, CheckCircle2, XCircle,
   Layers, Search, Server, Lock, FileCode, Map, Target, ChevronDown, ChevronRight,
-  Zap, ArrowRight, Activity
+  Zap, ArrowRight, Activity, History
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [report, setReport] = useState<MasterReport | null>(null);
+  const store = useScanSessionStore();
+  const persisted = useModuleResult('dashboard');
+
+  const [liveReport, setLiveReport] = useState<MasterReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleScan = async (url: string) => {
+  // Use live report if available, else fall back to persisted
+  const report = liveReport || (persisted?.result as MasterReport | undefined) || null;
+  const isRestored = !liveReport && !!persisted?.result;
+
+  const handleScan = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
-    setReport(null);
+    setLiveReport(null);
+
+    // Session management
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'dashboard');
+
     try {
       const result = await generateMasterReport(url);
-      setReport(result);
+      setLiveReport(result);
+      store.setModuleResult(sessionId, 'dashboard', {
+        moduleId: 'dashboard',
+        moduleName: 'Command Center',
+        targetUrl: url,
+        result: result,
+        status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed');
+      const msg = e instanceof Error ? e.message : 'Scan failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'dashboard', msg);
     } finally {
       setLoading(false);
+    }
+  }, [store]);
+
+  const handleClear = () => {
+    setLiveReport(null);
+    setError(null);
+    const current = store.activeSession;
+    if (current) {
+      store.closeSession(current.id);
     }
   };
 
@@ -49,6 +91,8 @@ export default function DashboardPage() {
       </div>
 
       <UrlInput onSubmit={handleScan} loading={loading} buttonLabel="Full Scan" placeholder="Enter target URL — e.g. https://example.com" />
+      
+      <BurpSessionsWidget />
 
       {loading && (
         <div className="loading-overlay">
@@ -60,6 +104,46 @@ export default function DashboardPage() {
 
       {error && (
         <ErrorAlert title="Scan Failed" message={error} />
+      )}
+
+      {/* Restored from Session Notice */}
+      {isRestored && (
+        <div style={{
+          marginTop: 16,
+          padding: '12px 16px',
+          background: 'rgba(0, 212, 255, 0.06)',
+          border: '1px solid rgba(0, 212, 255, 0.15)',
+          borderRadius: 'var(--radius-md)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--accent-cyan)' }}>
+            <History size={16} />
+            <span style={{ fontSize: '0.82rem' }}>
+              Full scan report restored from previous session
+            </span>
+          </div>
+          <button
+            onClick={handleClear}
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <XCircle size={12} />
+            Clear
+          </button>
+        </div>
       )}
 
       {report && (
@@ -185,23 +269,30 @@ export default function DashboardPage() {
                     <thead>
                       <tr>
                         <th>Finding</th>
-                        <th>Severity</th>
-                        <th>Confidence</th>
+                        <th>Priority</th>
+                        <th>Signal</th>
                         <th>Risk Family</th>
                         <th>Evidence</th>
                         <th>Modules</th>
+                        <th>Feedback</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {report.normalized_audit.canonical_findings.slice(0, 10).map((f) => (
+                      {report.normalized_audit.canonical_findings.map((f) => (
                         <tr key={f.id}>
-                          <td style={{ maxWidth: 300 }}>
-                            <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.title}</div>
-                            <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>{f.canonical_slug}</div>
+                          <td style={{ minWidth: 200, maxWidth: 350, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                            <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                              {getPriorityFromSeverity(f.severity)}: {f.title.replace(/vulnerability/gi, 'Surface').replace(/vuln/gi, 'signal')}
+                            </div>
+                            <div className="slug-text" title={f.canonical_slug}>{f.canonical_slug}</div>
                           </td>
-                          <td><span className={`badge ${getSeverityClass(f.severity)}`}>{f.severity}</span></td>
-                          <td><span className="badge badge-blue">{f.confidence}</span></td>
-                          <td className="text-sm text-secondary">{typeof f.risk_family === 'string' ? f.risk_family.replace(/_/g, ' ') : ''}</td>
+                          <td style={{ width: '80px' }}><span className={`badge ${getSeverityClass(f.severity)}`}>{getPriorityFromSeverity(f.severity)}</span></td>
+                          <td style={{ width: '120px' }}>
+                            <span className={`badge ${f.confidence === 'certain' ? 'badge-success' : f.confidence === 'likely' ? 'badge-warning' : 'badge-neutral'}`}>
+                              {f.confidence === 'certain' ? 'confirmed' : 'unconfirmed'}
+                            </span>
+                          </td>
+                          <td className="text-sm text-secondary" style={{ maxWidth: 200, whiteSpace: 'normal', wordBreak: 'break-word' }}>{typeof f.risk_family === 'string' ? f.risk_family.replace(/_/g, ' ') : ''}</td>
                           <td className="mono">{f.merged_evidence_count}</td>
                           <td>
                             <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
@@ -209,6 +300,9 @@ export default function DashboardPage() {
                                 <span key={i} className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>{m}</span>
                               ))}
                             </div>
+                          </td>
+                          <td>
+                            <FindingFeedback findingId={f.canonical_slug} compact />
                           </td>
                         </tr>
                       ))}
@@ -248,39 +342,172 @@ export default function DashboardPage() {
           )}
 
           {/* Scan Strategy */}
-          {report.scan_strategy && report.scan_strategy.length > 0 && (
+          {report.scan_strategy && report.scan_strategy.length > 0 && (() => {
+            const deepCount = report.scan_strategy.filter(d => d.priority === 'deep_analysis').length;
+            const standardCount = report.scan_strategy.filter(d => d.priority === 'standard').length;
+            const deprioritizedCount = report.scan_strategy.filter(d => d.priority === 'deprioritized').length;
+            const total = report.scan_strategy.length;
+            const maxDepth = Math.max(...report.scan_strategy.map(d => d.adaptive_scan_depth));
+
+            return (
             <div className="section">
-              <div className="section-title"><Zap size={18} /> Scan Strategy Decisions</div>
-              <div className="glass-card" style={{ padding: 0 }}>
-                <div className="data-table-wrapper">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Target</th>
-                        <th>Priority</th>
-                        <th>Depth</th>
-                        <th>Reasoning</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.scan_strategy.map((d, i) => (
-                        <tr key={i}>
-                          <td className="mono">{d.target}</td>
-                          <td>
-                            <span className={`badge ${d.priority === 'deep_analysis' ? 'badge-danger' : d.priority === 'standard' ? 'badge-blue' : 'badge-neutral'}`}>
-                              {d.priority}
-                            </span>
-                          </td>
-                          <td className="mono">{d.adaptive_scan_depth}</td>
-                          <td className="text-sm text-secondary">{d.reasoning.join(' • ')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="section-title"><Zap size={18} /> Autonomous Scan Strategy</div>
+
+              {/* Strategy Summary Bar */}
+              <div className="glass-card" style={{ marginBottom: 16, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Deep Analysis</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.95rem', color: '#fca5a5' }}>{deepCount}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 8px rgba(59,130,246,0.5)' }} />
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Standard</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.95rem', color: '#93c5fd' }}>{standardCount}</span>
+                  </div>
+                  {deprioritizedCount > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#6b7280', boxShadow: '0 0 8px rgba(107,114,128,0.3)' }} />
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Deprioritized</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-muted)' }}>{deprioritizedCount}</span>
+                    </div>
+                  )}
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Target size={14} style={{ color: 'var(--text-muted)' }} />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                      {total} targets • max depth {maxDepth}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Distribution bar */}
+                <div style={{
+                  marginTop: 12,
+                  height: 4,
+                  borderRadius: 2,
+                  background: 'rgba(255,255,255,0.04)',
+                  display: 'flex',
+                  overflow: 'hidden',
+                  gap: 2,
+                }}>
+                  {deepCount > 0 && (
+                    <div style={{ flex: deepCount, background: 'linear-gradient(90deg, #ef4444, #f87171)', borderRadius: 2, transition: 'flex 0.5s ease' }} />
+                  )}
+                  {standardCount > 0 && (
+                    <div style={{ flex: standardCount, background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', borderRadius: 2, transition: 'flex 0.5s ease' }} />
+                  )}
+                  {deprioritizedCount > 0 && (
+                    <div style={{ flex: deprioritizedCount, background: 'linear-gradient(90deg, #4b5563, #6b7280)', borderRadius: 2, transition: 'flex 0.5s ease' }} />
+                  )}
                 </div>
               </div>
+
+              {/* Strategy Decision Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {report.scan_strategy.map((d, i) => {
+                  const isDeep = d.priority === 'deep_analysis';
+                  const isDeprioritized = d.priority === 'deprioritized';
+                  const accentColor = isDeep ? '#ef4444' : isDeprioritized ? '#6b7280' : '#3b82f6';
+                  const accentGlow = isDeep ? 'rgba(239,68,68,0.15)' : isDeprioritized ? 'rgba(107,114,128,0.08)' : 'rgba(59,130,246,0.12)';
+                  const depthSegments = 4;
+
+                  return (
+                    <div key={i} className="glass-card" style={{
+                      padding: '16px 20px',
+                      borderLeft: `3px solid ${accentColor}`,
+                      background: `linear-gradient(135deg, ${accentGlow} 0%, transparent 60%)`,
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                        {/* Priority indicator */}
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 'var(--radius-md)',
+                          background: `${accentColor}18`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {isDeep ? (
+                            <AlertTriangle size={16} style={{ color: accentColor }} />
+                          ) : isDeprioritized ? (
+                            <ChevronDown size={16} style={{ color: accentColor }} />
+                          ) : (
+                            <Search size={16} style={{ color: accentColor }} />
+                          )}
+                        </div>
+
+                        {/* Main content */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {/* Target + Priority row */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '0.82rem',
+                              color: 'var(--text-primary)',
+                              fontWeight: 500,
+                              wordBreak: 'break-all',
+                            }}>{d.target}</span>
+                            <span className={`badge ${isDeep ? 'badge-danger' : isDeprioritized ? 'badge-neutral' : 'badge-blue'}`}
+                              style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {d.priority.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+
+                          {/* Depth indicator */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', width: 50, flexShrink: 0 }}>
+                              Depth {d.adaptive_scan_depth}
+                            </span>
+                            <div style={{ display: 'flex', gap: 3, flex: 1, maxWidth: 120 }}>
+                              {Array.from({ length: depthSegments }).map((_, si) => (
+                                <div key={si} style={{
+                                  flex: 1,
+                                  height: 6,
+                                  borderRadius: 3,
+                                  background: si < d.adaptive_scan_depth
+                                    ? `linear-gradient(90deg, ${accentColor}, ${accentColor}CC)`
+                                    : 'rgba(255,255,255,0.06)',
+                                  boxShadow: si < d.adaptive_scan_depth ? `0 0 6px ${accentColor}40` : 'none',
+                                  transition: 'background 0.3s ease',
+                                }} />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Reasoning tags */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {d.reasoning.map((reason, ri) => (
+                              <div key={ri} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '4px 10px',
+                                borderRadius: 'var(--radius-sm)',
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.06)',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-secondary)',
+                                lineHeight: 1.4,
+                              }}>
+                                <ChevronRight size={10} style={{ color: accentColor, flexShrink: 0 }} />
+                                {reason}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+            );
+          })()}
+
 
           {/* Security Audit Quick */}
           {report.security_audit && (
@@ -335,7 +562,7 @@ export default function DashboardPage() {
                 )}
                 {report.form_mapping.detected_forms.length > 0 && (
                   <div className="glass-card">
-                    <div className="glass-card-title" style={{marginBottom: 12}}>Detected Forms ({report.form_mapping.detected_forms.length})</div>
+                    <div className="glass-card-title" style={{ marginBottom: 12 }}>Detected Forms ({report.form_mapping.detected_forms.length})</div>
                     {report.form_mapping.detected_forms.map((f, i) => (
                       <div key={i} className="evidence-item">
                         <div className="evidence-type">{f.method} → {f.action}</div>
@@ -347,6 +574,16 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+          {/* Temporal Trends */}
+          {(() => {
+            const current = store.activeSession;
+            if (!current) return null;
+            
+            return <TemporalTrends targetUrl={current.targetUrl} />;
+          })()}
+
+          {/* Partial Scan Warning Banner */}
+          <PartialScanWarning report={report} />
         </div>
       )}
 

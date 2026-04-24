@@ -3,7 +3,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8900';
 import type {
   WebScanResult, ServerInfo, ApiDiscoveryResult, CollectorSnapshot,
   SecurityReport, FormMapping, MasterReport, VerifyPortResponse,
-  RuleEngineStatus, FeedbackStatsResponse
+  RuleEngineStatus, FeedbackStatsResponse, TrendPoint, DeltaResult
 } from './types';
 
 export * from './types';
@@ -136,15 +136,57 @@ export function proxyRequest(url: string, method: string, body?: string) {
   return apiPost<unknown>('/proxy-request', { url, method, body });
 }
 
+export function exportToBurp(report: MasterReport) {
+  return apiPost<{ xml: string; filename: string; item_count: number }>('/api/export/burp', report as unknown as Record<string, unknown>);
+}
+
+export function exportToNuclei(report: MasterReport) {
+  return apiPost<{ yaml: string; template_count: number }>('/api/export/nuclei', report as unknown as Record<string, unknown>);
+}
+
+export function getHistoryTrends(targetUrl: string) {
+  return apiGet<TrendPoint[]>(`/api/history/trends?target_url=${encodeURIComponent(targetUrl)}`);
+}
+
+export function getHistoryDelta(targetUrl: string, currentScanId: string, previousScanId: string) {
+  return apiGet<DeltaResult>(`/api/history/delta?target_url=${encodeURIComponent(targetUrl)}&current_scan_id=${encodeURIComponent(currentScanId)}&previous_scan_id=${encodeURIComponent(previousScanId)}`);
+}
+
 // Types moved to types.ts
 
 // ── Helpers ──
+
+// Priority mapping: severity → P1-P4
+export function getPriorityFromSeverity(severity: string): string {
+  const s = severity?.toLowerCase();
+  if (s === 'critical') return 'P1';
+  if (s === 'high') return 'P2';
+  if (s === 'medium') return 'P3';
+  if (s === 'low' || s === 'informational' || s === 'info') return 'P4';
+  // Already priority format
+  if (['p1', 'p2', 'p3', 'p4'].includes(s)) return s.toUpperCase();
+  return 'P4';
+}
+
+// Priority display label
+export function getPriorityLabel(severity: string): string {
+  const priority = getPriorityFromSeverity(severity);
+  switch (priority) {
+    case 'P1': return 'P1 — Investigate';
+    case 'P2': return 'P2 — Review';
+    case 'P3': return 'P3 — Low Priority';
+    case 'P4': return 'P4 — Informational';
+    default: return priority;
+  }
+}
+
 export function getSeverityClass(severity: string): string {
   const s = severity?.toLowerCase();
-  if (s === 'critical') return 'badge-critical';
-  if (s === 'high') return 'badge-high';
-  if (s === 'medium') return 'badge-medium';
-  if (s === 'low') return 'badge-low';
+  // Support both old severity and new priority formats
+  if (s === 'critical' || s === 'p1') return 'badge-p1';
+  if (s === 'high' || s === 'p2') return 'badge-p2';
+  if (s === 'medium' || s === 'p3') return 'badge-p3';
+  if (s === 'low' || s === 'p4') return 'badge-p4';
   return 'badge-informational';
 }
 

@@ -1,0 +1,41 @@
+id: "DRE-FP-EDU-001"
+name: "Educational Site Context (FP Suppression)"
+description: >
+  This rule detects educational/documentation sites that contain escaped
+  security payloads as examples, not actual vulnerabilities. When this rule
+  matches, it indicates the page is showing security concepts rather than
+  being vulnerable. This finding supersedes lower-level disclosure and
+  CSP rules to prevent false positives.
+category: "False Positive Control"
+severity: "informational"
+default_confidence: "certain"
+priority: 100
+enabled: true
+dedup_key: "fp-educational-context"
+supersedes:
+  - "DRE-HDR-001"
+  - "DRE-DISC-001"
+tags:
+  - fp-control
+  - educational
+  - context-aware
+condition:
+  all:
+    - any:
+        - body_contains:
+            value: "&lt;script&gt;"
+        - body_contains:
+            value: "&lt;iframe&gt;"
+        - body_contains:
+            value: "&amp;lt;"
+    - any:
+        - body_contains:
+            value: "educational"
+        - body_contains:
+            value: "documentation"
+        - body_contains:
+            value: "tutorial"
+        - body_contains:
+            value: "example"
+    - header_present:
+        header: "content-security-policy"

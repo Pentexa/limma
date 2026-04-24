@@ -8,15 +8,16 @@ import EvidenceList from '@/components/EvidenceList';
 import ErrorAlert from '@/components/ErrorAlert';
 import EmptyState from '@/components/EmptyState';
 import { investigateServer } from '@/lib/api';
-import { useSSEStream } from '@/lib/useSSEStream';
+import { usePersistentSSEStream } from '@/lib/usePersistentSSEStream';
 import type { ServerInfo } from '@/lib/api';
 import {
   Server, Shield, Fingerprint, Truck, AlertTriangle,
-  ChevronDown, ChevronRight, CheckCircle2, Activity, Radio
+  ChevronDown, ChevronRight, CheckCircle2, Activity, Radio, Info, RotateCcw
 } from 'lucide-react';
 
 export default function InvestigatorPage() {
-  const { result, loading, error, events, streaming, execute: handleScan } = useSSEStream<ServerInfo>({
+  const { result, loading, error, events, streaming, execute: handleScan, isRestored, reset } = usePersistentSSEStream<ServerInfo>({
+    moduleId: 'investigator',
     streamEndpoint: '/investigate/stream',
     fetchResult: investigateServer,
   });

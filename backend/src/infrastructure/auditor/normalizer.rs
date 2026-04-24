@@ -10,6 +10,34 @@ pub struct WebScannerNormalizer;
 pub struct ServerInvestigatorNormalizer;
 pub struct ApiDiscovererNormalizer;
 
+/// Assigns severity based on the real-world impact of each security header.
+/// CSP and HSTS are critical defense layers — their absence enables real attacks.
+fn header_severity(name: &str, status: &SecurityHeaderStatus) -> SeverityLevel {
+    let name_lower = name.to_lowercase();
+    
+    // Misconfigured is generally worse than Missing (active misconfiguration vs passive omission)
+    let is_misconfigured = matches!(status, SecurityHeaderStatus::Misconfigured);
+    let is_weak = matches!(status, SecurityHeaderStatus::Weak);
+    
+    if name_lower.contains("content-security-policy") {
+        if is_weak { return SeverityLevel::Medium; } // unsafe-inline/unsafe-eval
+        SeverityLevel::Medium // Missing CSP enables XSS
+    } else if name_lower.contains("strict-transport-security") {
+        if is_misconfigured { return SeverityLevel::Medium; } // max-age=0
+        SeverityLevel::Medium // Missing HSTS enables SSL stripping
+    } else if name_lower.contains("x-frame-options") {
+        SeverityLevel::Medium // Missing enables clickjacking
+    } else if name_lower.contains("x-content-type-options") {
+        SeverityLevel::Medium // Missing enables MIME sniffing attacks
+    } else if name_lower.contains("access-control") {
+        if is_weak { return SeverityLevel::High; } // Wildcard CORS
+        SeverityLevel::Medium
+    } else {
+        // referrer-policy, permissions-policy, etc.
+        SeverityLevel::Low
+    }
+}
+
 /// Generates a context-aware real-world impact statement for security headers.
 fn header_impact(header_name: &str) -> String {
     let name_lower = header_name.to_lowercase();
@@ -129,7 +157,20 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
         }
 
         for header in &data.security_headers {
-            if header.status == SecurityHeaderStatus::Missing || header.status == SecurityHeaderStatus::Weak {
+            if header.status == SecurityHeaderStatus::Missing 
+                || header.status == SecurityHeaderStatus::Weak 
+                || header.status == SecurityHeaderStatus::Misconfigured 
+            {
+                // Severity based on real-world impact of each header
+                let severity = header_severity(&header.name, &header.status);
+                
+                let summary = match header.status {
+                    SecurityHeaderStatus::Missing => format!("Missing {}", header.name),
+                    SecurityHeaderStatus::Weak => format!("Weak {}", header.name),
+                    SecurityHeaderStatus::Misconfigured => format!("Misconfigured {}", header.name),
+                    _ => format!("Insecure Header: {}", header.name),
+                };
+
                 findings.push(SecurityAuditFinding {
                     id: Uuid::new_v4().to_string(),
                     timestamp: Utc::now(),
@@ -138,10 +179,10 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
                     protocol: Some("HTTP".to_string()),
                     method: None,
                     category: FindingCategory::SecurityMisconfiguration,
-                    severity: SeverityLevel::Low,
+                    severity,
                     confidence: ConfidenceLevel::Certain,
                     status: FindingStatus::Open,
-                    summary: format!("Insecure Header: {}", header.name),
+                    summary,
                     technical_details: format!(
                         "{}{}",
                         header.explanation,
@@ -161,12 +202,12 @@ impl FindingNormalizer<WebScanResult> for WebScannerNormalizer {
                     correlation_summary: None,
                     correlation_is_hygiene_gap: false,
                     related_findings: Vec::new(),
-                risk_score: None,
-                exploitability: None,
-                context_summary: None,
-                evidence_weight: None,
-                context_assessment: None,
-                certainty: None,
+                    risk_score: None,
+                    exploitability: None,
+                    context_summary: None,
+                    evidence_weight: None,
+                    context_assessment: None,
+                    certainty: None,
                 });
             }
         }

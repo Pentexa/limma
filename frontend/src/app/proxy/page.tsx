@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import ErrorAlert from '@/components/ErrorAlert';
 import { proxyRequest } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import {
   Send, Globe, Clock, FileCode, AlertTriangle, XCircle, CheckCircle2,
-  ChevronDown, Copy, Check, Code, RotateCcw
+  ChevronDown, Copy, Check, Code, RotateCcw, History
 } from 'lucide-react';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'] as const;
@@ -22,25 +23,43 @@ interface ProxyResponse {
 }
 
 export default function ProxyPage() {
+  const store = useScanSessionStore();
+  const persisted = useModuleResult('proxy');
+
   const [url, setUrl] = useState('');
   const [method, setMethod] = useState<string>('GET');
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [response, setResponse] = useState<ProxyResponse | null>(null);
-  const [rawResponse, setRawResponse] = useState<string | null>(null);
+  const [liveResponse, setLiveResponse] = useState<ProxyResponse | null>(null);
+  const [liveRawResponse, setLiveRawResponse] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<'formatted' | 'raw' | 'headers'>('formatted');
 
+  // Use live response if available, else fall back to persisted
+  const response = liveResponse || (persisted?.result as ProxyResponse | undefined) || null;
+  const rawResponse = liveRawResponse || (persisted?.result ? JSON.stringify(persisted.result, null, 2) : null);
+  const isRestored = !liveResponse && !!persisted?.result;
+
   const methodHasBody = ['POST', 'PUT', 'PATCH'].includes(method);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!url.trim()) return;
     setLoading(true);
     setError(null);
-    setResponse(null);
-    setRawResponse(null);
+    setLiveResponse(null);
+    setLiveRawResponse(null);
     setTab('formatted');
+
+    // Session management - ensure we have a session for this target
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'proxy');
+
     try {
       const res = await proxyRequest(
         url.trim(),
@@ -48,18 +67,33 @@ export default function ProxyPage() {
         methodHasBody && body.trim() ? body.trim() : undefined,
       );
       const raw = JSON.stringify(res, null, 2);
-      setRawResponse(raw);
+      setLiveRawResponse(raw);
+
+      let proxyRes: ProxyResponse;
       if (typeof res === 'object' && res !== null) {
-        setResponse(res as ProxyResponse);
+        proxyRes = res as ProxyResponse;
+        setLiveResponse(proxyRes);
       } else {
-        setResponse({ body: String(res) });
+        proxyRes = { body: String(res) };
+        setLiveResponse(proxyRes);
       }
+
+      // Save to session store
+      store.setModuleResult(sessionId, 'proxy', {
+        moduleId: 'proxy',
+        moduleName: 'HTTP Request Tester',
+        targetUrl: url,
+        result: proxyRes,
+        status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Request failed');
+      const msg = e instanceof Error ? e.message : 'Request failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'proxy', msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [url, method, body, methodHasBody, store]);
 
   const handleCopy = () => {
     if (rawResponse) {
@@ -73,9 +107,17 @@ export default function ProxyPage() {
     setUrl('');
     setMethod('GET');
     setBody('');
-    setResponse(null);
-    setRawResponse(null);
+    setLiveResponse(null);
+    setLiveRawResponse(null);
     setError(null);
+  };
+
+  const handleClearSession = () => {
+    const current = store.activeSession;
+    if (current) {
+      store.closeSession(current.id);
+    }
+    handleReset();
   };
 
   const getStatusColor = (status?: number) => {
@@ -253,6 +295,46 @@ export default function ProxyPage() {
           </div>
         )}
       </div>
+
+      {/* Restored from Session Notice */}
+      {isRestored && (
+        <div style={{
+          marginTop: 16,
+          padding: '12px 16px',
+          background: 'rgba(0, 212, 255, 0.06)',
+          border: '1px solid rgba(0, 212, 255, 0.15)',
+          borderRadius: 'var(--radius-md)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--accent-cyan)' }}>
+            <History size={16} />
+            <span style={{ fontSize: '0.82rem' }}>
+              Response restored from previous session
+            </span>
+          </div>
+          <button
+            onClick={handleClearSession}
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <XCircle size={12} />
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

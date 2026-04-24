@@ -58,6 +58,7 @@ pub enum RuleConditionNode {
     HeaderValueMatches { header: String, pattern: String },
     StatusCodeIn { codes: Vec<u16> },
     BodyContains { value: String },
+    BodyContainsDecoded { value: String },  // Searches through decoded layers (unicode, base64, url)
     TlsState { is_https: bool },
     ContextFlag { flag: String },
 
@@ -137,6 +138,12 @@ impl<'de> Deserialize<'de> for RuleConditionNode {
                 let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::ContextFlag { flag: inner.flag })
             }
+            "body_contains_decoded" => {
+                #[derive(Deserialize)]
+                struct Inner { value: String }
+                let inner: Inner = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(RuleConditionNode::BodyContainsDecoded { value: inner.value })
+            }
             "all" => {
                 let children: Vec<RuleConditionNode> = serde_yaml::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(RuleConditionNode::All(children))
@@ -152,7 +159,7 @@ impl<'de> Deserialize<'de> for RuleConditionNode {
             other => Err(serde::de::Error::custom(format!(
                 "Unknown condition type: '{}'. Valid types: header_missing, header_present, \
                  header_value_contains, header_value_matches, status_code_in, body_contains, \
-                 tls_state, context_flag, all, any, not",
+                 body_contains_decoded, tls_state, context_flag, all, any, not",
                 other
             ))),
         }

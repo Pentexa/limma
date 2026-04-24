@@ -38,10 +38,21 @@ pub fn audit_headers(headers: &HashMap<String, String>) -> Vec<SecurityHeaderRes
     // Strict-Transport-Security
     match headers.get("strict-transport-security") {
         Some(val) => {
-            let status = if val.contains("max-age=0") {
-                SecurityHeaderStatus::Misconfigured
+            // Parse max-age value to catch zero-padded evasion (max-age=0000000)
+            let max_age_value = val.to_lowercase()
+                .split(';')
+                .find(|s| s.trim().starts_with("max-age"))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.trim().parse::<u64>().ok());
+            
+            let status = if let Some(age) = max_age_value {
+                if age == 0 {
+                    SecurityHeaderStatus::Misconfigured // max-age=0 or max-age=0000000
+                } else {
+                    SecurityHeaderStatus::Present
+                }
             } else if val.contains("max-age") {
-                SecurityHeaderStatus::Present
+                SecurityHeaderStatus::Weak // max-age present but unparseable
             } else {
                 SecurityHeaderStatus::Weak
             };
@@ -261,10 +272,12 @@ pub fn generate_insights(
 
     // 3. Exposed Server Identity (Only if version is likely exposed)
     if let Some(server) = headers.get("server") {
-        if server.chars().any(|c| c.is_ascii_digit()) {
+        // Check for version pattern (e.g. nginx/1.18.0, Apache/2.4.49)
+        let has_version = regex::Regex::new(r"\d+\.\d+").map_or(false, |re| re.is_match(server));
+        if has_version {
             insights.push(RiskInsight {
                 title: "Exposed Server Identity".to_string(),
-                severity: RiskSeverity::Low,
+                severity: RiskSeverity::Medium,
                 explanation: "The web server explicitly identifies its software version. Attackers can cross-reference this with known vulnerabilities/CVEs.".to_string(),
                 evidence: format!("Server: {}", server),
             });

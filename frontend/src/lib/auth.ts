@@ -71,3 +71,46 @@ export function logout(): void {
   localStorage.removeItem('limma_token');
   localStorage.removeItem('limma_user');
 }
+
+/**
+ * Verify the stored JWT against the backend `/auth/me` endpoint.
+ * Returns fresh user data if the token is valid, null if expired/invalid.
+ * On failure, automatically clears stale credentials from localStorage.
+ */
+export async function verifyToken(): Promise<AuthUser | null> {
+  const token = getToken();
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      // Token is expired or invalid — clear stale credentials
+      logout();
+      return null;
+    }
+
+    const user: AuthUser = await res.json();
+    // Sync localStorage with fresh backend data
+    localStorage.setItem('limma_user', JSON.stringify(user));
+    return user;
+  } catch {
+    // Network error — don't clear credentials (might be temporary)
+    return null;
+  }
+}
+
+/**
+ * Convenience wrapper: verify token and update local user state.
+ * Returns true if the session is valid, false otherwise.
+ */
+export async function refreshUser(): Promise<boolean> {
+  const user = await verifyToken();
+  return user !== null;
+}

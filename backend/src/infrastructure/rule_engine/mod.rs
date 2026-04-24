@@ -5,6 +5,7 @@ pub mod validator;
 pub mod evaluator;
 pub mod engine;
 pub mod feedback;
+pub mod encoding_detector;
 
 pub use engine::{DynamicRuleEngine, SharedDynamicRuleEngine, resolve_rules_dir};
 pub use models::{RuleDefinition, RuleContext, DynamicRuleFinding, RuleConditionNode};

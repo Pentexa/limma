@@ -1179,3 +1179,117 @@ pub struct ContextStats {
     pub suppressed: usize,
     pub unchanged: usize,
 }
+
+// ── Burp Suite Bridge Data Models ──
+
+/// A single HTTP request/response pair captured from Burp Suite proxy, scanner, or repeater.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpTrafficItem {
+    pub url: String,
+    pub method: String,
+    pub request_headers: std::collections::HashMap<String, String>,
+    pub request_body: Option<String>,
+    pub response_status: u16,
+    pub response_headers: std::collections::HashMap<String, String>,
+    pub response_body: Option<String>,
+    pub timestamp: i64,
+    /// Which Burp tool captured this: "proxy", "scanner", "repeater", "intruder"
+    pub tool_source: String,
+}
+
+/// Tracks the state of a Burp Bridge session — one per connected plugin instance.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpBridgeSession {
+    pub session_id: String,
+    pub target_url: String,
+    pub burp_version: Option<String>,
+    pub plugin_version: Option<String>,
+    pub connected_at: chrono::DateTime<chrono::Utc>,
+    pub last_heartbeat: chrono::DateTime<chrono::Utc>,
+    pub imported_traffic_count: usize,
+    pub exported_findings_count: usize,
+    pub status: BurpSessionStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BurpSessionStatus {
+    Connected,
+    Syncing,
+    Idle,
+    Disconnected,
+}
+
+/// Handshake request from the Burp plugin to establish a bridge session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpHandshakeRequest {
+    pub burp_version: Option<String>,
+    pub plugin_version: Option<String>,
+    pub target_url: String,
+    /// Optional: link to an existing LIMMA scan session
+    pub limma_session_id: Option<String>,
+}
+
+/// Handshake response confirming bridge session creation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpHandshakeResponse {
+    pub session_id: String,
+    pub status: BurpSessionStatus,
+    pub server_version: String,
+    pub capabilities: Vec<String>,
+}
+
+/// Bulk traffic import request from Burp plugin.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpImportTrafficRequest {
+    pub session_id: String,
+    pub items: Vec<BurpTrafficItem>,
+}
+
+/// Response after importing traffic items.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpImportTrafficResponse {
+    pub imported_count: usize,
+    pub session_id: String,
+    pub new_findings_triggered: usize,
+    pub enrichment_notes: Vec<String>,
+}
+
+/// A finding formatted for Burp Suite native consumption.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpNativeFinding {
+    pub name: String,
+    pub detail: String,
+    pub severity: String,     // "High", "Medium", "Low", "Information"
+    pub confidence: String,   // "Certain", "Firm", "Tentative"
+    pub url: String,
+    pub path: String,
+    pub host: String,
+    pub port: i32,
+    pub protocol: String,
+    pub remediation: String,
+    pub issue_type: u32,
+    pub cwe_id: Option<u32>,
+}
+
+/// Response containing findings in Burp-native format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurpFindingsResponse {
+    pub session_id: String,
+    pub target: String,
+    pub findings: Vec<BurpNativeFinding>,
+    pub total_count: usize,
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// SSE events sent from backend to Burp plugin.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
+pub enum BurpSseEvent {
+    #[serde(rename = "heartbeat")]
+    Heartbeat { timestamp: i64 },
+    #[serde(rename = "finding_detected")]
+    FindingDetected(BurpNativeFinding),
+    #[serde(rename = "sync_status")]
+    SyncStatus { status: BurpSessionStatus, message: String },
+}

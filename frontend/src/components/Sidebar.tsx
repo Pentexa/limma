@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Globe, Server, Search, Layers, Lock, FileCode, BookOpen,
-  LayoutDashboard, ChevronRight, Send, Activity, LogOut
+  LayoutDashboard, ChevronRight, Send, Activity, LogOut, History
 } from 'lucide-react';
 import { logout } from '@/lib/auth';
 
@@ -22,6 +22,8 @@ const navItems = [
   { href: '/rules', label: 'Rule Engine', icon: BookOpen, description: 'Dynamic rules' },
   { label: 'Tools', isSection: true },
   { href: '/proxy', label: 'HTTP Proxy', icon: Send, description: 'Request tester' },
+  { label: 'Data', isSection: true },
+  { href: '/sessions', label: 'Sessions', icon: History, description: 'Scan history' },
 ];
 
 /* Limma eye logo as a React component for clean reuse */

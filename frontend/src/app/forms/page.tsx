@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ErrorAlert from '@/components/ErrorAlert';
 import { mapForms, getSeverityClass } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import type { FormMapping } from '@/lib/api';
 import {
   FileCode, Lock, XCircle, CheckCircle2, FormInput, ArrowRight,
@@ -11,25 +12,41 @@ import {
 } from 'lucide-react';
 
 export default function FormsPage() {
-  const [result, setResult] = useState<FormMapping | null>(null);
+  const store = useScanSessionStore();
+  const persisted = useModuleResult('forms');
+  const [liveResult, setLiveResult] = useState<FormMapping | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedForm, setSelectedForm] = useState<number | null>(null);
 
-  const handleScan = async (url: string) => {
+  const result = liveResult || (persisted?.result as FormMapping | undefined) || null;
+
+  const handleScan = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
-    setResult(null);
+    setLiveResult(null);
     setSelectedForm(null);
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'forms');
     try {
       const res = await mapForms(url);
-      setResult(res);
+      setLiveResult(res);
+      store.setModuleResult(sessionId, 'forms', {
+        moduleId: 'forms', moduleName: 'Form Mapper', targetUrl: url, result: res, status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Form mapping failed');
+      const msg = e instanceof Error ? e.message : 'Form mapping failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'forms', msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [store]);
 
   const getMethodBadge = (method: string) => {
     const m = method.toUpperCase();

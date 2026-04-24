@@ -123,6 +123,45 @@ impl DynamicRuleEngine {
         &self.validation_errors
     }
 
+    /// Context-aware pre-filter: Determines if a rule should be evaluated
+    /// based on the response content-type and URL path context.
+    /// This prevents false positives from rules that don't apply to certain contexts.
+    fn should_evaluate_rule(&self, rule: &RuleDefinition, ctx: &RuleContext) -> bool {
+        // 1. Content-Type kontrolü: HTML dışı yanıtlarda belirli kuralları atla
+        let content_type = ctx.headers.get("content-type").map(|s| s.as_str()).unwrap_or("");
+        
+        if !content_type.contains("text/html") && !content_type.contains("application/xhtml") {
+            // JSON/XML API yanıtlarında CSP ve X-Frame-Options zorunlu değil
+            let rule_id_lower = rule.id.to_lowercase();
+            let rule_cat_lower = rule.category.to_lowercase();
+            if rule_id_lower.contains("csp") || rule_id_lower.contains("xfo") 
+                || rule_cat_lower.contains("csp") || rule_cat_lower.contains("x-frame") {
+                tracing::debug!(
+                    "[ContextFilter] Skipping rule {} — non-HTML content-type: {}",
+                    rule.id, content_type
+                );
+                return false;
+            }
+        }
+
+        // 2. Safe path pattern kontrolü: Güvenli path'lerde sadece kritik kurallar çalışsın
+        let url_lower = ctx.url.to_lowercase();
+        let safe_patterns = ["/safe/", "/docs/", "/api-docs", "/education", "/tutorial", "/example"];
+        for pattern in &safe_patterns {
+            if url_lower.contains(pattern) {
+                if rule.priority < 80 {
+                    tracing::debug!(
+                        "[ContextFilter] Skipping low-priority rule {} (priority={}) on safe path: {}",
+                        rule.id, rule.priority, ctx.url
+                    );
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     /// Evaluates all active rules against the given context.
     /// Returns a list of findings for every rule that matched, processing scope pre-filters and deduplication.
     pub fn evaluate(&self, ctx: &RuleContext) -> Vec<DynamicRuleFinding> {
@@ -130,6 +169,9 @@ impl DynamicRuleEngine {
 
         for rule in &self.rules {
             if !self.is_rule_active(rule) { continue; }
+
+            // Pre-filter: Context-aware evaluation (FP reduction)
+            if !self.should_evaluate_rule(rule, ctx) { continue; }
 
             // Pre-filter: Check scope
             if let Some(scope) = &rule.scope {

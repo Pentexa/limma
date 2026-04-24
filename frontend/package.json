@@ -5,16 +5,22 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:e2e": "npx playwright test",
+    "test:verify": "npx playwright test tests/e2e/frontend-verification.spec.ts",
+    "test:verify:target": "npx playwright test tests/e2e/frontend-verification.spec.ts",
+    "test:report": "npx playwright show-report"
   },
   "dependencies": {
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

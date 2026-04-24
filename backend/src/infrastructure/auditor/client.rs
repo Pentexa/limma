@@ -227,11 +227,25 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
             log.extend(dre.boot_log());
             log.push("[DynamicRuleEngine] Building evaluation context from scan data...".to_string());
 
+            let page_body = web_scan.pages.first().and_then(|p| {
+                // Extract body from the first crawled page if available
+                // The body isn't stored in ScannedPage, so use headers to build context
+                None::<&str>
+            });
+            
+            // Try to get body from correlation/timeline payload if available
+            let body_text = web_scan.timeline.iter()
+                .find(|e| e.event_type == "PAGE_CRAWLED")
+                .and_then(|e| e.payload.as_ref())
+                .and_then(|p| p.get("body"))
+                .and_then(|b| b.as_str())
+                .map(|s| s.to_string());
+
             let ctx = crate::infrastructure::rule_engine::build_context_from_headers(
                 target,
                 web_scan.final_status_code,
                 &web_scan.headers,
-                None, // body not needed for header-based rules
+                body_text.as_deref(),
             );
 
             let findings = dre.evaluate(&ctx);

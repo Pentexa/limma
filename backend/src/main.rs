@@ -26,7 +26,9 @@ use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::mapper::HttpFormMapper;
 use crate::infrastructure::rule_engine::{DynamicRuleEngine, resolve_rules_dir};
-use crate::api::handlers::{register_user, login_user, get_me, analyze_website, analyze_website_stream, investigate_server, investigate_server_stream, discover_apis, collect_services, audit_security, map_forms, generate_master_report, proxy_request, verify_port, submit_feedback, get_rule_engine_status, submit_rule_feedback, get_feedback_stats, AppState};
+use crate::infrastructure::burp_bridge::BurpBridgeManager;
+use crate::infrastructure::delta_engine::DeltaEngine;
+use crate::api::handlers::{register_user, login_user, get_me, analyze_website, analyze_website_stream, investigate_server, investigate_server_stream, discover_apis, collect_services, audit_security, map_forms, generate_master_report, proxy_request, verify_port, submit_feedback, get_rule_engine_status, submit_rule_feedback, get_feedback_stats, export_to_burp, export_to_nuclei, burp_handshake, burp_import_traffic, burp_get_findings, burp_stream_events, burp_list_sessions, get_history_trends, get_history_delta, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -60,6 +62,11 @@ async fn main() -> anyhow::Result<()> {
     let dynamic_rule_engine = Arc::new(DynamicRuleEngine::new(&rules_dir));
     tracing::info!("[DynamicRuleEngine] {} active rules loaded from {}", dynamic_rule_engine.rule_count(), rules_dir);
     
+    let burp_bridge = Arc::new(BurpBridgeManager::new());
+    
+    // Delta Engine
+    let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
+    
     let shared_state = Arc::new(AppState {
         user_repo,
         website_scanner,
@@ -69,6 +76,8 @@ async fn main() -> anyhow::Result<()> {
         security_auditor,
         form_mapper,
         dynamic_rule_engine,
+        burp_bridge,
+        delta_engine,
         db_pool: pool,
         jwt_secret,
     });
@@ -106,6 +115,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/rule-engine-status", axum::routing::get(get_rule_engine_status))
         .route("/api/dynamic-rule/feedback", post(submit_rule_feedback))
         .route("/api/feedback-stats", axum::routing::get(get_feedback_stats))
+        .route("/api/export/burp", post(export_to_burp))
+        .route("/api/export/nuclei", post(export_to_nuclei))
+        .route("/api/burp/handshake", post(burp_handshake))
+        .route("/api/burp/import-traffic", post(burp_import_traffic))
+        .route("/api/burp/findings/:session_id", axum::routing::get(burp_get_findings))
+        .route("/api/burp/stream/:session_id", axum::routing::get(burp_stream_events))
+        .route("/api/burp/sessions", axum::routing::get(burp_list_sessions))
+        .route("/api/history/trends", axum::routing::get(get_history_trends))
+        .route("/api/history/delta", axum::routing::get(get_history_delta))
         .with_state(shared_state)
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(300)))
         .layer(GovernorLayer {

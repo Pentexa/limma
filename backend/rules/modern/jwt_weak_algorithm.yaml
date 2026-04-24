@@ -1,0 +1,38 @@
+id: "DRE-JWT-001"
+name: "JWT Weak Algorithm (alg=none)"
+description: >
+  A JWT token using the 'none' algorithm was detected in the Authorization
+  header. The 'none' algorithm allows signature bypass, enabling attackers
+  to forge arbitrary JWT tokens without knowing the secret key.
+category: "Modern Attacks"
+severity: "critical"
+default_confidence: "certain"
+priority: 95
+enabled: true
+tags:
+  - jwt
+  - authentication
+  - owasp-a07
+  - owasp-a02
+compliance_tags:
+  - "OWASP-A07:2021"
+  - "CWE-345"
+remediation: >
+  Reject JWT tokens with alg=none. Use RS256 or HS256 with strong secrets.
+  Implement proper JWT validation library and always verify the algorithm
+  server-side. Never trust the alg claim from the token itself.
+condition:
+  all:
+    - header_present:
+        header: "authorization"
+    - header_value_contains:
+        header: "authorization"
+        value: "Bearer eyJ"
+    - any:
+        - body_contains:
+            value: "\"alg\":\"none\""
+        - body_contains:
+            value: "eyJhbGciOiJub25lIi"
+        - header_value_contains:
+            header: "authorization"
+            value: "eyJhbGciOiJub25lIi"

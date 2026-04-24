@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ErrorAlert from '@/components/ErrorAlert';
 import { collectServices, verifyPort, getSeverityClass } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import type { CollectorSnapshot, PortProbeResult, VerifyPortResponse } from '@/lib/api';
 import {
   Layers, Server, Shield, Activity, ChevronDown, ChevronRight, XCircle, CheckCircle2,
@@ -21,7 +22,9 @@ function PortStateDisplay({ state }: { state: string }) {
 }
 
 export default function ServicesPage() {
-  const [result, setResult] = useState<CollectorSnapshot | null>(null);
+  const store = useScanSessionStore();
+  const persisted = useModuleResult('services');
+  const [liveResult, setLiveResult] = useState<CollectorSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedPort, setExpandedPort] = useState<number | null>(null);
@@ -29,19 +32,33 @@ export default function ServicesPage() {
   const [verifyResult, setVerifyResult] = useState<VerifyPortResponse | null>(null);
   const [tab, setTab] = useState<'ports' | 'timeline' | 'diff'>('ports');
 
-  const handleScan = async (url: string) => {
+  const result = liveResult || (persisted?.result as CollectorSnapshot | undefined) || null;
+
+  const handleScan = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
-    setResult(null);
+    setLiveResult(null);
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'services');
     try {
       const res = await collectServices(url);
-      setResult(res);
+      setLiveResult(res);
+      store.setModuleResult(sessionId, 'services', {
+        moduleId: 'services', moduleName: 'Service Collector', targetUrl: url, result: res, status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Collection failed');
+      const msg = e instanceof Error ? e.message : 'Collection failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'services', msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [store]);
 
   const handleVerifyPort = async (port: number) => {
     if (!result) return;

@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import UrlInput from '@/components/UrlInput';
 import ScoreGauge from '@/components/ScoreGauge';
 import SeverityBadge from '@/components/SeverityBadge';
 import ErrorAlert from '@/components/ErrorAlert';
 import EmptyState from '@/components/EmptyState';
-import { generateMasterReport, auditSecurity, submitFeedback, getSeverityClass } from '@/lib/api';
+import PartialScanWarning from '@/components/PartialScanWarning';
+import SignalBadge from '@/components/SignalBadge';
+import FindingFeedback from '@/components/FindingFeedback';
+import { generateMasterReport, auditSecurity, submitFeedback, getSeverityClass, getPriorityFromSeverity } from '@/lib/api';
+import { useScanSessionStore, useModuleResult } from '@/lib/scanSessionStore';
 import type { MasterReport, SecurityReport, CanonicalFinding, SecurityAuditFinding } from '@/lib/api';
 import {
   Shield, Lock, AlertTriangle, Target, XCircle, CheckCircle2, Eye, ChevronDown,
@@ -15,32 +19,48 @@ import {
 } from 'lucide-react';
 
 export default function AuditPage() {
-  const [report, setReport] = useState<MasterReport | null>(null);
+  const store = useScanSessionStore();
+  const persistedAudit = useModuleResult('audit');
+  const [liveReport, setLiveReport] = useState<MasterReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'overview' | 'canonical' | 'findings' | 'attacks' | 'rules' | 'correlations' | 'dynamic'>('overview');
+  const [tab, setTab] = useState<'overview' | 'canonical' | 'findings' | 'attacks' | 'rules' | 'correlations' | 'dynamic' | 'pipeline'>('overview');
   const [secReport, setSecReport] = useState<SecurityReport | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<CanonicalFinding | null>(null);
   const [selectedRawFinding, setSelectedRawFinding] = useState<SecurityAuditFinding | null>(null);
 
-  const handleScan = async (url: string) => {
+  const report = liveReport || (persistedAudit?.result as MasterReport | undefined) || null;
+
+  const handleScan = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
-    setReport(null);
+    setLiveReport(null);
     setSecReport(null);
+    const current = store.activeSession;
+    if (!current || current.targetUrl !== url) {
+      if (current) store.closeSession(current.id);
+      store.createSession(url);
+    }
+    const sessionId = useScanSessionStore.getState().activeSession!.id;
+    store.setModuleLoading(sessionId, 'audit');
     try {
       const [masterRes, secRes] = await Promise.all([
         generateMasterReport(url),
         auditSecurity(url),
       ]);
-      setReport(masterRes);
+      setLiveReport(masterRes);
       setSecReport(secRes);
+      store.setModuleResult(sessionId, 'audit', {
+        moduleId: 'audit', moduleName: 'Security Audit', targetUrl: url, result: masterRes, status: 'success',
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Audit failed');
+      const msg = e instanceof Error ? e.message : 'Audit failed';
+      setError(msg);
+      store.setModuleError(sessionId, 'audit', msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [store]);
 
   const audit = report?.normalized_audit;
 
@@ -53,8 +73,9 @@ export default function AuditPage() {
   };
 
   return (
-    <div className="fade-in">
-      <div className="page-header">
+    <>
+      <div className="fade-in">
+        <div className="page-header">
         <h1 className="page-title">Security Audit</h1>
         <p className="page-subtitle">Normalized security findings with risk scoring, correlation analysis, and attack path detection</p>
       </div>
@@ -75,11 +96,36 @@ export default function AuditPage() {
         <div className="fade-in">
           {/* Stats Row */}
           <div className="flex gap-6 mb-6" style={{ alignItems: 'flex-start' }}>
-            {secReport && (
-              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 32px' }}>
-                <ScoreGauge score={secReport.security_score} label="Security" />
-              </div>
-            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: '220px' }}>
+              {secReport && (
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 32px' }}>
+                  <ScoreGauge score={secReport.security_score} label="Security" />
+                </div>
+              )}
+              {audit?.context_stats && (
+                <div className="glass-card" style={{ padding: '16px' }}>
+                  <div className="text-xs text-muted" style={{ marginBottom: 16, textAlign: 'center', fontWeight: 600 }}>Context-Aware Adjustments</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-sm text-secondary">Elevated</span>
+                      <span className="text-sm" style={{ color: 'var(--color-success)', fontWeight: 600 }}>▲ {audit.context_stats.elevated}</span>
+                    </div>
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-sm text-secondary">Downgraded</span>
+                      <span className="text-sm" style={{ color: 'var(--color-warning)', fontWeight: 600 }}>▼ {audit.context_stats.downgraded}</span>
+                    </div>
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-sm text-secondary">Suppressed</span>
+                      <span className="text-sm" style={{ color: 'var(--color-danger)', fontWeight: 600 }}>✕ {audit.context_stats.suppressed}</span>
+                    </div>
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-sm text-secondary">Unchanged</span>
+                      <span className="text-sm text-muted" style={{ fontWeight: 600 }}>{audit.context_stats.unchanged}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <div style={{ flex: 1 }}>
               <div className="stats-grid">
                 <div className="stat-card">
@@ -143,17 +189,6 @@ export default function AuditPage() {
                   </>
                 )}
               </div>
-              {audit?.context_stats && (
-                <div className="glass-card mt-2" style={{ padding: '12px 16px' }}>
-                  <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Context-Aware Adjustments</div>
-                  <div className="flex gap-4">
-                    <span className="text-sm"><span style={{ color: 'var(--color-success)' }}>▲ {audit.context_stats.elevated}</span> elevated</span>
-                    <span className="text-sm"><span style={{ color: 'var(--color-warning)' }}>▼ {audit.context_stats.downgraded}</span> downgraded</span>
-                    <span className="text-sm"><span style={{ color: 'var(--color-danger)' }}>✕ {audit.context_stats.suppressed}</span> suppressed</span>
-                    <span className="text-sm text-muted">{audit.context_stats.unchanged} unchanged</span>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -166,84 +201,212 @@ export default function AuditPage() {
             <button className={`tab ${tab === 'rules' ? 'active' : ''}`} onClick={() => setTab('rules')}>Rule Results ({audit?.rule_results?.length || 0})</button>
             <button className={`tab ${tab === 'correlations' ? 'active' : ''}`} onClick={() => setTab('correlations')}>Correlations ({audit?.correlations?.length || 0})</button>
             <button className={`tab ${tab === 'dynamic' ? 'active' : ''}`} onClick={() => setTab('dynamic')}>Dynamic Rules ({audit?.dynamic_rule_findings?.length || 0})</button>
+            <button className={`tab ${tab === 'pipeline' ? 'active' : ''}`} onClick={() => setTab('pipeline')}>Pipeline Log ({audit?.normalization_log?.length || 0})</button>
           </div>
 
-          {/* Security Overview — from /audit-security */}
-          {tab === 'overview' && secReport && (
+          {/* Security Overview — enriched with audit pipeline data */}
+          {tab === 'overview' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Missing Security Headers */}
-              {secReport.missing_headers.length > 0 && (
-                <div className="glass-card">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="stat-icon amber"><Lock size={20} /></div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Missing Security Headers</div>
-                      <div className="text-xs text-muted">{secReport.missing_headers.length} headers not found on the target</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {secReport.missing_headers.map((h, i) => (
-                      <span key={i} className="badge badge-warning">{h}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {/* Recommendations */}
-              {secReport.recommendations.length > 0 && (
-                <div className="glass-card">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="stat-icon green"><CheckCircle2 size={20} /></div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Recommendations</div>
-                      <div className="text-xs text-muted">{secReport.recommendations.length} actionable items</div>
+              {/* Audit Certainty + Scoring Stats Row */}
+              {audit && (
+                <div className="grid-2">
+                  {/* Audit Certainty */}
+                  {audit.audit_certainty && (() => {
+                    const certLevel = audit.audit_certainty.level;
+                    const certColor = (certLevel === 'certain' || certLevel === 'likely') ? '#22c55e' : certLevel === 'uncertain' ? '#f59e0b' : '#ef4444';
+                    const certBadge = (certLevel === 'certain' || certLevel === 'likely') ? 'success' : certLevel === 'uncertain' ? 'warning' : 'danger';
+                    return (
+                    <div className="glass-card" style={{
+                      borderLeft: `3px solid ${certColor}`,
+                      background: `linear-gradient(135deg, ${certColor}0F 0%, transparent 60%)`,
+                    }}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                          background: `${certColor}1E`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Shield size={16} style={{ color: certColor }} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Audit Certainty</div>
+                          <div className="text-xs text-muted">Overall confidence in audit results</div>
+                        </div>
+                        <span className={`badge badge-${certBadge}`}
+                          style={{ marginLeft: 'auto', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.7rem' }}>
+                          {certLevel}
+                        </span>
+                      </div>
+                      <p className="text-sm text-secondary" style={{ lineHeight: 1.6 }}>{audit.audit_certainty.reason}</p>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {secReport.recommendations.map((r, i) => (
-                      <div key={i} className="evidence-item">
-                        <div className="flex items-center gap-2">
-                          <ChevronRight size={14} color="var(--color-success)" />
-                          <span className="text-sm text-secondary">{r}</span>
+                    );
+                  })()}
+
+                  {/* Scoring Stats Detail */}
+                  {audit.scoring_stats && (
+                    <div className="glass-card" style={{
+                      borderLeft: '3px solid var(--accent-cyan)',
+                      background: 'linear-gradient(135deg, rgba(0,212,255,0.06) 0%, transparent 60%)',
+                    }}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                          background: 'rgba(0,212,255,0.12)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <BarChart3 size={16} style={{ color: 'var(--accent-cyan)' }} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Risk Scoring Engine</div>
+                          <div className="text-xs text-muted">{audit.scoring_stats.total_scored} findings scored</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div className="stat-value" style={{ fontSize: '1.4rem', color: 'var(--accent-cyan)' }}>
+                            {audit.scoring_stats.overall_risk_score.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-muted">Overall Risk</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div className="stat-value" style={{ fontSize: '1.4rem', color: 'var(--color-success)' }}>
+                            {audit.scoring_stats.boosted}
+                          </div>
+                          <div className="text-xs text-muted">Boosted</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div className="stat-value" style={{ fontSize: '1.4rem', color: 'var(--color-warning)' }}>
+                            {audit.scoring_stats.downgraded}
+                          </div>
+                          <div className="text-xs text-muted">Downgraded</div>
+                        </div>
+                      </div>
+                      {audit.scoring_stats.top_risk_summary && (
+                        <div style={{
+                          padding: '8px 12px',
+                          background: 'rgba(0,0,0,0.2)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.78rem',
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.5,
+                          fontFamily: 'var(--font-mono)',
+                        }}>
+                          {audit.scoring_stats.top_risk_summary}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Robot Rules */}
-              {secReport.robot_rules_disallowed.length > 0 && (
-                <div className="glass-card">
+              {/* Normalization Summary */}
+              {audit && (
+                <div className="glass-card" style={{ padding: '16px 20px' }}>
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="stat-icon red"><AlertTriangle size={20} /></div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Disallowed Robot Paths</div>
-                      <div className="text-xs text-muted">{secReport.robot_rules_disallowed.length} paths restricted via robots.txt</div>
+                    <Activity size={16} style={{ color: 'var(--accent-violet)' }} />
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.88rem' }}>Audit Pipeline Summary</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Raw → Accepted</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)' }}>{audit.total_findings} → {audit.accepted_findings}</div>
+                    </div>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Rejected</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#f87171' }}>{audit.rejected_findings}</div>
+                    </div>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Canonical</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#93c5fd' }}>{audit.canonical_findings?.length || 0}</div>
+                    </div>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Attack Paths</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#fca5a5' }}>{audit.attack_paths?.length || 0}</div>
+                    </div>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Correlations</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#c4b5fd' }}>{audit.correlations?.length || 0}</div>
+                    </div>
+                    <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="text-xs text-muted">Dynamic Rules</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#fbbf24' }}>{audit.dynamic_rule_findings?.length || 0}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6 }}>
-                    {secReport.robot_rules_disallowed.map((r, i) => (
-                      <div key={i} className="text-sm mono" style={{ color: 'var(--accent-cyan)', padding: '6px 10px', background: 'rgba(0, 212, 255, 0.05)', borderRadius: 6, border: '1px solid rgba(0, 212, 255, 0.1)' }}>{r}</div>
-                    ))}
-                  </div>
                 </div>
               )}
 
-              {secReport.missing_headers.length === 0 && secReport.recommendations.length === 0 && secReport.robot_rules_disallowed.length === 0 && (
+              {/* Security Headers & Recommendations from /audit-security */}
+              {secReport && (
+                <>
+                  {secReport.missing_headers.length > 0 && (
+                    <div className="glass-card">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="stat-icon amber"><Lock size={20} /></div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Missing Security Headers</div>
+                          <div className="text-xs text-muted">{secReport.missing_headers.length} headers not found on the target</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {secReport.missing_headers.map((h, i) => (
+                          <span key={i} className="badge badge-warning">{h}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {secReport.recommendations.length > 0 && (
+                    <div className="glass-card">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="stat-icon green"><CheckCircle2 size={20} /></div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Recommendations</div>
+                          <div className="text-xs text-muted">{secReport.recommendations.length} actionable items</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {secReport.recommendations.map((r, i) => (
+                          <div key={i} className="evidence-item">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight size={14} color="var(--color-success)" />
+                              <span className="text-sm text-secondary">{r}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {secReport.robot_rules_disallowed.length > 0 && (
+                    <div className="glass-card">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="stat-icon red"><AlertTriangle size={20} /></div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Disallowed Robot Paths</div>
+                          <div className="text-xs text-muted">{secReport.robot_rules_disallowed.length} paths restricted via robots.txt</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6 }}>
+                        {secReport.robot_rules_disallowed.map((r, i) => (
+                          <div key={i} className="text-sm mono" style={{ color: 'var(--accent-cyan)', padding: '6px 10px', background: 'rgba(0, 212, 255, 0.05)', borderRadius: 6, border: '1px solid rgba(0, 212, 255, 0.1)' }}>{r}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!secReport && !audit && (
                 <div className="empty-state">
-                  <div className="empty-state-icon"><CheckCircle2 size={36} /></div>
-                  <div className="empty-state-title">Clean Security Report</div>
-                  <div className="empty-state-text">No missing headers, no restricted robot paths, and no additional recommendations.</div>
+                  <div className="empty-state-icon"><Shield size={36} /></div>
+                  <div className="empty-state-title">No Security Data</div>
+                  <div className="empty-state-text">Run an audit to see the full normalized security analysis.</div>
                 </div>
               )}
-            </div>
-          )}
-          {tab === 'overview' && !secReport && (
-            <div className="empty-state">
-              <div className="empty-state-icon"><Shield size={36} /></div>
-              <div className="empty-state-title">No Security Data</div>
-              <div className="empty-state-text">Run an audit to see security overview results from the /audit-security endpoint.</div>
+
+              {/* Partial Scan Warning at the bottom of Overview */}
+              <PartialScanWarning report={report} />
             </div>
           )}
 
@@ -257,6 +420,7 @@ export default function AuditPage() {
                       <th>Finding</th>
                       <th>Severity</th>
                       <th>Confidence</th>
+                      <th>Verification</th>
                       <th>Exploitability</th>
                       <th>Evidence</th>
                       <th>Risk Score</th>
@@ -266,19 +430,25 @@ export default function AuditPage() {
                   <tbody>
                     {audit.canonical_findings.map((f) => (
                       <tr key={f.id}>
-                        <td style={{ maxWidth: 280 }}>
+                        <td style={{ minWidth: 200, maxWidth: 350, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => setSelectedFinding(f)}>
                             {f.title}
                           </div>
-                          <div className="text-xs text-muted mono">{f.canonical_slug}</div>
+                          <div className="slug-text" title={f.canonical_slug}>{f.canonical_slug}</div>
                           <div className="flex gap-2 mt-2" style={{ flexWrap: 'wrap' }}>
                             {f.attack_surface_tags.slice(0, 3).map((t, i) => (
                               <span key={i} className="badge badge-neutral" style={{ fontSize: '0.6rem' }}>{t}</span>
                             ))}
                           </div>
                         </td>
-                        <td><SeverityBadge severity={f.severity} /></td>
-                        <td><span className="badge badge-blue">{f.confidence}</span></td>
+                        <td style={{ width: '80px' }}><SeverityBadge severity={f.severity} /></td>
+                        <td style={{ width: '120px' }}><span className="badge badge-blue">{f.confidence}</span></td>
+                        <td>
+                          <span className={`badge badge-${f.verification_status === 'verified_actionable' ? 'success' : f.verification_status === 'verified_inert' ? 'neutral' : f.verification_status === 'verification_failed' ? 'danger' : 'warning'}`}
+                            style={{ fontSize: '0.62rem' }}>
+                            {f.verification_status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
                         <td>
                           {f.exploitability_level && (
                             <span className={`badge badge-${f.exploitability_level === 'actionable' ? 'danger' : f.exploitability_level === 'theoretical' ? 'warning' : 'neutral'}`}>
@@ -296,9 +466,12 @@ export default function AuditPage() {
                           )}
                         </td>
                         <td>
-                          <button className="scan-button" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={() => setSelectedFinding(f)}>
-                            <Eye size={12} /> Detail
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button className="scan-button" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={() => setSelectedFinding(f)}>
+                              <Eye size={12} /> Detail
+                            </button>
+                            <FindingFeedback findingId={f.canonical_slug} compact />
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -327,7 +500,7 @@ export default function AuditPage() {
                   <tbody>
                     {audit.findings.map((f) => (
                       <tr key={f.id}>
-                        <td style={{ maxWidth: 300 }}>
+                        <td style={{ minWidth: 200, maxWidth: 350, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => setSelectedRawFinding(f)}>
                             {f.summary}
                           </div>
@@ -477,8 +650,8 @@ export default function AuditPage() {
                         </td>
                         <td><SeverityBadge severity={f.severity} /></td>
                         <td><span className="badge badge-blue">{f.confidence}</span></td>
-                        <td className="text-sm mono">{f.matched_target}</td>
-                        <td className="text-sm text-secondary">{f.evidence_summary}</td>
+                        <td className="text-sm mono" style={{ maxWidth: 200, whiteSpace: 'normal', wordBreak: 'break-all' }}>{f.matched_target}</td>
+                        <td className="text-sm text-secondary" style={{ maxWidth: 250, whiteSpace: 'normal', wordBreak: 'break-word' }}>{f.evidence_summary}</td>
                         <td>
                           {f.reputation_score !== undefined && (
                             <span className="mono" style={{ fontWeight: 600 }}>{(f.reputation_score * 100).toFixed(0)}%</span>
@@ -494,14 +667,75 @@ export default function AuditPage() {
               </div>
             </div>
           )}
+
+          {/* Pipeline / Normalization Log */}
+          {tab === 'pipeline' && audit && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Timeline */}
+              <div className="glass-card">
+                <div className="flex items-center gap-3 mb-4">
+                  <Activity size={16} style={{ color: 'var(--accent-violet)' }} />
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Normalization Pipeline Log</span>
+                  <span className="badge badge-neutral" style={{ marginLeft: 'auto', fontSize: '0.65rem' }}>{audit.normalization_log?.length || 0} steps</span>
+                </div>
+                <div style={{ position: 'relative', paddingLeft: 24 }}>
+                  {/* Timeline line */}
+                  <div style={{
+                    position: 'absolute', left: 7, top: 4, bottom: 4, width: 2,
+                    background: 'linear-gradient(180deg, var(--accent-violet), rgba(139,92,246,0.1))',
+                    borderRadius: 1,
+                  }} />
+                  {(audit.normalization_log || []).map((log, i) => (
+                    <div key={i} style={{
+                      position: 'relative',
+                      paddingBottom: i < (audit.normalization_log?.length || 0) - 1 ? 12 : 0,
+                    }}>
+                      {/* Timeline dot */}
+                      <div style={{
+                        position: 'absolute', left: -20, top: 4,
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: i === 0 ? 'var(--accent-violet)' : 'rgba(139,92,246,0.3)',
+                        boxShadow: i === 0 ? '0 0 8px rgba(139,92,246,0.5)' : 'none',
+                        border: '2px solid rgba(139,92,246,0.2)',
+                      }} />
+                      <div style={{
+                        fontSize: '0.78rem',
+                        color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontFamily: 'var(--font-mono)',
+                        lineHeight: 1.5,
+                        padding: '2px 10px',
+                        background: i === 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
+                        borderRadius: 'var(--radius-sm)',
+                      }}>
+                        <span style={{ color: 'var(--text-muted)', marginRight: 8, fontSize: '0.65rem' }}>#{i + 1}</span>
+                        {log}
+                      </div>
+                    </div>
+                  ))}
+                  {(!audit.normalization_log || audit.normalization_log.length === 0) && (
+                    <div className="text-sm text-muted" style={{ paddingLeft: 8 }}>No normalization log entries recorded.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {!report && !loading && !error && (
+        <EmptyState
+          icon={<Shield size={36} />}
+          title="Security Audit"
+          description="Enter a URL to run the full security audit pipeline: Normalization → Correlation → Risk Scoring → Context-Aware Analysis → Attack Path Detection."
+        />
+      )}
+      </div>
 
       {/* Finding Detail Drawer */}
       {selectedFinding && (
         <>
           <div className="detail-drawer-overlay" onClick={() => setSelectedFinding(null)} />
-          <div className="detail-drawer slide-in">
+          <div className="detail-drawer modal-in">
             <button className="detail-drawer-close" onClick={() => setSelectedFinding(null)}><X size={16} /></button>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 4 }}>{selectedFinding.title}</h2>
             <div className="text-xs mono text-muted mb-6">{selectedFinding.canonical_slug}</div>
@@ -593,7 +827,7 @@ export default function AuditPage() {
       {selectedRawFinding && (
         <>
           <div className="detail-drawer-overlay" onClick={() => setSelectedRawFinding(null)} />
-          <div className="detail-drawer slide-in">
+          <div className="detail-drawer modal-in">
             <button className="detail-drawer-close" onClick={() => setSelectedRawFinding(null)}><X size={16} /></button>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 4 }}>{selectedRawFinding.summary}</h2>
             <div className="text-xs mono text-muted mb-6">{selectedRawFinding.id}</div>
@@ -670,14 +904,6 @@ export default function AuditPage() {
           </div>
         </>
       )}
-
-      {!report && !loading && !error && (
-        <EmptyState
-          icon={<Shield size={36} />}
-          title="Security Audit"
-          description="Enter a URL to run the full security audit pipeline: Normalization → Correlation → Risk Scoring → Context-Aware Analysis → Attack Path Detection."
-        />
-      )}
-    </div>
+    </>
   );
 }

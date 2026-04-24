@@ -1,0 +1,50 @@
+id: "DRE-COOKIE-001"
+name: "Insecure Session Cookie"
+description: >
+  A session cookie (sessionid, auth, or token) was detected without
+  HttpOnly, Secure, or SameSite flags. This exposes session tokens to
+  XSS-based theft, man-in-the-middle interception, and CSRF attacks.
+category: "Cookie Security"
+severity: "high"
+default_confidence: "firm"
+priority: 75
+enabled: true
+tags:
+  - cookies
+  - session
+  - owasp-a07
+  - owasp-a02
+compliance_tags:
+  - "PCI-DSS-6.5.10"
+  - "OWASP-A07:2021"
+remediation: >
+  Add HttpOnly, Secure, and SameSite=Strict flags to all session cookies:
+  Set-Cookie: sessionid=xxx; HttpOnly; Secure; SameSite=Strict; Path=/
+condition:
+  all:
+    - header_present:
+        header: "set-cookie"
+    - any:
+        - header_value_contains:
+            header: "set-cookie"
+            value: "sessionid="
+        - header_value_contains:
+            header: "set-cookie"
+            value: "auth="
+        - header_value_contains:
+            header: "set-cookie"
+            value: "token="
+        - header_value_contains:
+            header: "set-cookie"
+            value: "session="
+        - header_value_contains:
+            header: "set-cookie"
+            value: "sid="
+    - not:
+        all:
+          - header_value_contains:
+              header: "set-cookie"
+              value: "HttpOnly"
+          - header_value_contains:
+              header: "set-cookie"
+              value: "Secure"

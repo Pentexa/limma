@@ -11,6 +11,8 @@ use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::mapper::HttpFormMapper;
 use crate::infrastructure::rule_engine::SharedDynamicRuleEngine;
+use crate::infrastructure::burp_bridge::{BurpBridgeManager, SharedBurpBridgeManager};
+use crate::domain::repositories::SecurityAuditorRepository;
 
 pub struct AppState {
     pub user_repo: Arc<PgUserRepository>,
@@ -21,6 +23,8 @@ pub struct AppState {
     pub security_auditor: Arc<HttpSecurityAuditor>,
     pub form_mapper: Arc<HttpFormMapper>,
     pub dynamic_rule_engine: SharedDynamicRuleEngine,
+    pub burp_bridge: SharedBurpBridgeManager,
+    pub delta_engine: Arc<crate::infrastructure::delta_engine::DeltaEngine>,
     pub db_pool: sqlx::PgPool,
     pub jwt_secret: String,
 }
@@ -272,6 +276,12 @@ pub async fn generate_master_report(
     };
 
     let res = use_case.execute(payload.url).await.map_err(AppError::Internal)?;
+    
+    // Save scan to database for historical tracking
+    if let Err(e) = state.delta_engine.save_scan(&res).await {
+        tracing::error!("Failed to save scan to delta engine: {}", e);
+    }
+    
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -467,3 +477,145 @@ pub async fn get_feedback_stats(
         })).collect::<Vec<_>>()
     })))
 }
+
+/// Export scan results to Burp Suite XML format.
+pub async fn export_to_burp(
+    Json(payload): Json<crate::domain::entities::MasterReport>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let burp_export = crate::infrastructure::export::burp::BurpExport::from_master_report(&payload);
+    let xml = burp_export.to_xml();
+    let filename = format!("{}_limma_burp_export.xml",
+        url::Url::parse(&payload.url)
+            .map(|u| u.host_str().unwrap_or("target").to_string())
+            .unwrap_or_else(|_| "target".to_string())
+    );
+
+    Ok(Json(serde_json::json!({
+        "xml": xml,
+        "filename": filename,
+        "item_count": burp_export.items.len()
+    })))
+}
+
+/// Export scan results to Nuclei YAML template format.
+pub async fn export_to_nuclei(
+    Json(payload): Json<crate::domain::entities::MasterReport>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let nuclei_export = crate::infrastructure::export::nuclei::NucleiExport::from_master_report(&payload);
+    let yaml = nuclei_export.to_yaml();
+
+    Ok(Json(serde_json::json!({
+        "yaml": yaml,
+        "template_count": nuclei_export.templates.len()
+    })))
+}
+
+// ── Burp Suite Bridge Handlers ──
+
+/// Handshake endpoint: Burp plugin registers itself and gets a session ID.
+pub async fn burp_handshake(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<crate::domain::entities::BurpHandshakeRequest>,
+) -> Result<Json<crate::domain::entities::BurpHandshakeResponse>, AppError> {
+    let response = state.burp_bridge.create_session(&payload);
+    Ok(Json(response))
+}
+
+/// Import HTTP traffic captured by Burp Suite into LIMMA.
+pub async fn burp_import_traffic(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<crate::domain::entities::BurpImportTrafficRequest>,
+) -> Result<Json<crate::domain::entities::BurpImportTrafficResponse>, AppError> {
+    let response = state.burp_bridge
+        .import_traffic(&payload.session_id, payload.items, &state.dynamic_rule_engine)
+        .map_err(AppError::BadRequest)?;
+    Ok(Json(response))
+}
+
+/// Export LIMMA findings in Burp-native format for a given session.
+pub async fn burp_get_findings(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Result<Json<crate::domain::entities::BurpFindingsResponse>, AppError> {
+    // Verify session exists
+    let session = state.burp_bridge.get_session(&session_id)
+        .ok_or_else(|| AppError::BadRequest(format!("Session not found: {}", session_id)))?;
+
+    // Phase 2: Retrieve findings generated directly from the imported traffic
+    let findings = state.burp_bridge.get_session_findings(&session_id);
+    let total = findings.len();
+
+    Ok(Json(crate::domain::entities::BurpFindingsResponse {
+        session_id,
+        target: session.target_url,
+        findings,
+        total_count: total,
+        generated_at: chrono::Utc::now(),
+    }))
+}
+
+/// SSE endpoint to stream real-time events to the Burp plugin
+pub async fn burp_stream_events(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Result<axum::response::Sse<impl futures::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>>, AppError> {
+    use axum::response::sse::Event;
+    use tokio_stream::StreamExt;
+
+    // Verify session exists and get a subscriber receiver
+    let rx = state.burp_bridge.subscribe_to_events(&session_id)
+        .ok_or_else(|| AppError::BadRequest("Session not found or inactive".to_string()))?;
+
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+        .filter_map(|msg_result| {
+            // broadcast stream can return RecvError::Lagged, we just ignore lagged messages
+            msg_result.ok()
+        })
+        .map(|event| {
+            let json_str = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
+            Ok(Event::default()
+                .event("message") // Standard SSE event type
+                .data(json_str))
+        });
+
+    Ok(axum::response::Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new()))
+}
+
+/// List all active Burp Bridge sessions.
+pub async fn burp_list_sessions(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<crate::domain::entities::BurpBridgeSession>>, AppError> {
+    let sessions = state.burp_bridge.get_all_sessions();
+    Ok(Json(sessions))
+}
+
+// ── Delta Engine Handlers ──
+
+#[derive(serde::Deserialize)]
+pub struct HistoryQuery {
+    target_url: String,
+}
+
+pub async fn get_history_trends(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<Vec<crate::infrastructure::delta_engine::TrendPoint>>, AppError> {
+    let trends = state.delta_engine.get_trends(&query.target_url).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(trends))
+}
+
+#[derive(serde::Deserialize)]
+pub struct DeltaQuery {
+    target_url: String,
+    current_scan_id: uuid::Uuid,
+    previous_scan_id: uuid::Uuid,
+}
+
+pub async fn get_history_delta(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<DeltaQuery>,
+) -> Result<Json<crate::infrastructure::delta_engine::DeltaResult>, AppError> {
+    let delta = state.delta_engine.calculate_delta(&query.target_url, query.current_scan_id, query.previous_scan_id).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(delta))
+}
+

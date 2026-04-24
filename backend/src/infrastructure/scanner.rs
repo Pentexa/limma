@@ -24,6 +24,9 @@ impl HttpWebsiteScanner {
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .redirect(Policy::none()) // Prevent automatic redirects to track them manually
                 .timeout(std::time::Duration::from_secs(30))
+                .pool_max_idle_per_host(10)
+                .pool_idle_timeout(std::time::Duration::from_secs(30))
+                .tcp_keepalive(std::time::Duration::from_secs(15))
                 .build()
                 .unwrap(),
             fingerprinter: fingerprint::FingerprintEngine::new(),

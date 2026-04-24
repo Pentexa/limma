@@ -469,6 +469,11 @@ export interface ContextStats {
   unchanged: number;
 }
 
+export interface CertaintyNote {
+  level: string;
+  reason: string;
+}
+
 export interface ScanStrategyDecision {
   target: string;
   priority: string;
@@ -534,3 +539,33 @@ export interface VerifyPortResponse {
   latency_ms?: number;
   banner?: string;
 }
+
+// ── Delta Engine Types ──
+
+export interface TrendPoint {
+  scan_id: string;
+  timestamp_sec: number;
+  score: number;
+  total_endpoints: number;
+  total_findings: number;
+}
+
+export interface DeltaEndpoint {
+  url: string;
+  method: string;
+}
+
+export interface DeltaFinding {
+  name: string;
+  severity: string;
+  url: string;
+}
+
+export interface DeltaResult {
+  base_scan_id: string;
+  compare_scan_id: string;
+  new_endpoints: DeltaEndpoint[];
+  resolved_findings: DeltaFinding[];
+  new_findings: DeltaFinding[];
+}
+

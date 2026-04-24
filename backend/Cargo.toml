@@ -19,7 +19,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "cookies", "brot
 scraper = "0.20"
 url = "2.5"
 regex = "1.10"
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3.32"
 tokio-rustls = "0.26"
 rustls = { version = "0.23", features = ["ring"] }

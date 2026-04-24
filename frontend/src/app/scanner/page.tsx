@@ -9,11 +9,11 @@ import ErrorAlert from '@/components/ErrorAlert';
 import EmptyState from '@/components/EmptyState';
 import ScanTimeline from '@/components/ScanTimeline';
 import { analyzeSite } from '@/lib/api';
-import { useSSEStream } from '@/lib/useSSEStream';
+import { usePersistentSSEStream } from '@/lib/usePersistentSSEStream';
 import type { WebScanResult } from '@/lib/api';
 import {
   Globe, Cpu, ShieldCheck, AlertTriangle, Clock, ChevronDown, ChevronRight,
-  Wifi, FileText, Layers, Activity, CheckCircle2, XCircle, MinusCircle, AlertCircle
+  Wifi, FileText, Layers, Activity, CheckCircle2, XCircle, MinusCircle, AlertCircle, RotateCcw, Info
 } from 'lucide-react';
 
 function HeaderStatusIcon({ status }: { status: string }) {
@@ -27,7 +27,8 @@ function HeaderStatusIcon({ status }: { status: string }) {
 }
 
 export default function ScannerPage() {
-  const { result, loading, error, events, streaming, execute: handleScan } = useSSEStream<WebScanResult>({
+  const { result, loading, error, events, streaming, execute: handleScan, isRestored, reset } = usePersistentSSEStream<WebScanResult>({
+    moduleId: 'scanner',
     streamEndpoint: '/analyze/stream',
     fetchResult: analyzeSite,
   });
@@ -57,6 +58,32 @@ export default function ScannerPage() {
       )}
 
       {error && <ErrorAlert title="Analysis Failed" message={error} />}
+
+      {isRestored && (
+        <div className="glass-card mb-6" style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 20px',
+          borderLeft: '3px solid rgba(56, 189, 248, 0.5)',
+          background: 'rgba(56, 189, 248, 0.04)',
+        }}>
+          <Info size={16} color="#7dd3fc" />
+          <span style={{ fontSize: '0.85rem', color: '#7dd3fc', flex: 1 }}>
+            Previous scan results restored from session
+          </span>
+          <button
+            onClick={reset}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 12px', fontSize: '0.75rem', fontWeight: 600,
+              background: 'rgba(56, 189, 248, 0.1)', color: '#7dd3fc',
+              border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 6,
+              cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+          >
+            <RotateCcw size={12} /> New Scan
+          </button>
+        </div>
+      )}
 
       {result && (
         <div className="fade-in">

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { isAuthenticated } from '@/lib/auth';
+import { isAuthenticated, verifyToken, logout } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
+import SessionSidebar from '@/components/SessionSidebar';
 
 export default function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,22 +15,42 @@ export default function AppLayoutWrapper({ children }: { children: React.ReactNo
   const isAuthPage = pathname?.startsWith('/auth');
 
   useEffect(() => {
-    const authenticated = isAuthenticated();
+    let cancelled = false;
 
-    if (authenticated) {
-      if (isAuthPage) {
-        // Authenticated user on auth page -> redirect to dashboard
-        router.replace('/');
+    async function validateSession() {
+      // Fast check: no token at all → skip API call
+      if (!isAuthenticated()) {
+        if (!isAuthPage) {
+          router.replace('/auth/login');
+        }
+        if (!cancelled) setAuthState('unauthenticated');
+        return;
+      }
+
+      // Token exists → validate against backend /auth/me
+      const user = await verifyToken();
+
+      if (cancelled) return;
+
+      if (user) {
+        // Token is valid — backend confirmed
+        if (isAuthPage) {
+          router.replace('/');
+        } else {
+          setAuthState('authenticated');
+        }
       } else {
-        setAuthState('authenticated');
+        // Token was invalid/expired — verifyToken already cleared localStorage
+        logout();
+        if (!isAuthPage) {
+          router.replace('/auth/login');
+        }
+        setAuthState('unauthenticated');
       }
-    } else {
-      if (!isAuthPage) {
-        // Unauthenticated user on protected route -> redirect to login
-        router.replace('/auth/login');
-      }
-      setAuthState('unauthenticated');
     }
+
+    validateSession();
+    return () => { cancelled = true; };
   }, [pathname, isAuthPage, router]);
 
   // Auth pages: always render immediately (no guard needed)
@@ -65,7 +86,7 @@ export default function AppLayoutWrapper({ children }: { children: React.ReactNo
       <main className="main-content">
         {children}
       </main>
+      <SessionSidebar />
     </div>
   );
 }
-

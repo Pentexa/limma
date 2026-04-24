@@ -58,7 +58,12 @@ impl HttpInvestigator {
         let mut primary_info = self.analyze_route(url_str, tx.clone()).await?;
         
         let base_url = if let Ok(parsed) = reqwest::Url::parse(&primary_info.resolved_url) {
-            format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or(""))
+            let port_str = if let Some(p) = parsed.port_or_known_default() {
+                format!(":{}", p)
+            } else {
+                "".to_string()
+            };
+            format!("{}://{}{}", parsed.scheme(), parsed.host_str().unwrap_or(""), port_str)
         } else {
             return Ok(primary_info);
         };
@@ -403,20 +408,53 @@ impl HttpInvestigator {
             }
         }
 
-        // Cloudflare
+        // Cloudflare (with Fake CDN Detection)
         {
-            let mut conf = 0.0;
-            let mut ev = Vec::new();
-            if raw_headers.contains_key("cf-ray") {
-                conf += 90.0;
-                ev.push("CF-Ray header detects Cloudflare infrastructure".to_string());
-            }
-            if raw_headers.get("server").is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "cloudflare")) {
-                conf += 80.0;
-                ev.push("Server header broadcasts Cloudflare".to_string());
-            }
-            if conf > 0.0 {
-                add_fp("Cloudflare", "CDN / WAF", conf, ev, "Cloudflare provides DNS layer load-balancing, WAF caching, and edge logic deployment.");
+            let has_cf_ray = raw_headers.contains_key("cf-ray");
+            let has_cf_server = raw_headers.get("server")
+                .is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "cloudflare"));
+            let leaks_version = raw_headers.get("x-powered-by").is_some() ||
+                raw_headers.get("server")
+                    .is_some_and(|c| c.iter().any(|v| v.contains('/')));
+            
+            if has_cf_ray && leaks_version && !has_cf_server {
+                // Fake Cloudflare — real CF never leaks backend versions
+                let mut ev = vec![
+                    "CF-Ray header present but server leaks version info".to_string(),
+                ];
+                if let Some(srv) = raw_headers.get("server") {
+                    ev.push(format!("Server header contains version: {}", srv.join(", ")));
+                }
+                if raw_headers.contains_key("x-powered-by") {
+                    ev.push("X-Powered-By exposed despite alleged CF protection".to_string());
+                }
+                add_fp("Fake Cloudflare Headers", "CDN / WAF", 85.0, ev,
+                    "CF-Ray header is present but the server leaks version information. \
+                     Real Cloudflare proxies strip version headers. This may indicate \
+                     spoofed CDN headers to appear protected, or a misconfigured reverse proxy.");
+            } else if has_cf_ray && has_cf_server && !leaks_version {
+                // Genuine Cloudflare — CF-Ray + Server: cloudflare + no version leak
+                add_fp("Cloudflare", "CDN / WAF", 100.0,
+                    vec![
+                        "CF-Ray header detects Cloudflare infrastructure".to_string(),
+                        "Server header broadcasts Cloudflare".to_string(),
+                        "No version leakage — consistent with real Cloudflare behavior".to_string(),
+                    ],
+                    "Cloudflare provides DNS layer load-balancing, WAF caching, and edge logic deployment.");
+            } else if has_cf_ray {
+                // Partial CF signals
+                let mut conf = 70.0;
+                let mut ev = vec!["CF-Ray header detects possible Cloudflare infrastructure".to_string()];
+                if has_cf_server {
+                    conf += 20.0;
+                    ev.push("Server header broadcasts Cloudflare".to_string());
+                }
+                add_fp("Cloudflare", "CDN / WAF", conf, ev,
+                    "Cloudflare provides DNS layer load-balancing, WAF caching, and edge logic deployment.");
+            } else if has_cf_server {
+                add_fp("Cloudflare", "CDN / WAF", 80.0,
+                    vec!["Server header broadcasts Cloudflare".to_string()],
+                    "Cloudflare provides DNS layer load-balancing, WAF caching, and edge logic deployment.");
             }
         }
 

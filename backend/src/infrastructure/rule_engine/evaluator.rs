@@ -23,6 +23,33 @@ pub fn evaluate_rule(rule: &RuleDefinition, ctx: &RuleContext) -> Option<Dynamic
             calibration_reasons.push(LocalizedMessage::new("dre.calib.auth_route_boost"));
         }
 
+        // ── Safe Context Detection (Epistemic Honesty) ──
+        // If the page appears to be educational/documentation with proper security,
+        // downgrade confidence to reduce false positives
+        let safe_context_score = compute_safe_context_score(ctx);
+        if safe_context_score >= 3 {
+            // Strong safe context: downgrade confidence
+            if effective_confidence == "certain" {
+                effective_confidence = "firm".to_string();
+                calibration_reasons.push(LocalizedMessage::new("dre.calib.safe_context_downgrade")
+                    .with_param("from", "certain")
+                    .with_param("to", "firm")
+                    .with_param("score", &safe_context_score.to_string()));
+            } else if effective_confidence == "firm" {
+                effective_confidence = "tentative".to_string();
+                calibration_reasons.push(LocalizedMessage::new("dre.calib.safe_context_downgrade")
+                    .with_param("from", "firm")
+                    .with_param("to", "tentative")
+                    .with_param("score", &safe_context_score.to_string()));
+            }
+            // Also downgrade severity in very safe contexts (score >= 5)
+            if safe_context_score >= 5 {
+                if effective_severity == "high" { effective_severity = "medium".to_string(); }
+                else if effective_severity == "medium" { effective_severity = "low".to_string(); }
+                calibration_reasons.push(LocalizedMessage::new("dre.calib.safe_context_severity_downgrade"));
+            }
+        }
+
         Some(DynamicRuleFinding {
             rule_id: rule.id.clone(),
             rule_name: rule.name.clone(),
@@ -132,15 +159,72 @@ fn evaluate_node(node: &RuleConditionNode, ctx: &RuleContext, evidence: &mut Vec
 
         RuleConditionNode::BodyContains { value } => {
             if let Some(ref body) = ctx.body {
-                let matches = body.to_lowercase().contains(&value.to_lowercase());
-                let detail = LocalizedMessage::new("dre.trace.body_contains")
-                    .with_param("expected", &truncate(value, 30))
-                    .with_param("matches", &matches.to_string());
+                let body_lower = body.to_lowercase();
+                let value_lower = value.to_lowercase();
+                let matches = body_lower.contains(&value_lower);
+                
+                // HTML Entity awareness: detect if the match is only escaped HTML
+                let is_html_tag = value.contains('<') || value.contains('>');
+                let escaped_value = value.replace('<', "&lt;").replace('>', "&gt;");
+                let only_escaped = !matches && body_lower.contains(&escaped_value.to_lowercase());
+                
+                let detail = if only_escaped {
+                    // Body contains the escaped version only — likely educational content
+                    LocalizedMessage::new("dre.trace.body_contains_escaped")
+                        .with_param("expected", &truncate(value, 30))
+                        .with_param("matches", "false")
+                        .with_param("note", "Only HTML-escaped version found")
+                } else {
+                    LocalizedMessage::new("dre.trace.body_contains")
+                        .with_param("expected", &truncate(value, 30))
+                        .with_param("matches", &matches.to_string())
+                };
+                
                 if matches { evidence.push(detail.clone()); }
-                EvaluationTrace { condition_type: "body_contains".to_string(), is_met: matches, detail: Some(detail), children: None }
+                // If only escaped version exists, do NOT match — it's not a real vulnerability
+                EvaluationTrace { condition_type: "body_contains".to_string(), is_met: matches && !(is_html_tag && only_escaped), detail: Some(detail), children: None }
             } else {
                 let detail = LocalizedMessage::new("dre.trace.body_empty");
                 EvaluationTrace { condition_type: "body_contains".to_string(), is_met: false, detail: Some(detail), children: None }
+            }
+        }
+
+        RuleConditionNode::BodyContainsDecoded { value } => {
+            if let Some(ref body) = ctx.body {
+                // First check plain text
+                let plain_match = body.to_lowercase().contains(&value.to_lowercase());
+                
+                if plain_match {
+                    let detail = LocalizedMessage::new("dre.trace.body_contains_decoded")
+                        .with_param("expected", &truncate(value, 30))
+                        .with_param("matches", "true")
+                        .with_param("encoding", "plaintext");
+                    evidence.push(detail.clone());
+                    EvaluationTrace { condition_type: "body_contains_decoded".to_string(), is_met: true, detail: Some(detail), children: None }
+                } else {
+                    // Check decoded layers
+                    use super::encoding_detector::EncodingDetector;
+                    match EncodingDetector::body_contains_decoded(body, value) {
+                        Some(decoded) => {
+                            let detail = LocalizedMessage::new("dre.trace.body_contains_decoded")
+                                .with_param("expected", &truncate(value, 30))
+                                .with_param("matches", "true")
+                                .with_param("encoding", &decoded.source);
+                            evidence.push(detail.clone());
+                            EvaluationTrace { condition_type: "body_contains_decoded".to_string(), is_met: true, detail: Some(detail), children: None }
+                        }
+                        None => {
+                            let detail = LocalizedMessage::new("dre.trace.body_contains_decoded")
+                                .with_param("expected", &truncate(value, 30))
+                                .with_param("matches", "false")
+                                .with_param("encoding", "none");
+                            EvaluationTrace { condition_type: "body_contains_decoded".to_string(), is_met: false, detail: Some(detail), children: None }
+                        }
+                    }
+                }
+            } else {
+                let detail = LocalizedMessage::new("dre.trace.body_empty");
+                EvaluationTrace { condition_type: "body_contains_decoded".to_string(), is_met: false, detail: Some(detail), children: None }
             }
         }
 
@@ -215,4 +299,44 @@ fn truncate(s: &str, max_len: usize) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Computes a "safe context" score based on multiple indicators.
+/// A score of 3+ indicates the page is likely educational/documentation
+/// and findings should have reduced confidence.
+fn compute_safe_context_score(ctx: &RuleContext) -> u32 {
+    let mut score: u32 = 0;
+    
+    let body = ctx.body.as_deref().unwrap_or("");
+    let body_lower = body.to_lowercase();
+    
+    // 1. Escaped HTML entities (educational content showing code examples)
+    if body.contains("&lt;script&gt;") || body.contains("&lt;iframe&gt;") || body.contains("&amp;lt;") {
+        score += 1;
+    }
+    
+    // 2. Educational/documentation keywords
+    let edu_keywords = ["educational", "documentation", "tutorial", "example", "lesson", "training", "course"];
+    let edu_count = edu_keywords.iter().filter(|kw| body_lower.contains(*kw)).count();
+    if edu_count >= 1 { score += 1; }
+    if edu_count >= 3 { score += 1; } // Extra point for multiple edu keywords
+    
+    // 3. Code comment patterns (showing code examples, not actual vulnerabilities)
+    if body.contains("// This is sample") || body.contains("// Example") 
+        || body.contains("/* ") || body.contains("```") {
+        score += 1;
+    }
+    
+    // 4. Strong security headers present (well-configured site)
+    if ctx.headers.contains_key("content-security-policy") {
+        score += 1;
+    }
+    if ctx.headers.contains_key("x-frame-options") {
+        score += 1;
+    }
+    if ctx.headers.contains_key("strict-transport-security") {
+        score += 1;
+    }
+    
+    score
 }
