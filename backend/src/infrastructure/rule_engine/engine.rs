@@ -180,15 +180,14 @@ impl DynamicRuleEngine {
             "/example",
         ];
         for pattern in &safe_patterns {
-            if url_lower.contains(pattern) {
-                if rule.priority < 80 {
+            if url_lower.contains(pattern)
+                && rule.priority < 80 {
                     tracing::debug!(
                         "[ContextFilter] Skipping low-priority rule {} (priority={}) on safe path: {}",
                         rule.id, rule.priority, ctx.url
                     );
                     return false;
                 }
-            }
         }
 
         true

@@ -293,7 +293,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
                 "[DynamicRuleEngine] Building evaluation context from scan data...".to_string(),
             );
 
-            let page_body = web_scan.pages.first().and_then(|p| {
+            let page_body = web_scan.pages.first().and({
                 // Extract body from the first crawled page if available
                 // The body isn't stored in ScannedPage, so use headers to build context
                 None::<&str>

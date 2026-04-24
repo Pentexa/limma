@@ -1290,7 +1290,7 @@ pub enum BurpSseEvent {
     #[serde(rename = "heartbeat")]
     Heartbeat { timestamp: i64 },
     #[serde(rename = "finding_detected")]
-    FindingDetected(BurpNativeFinding),
+    FindingDetected(Box<BurpNativeFinding>),
     #[serde(rename = "sync_status")]
     SyncStatus {
         status: BurpSessionStatus,

@@ -53,8 +53,6 @@ pub fn audit_headers(headers: &HashMap<String, String>) -> Vec<SecurityHeaderRes
                 } else {
                     SecurityHeaderStatus::Present
                 }
-            } else if val.contains("max-age") {
-                SecurityHeaderStatus::Weak // max-age present but unparseable
             } else {
                 SecurityHeaderStatus::Weak
             };
@@ -279,7 +277,7 @@ pub fn generate_insights(
     // 3. Exposed Server Identity (Only if version is likely exposed)
     if let Some(server) = headers.get("server") {
         // Check for version pattern (e.g. nginx/1.18.0, Apache/2.4.49)
-        let has_version = regex::Regex::new(r"\d+\.\d+").map_or(false, |re| re.is_match(server));
+        let has_version = regex::Regex::new(r"\d+\.\d+").is_ok_and(|re| re.is_match(server));
         if has_version {
             insights.push(RiskInsight {
                 title: "Exposed Server Identity".to_string(),

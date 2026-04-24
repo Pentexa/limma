@@ -69,13 +69,7 @@ impl EncodingDetector {
         let decoded_layers = Self::detect_and_decode(body);
         let value_lower = value.to_lowercase();
 
-        for layer in decoded_layers {
-            if layer.content.to_lowercase().contains(&value_lower) {
-                return Some(layer);
-            }
-        }
-
-        None
+        decoded_layers.into_iter().find(|layer| layer.content.to_lowercase().contains(&value_lower))
     }
 }
 

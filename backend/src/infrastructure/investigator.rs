@@ -633,7 +633,7 @@ impl HttpInvestigator {
             let has_cf_server = raw_headers
                 .get("server")
                 .is_some_and(|c| c.iter().any(|v| v.to_lowercase() == "cloudflare"));
-            let leaks_version = raw_headers.get("x-powered-by").is_some()
+            let leaks_version = raw_headers.contains_key("x-powered-by")
                 || raw_headers
                     .get("server")
                     .is_some_and(|c| c.iter().any(|v| v.contains('/')));

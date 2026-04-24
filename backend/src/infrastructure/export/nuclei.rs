@@ -63,8 +63,7 @@ impl NucleiExport {
             "limma-{}",
             finding
                 .canonical_slug
-                .replace('/', "-")
-                .replace(' ', "-")
+                .replace(['/', ' '], "-")
                 .to_lowercase()
         );
         let tags = build_tags(finding);

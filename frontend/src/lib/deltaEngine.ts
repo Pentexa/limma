@@ -77,10 +77,10 @@ export function calculateDelta(current: ScanSession, previous: ScanSession): Del
 
   // 4. APIs
   const currentApis = new Set(
-    (currentMaster.api_discovery?.detected_endpoints || []).map((e) => `${e.method} ${e.path}`)
+    (currentMaster.api_discovery?.detected_endpoints || []).map((e) => `${e.method_prediction} ${e.path}`)
   );
   const previousApis = new Set(
-    (previousMaster.api_discovery?.detected_endpoints || []).map((e) => `${e.method} ${e.path}`)
+    (previousMaster.api_discovery?.detected_endpoints || []).map((e) => `${e.method_prediction} ${e.path}`)
   );
 
   currentApis.forEach((api) => {
