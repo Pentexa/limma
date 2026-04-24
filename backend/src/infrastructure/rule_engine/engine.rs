@@ -324,7 +324,7 @@ impl DynamicRuleEngine {
 
         // 2. Resolve grouped by picking highest priority
         for (_, mut group) in by_dedup {
-            group.sort_by(|a, b| b.priority.cmp(&a.priority)); // Descending priority
+            group.sort_by_key(|b| std::cmp::Reverse(b.priority)); // Descending priority
             if let Some(top) = group.into_iter().next() {
                 active_findings.push(top);
             }

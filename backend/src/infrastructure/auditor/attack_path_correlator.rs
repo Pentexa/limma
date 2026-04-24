@@ -49,7 +49,7 @@ impl AttackPathEngine {
         }
 
         // Sort by risk
-        unique_paths.sort_by(|a, b| b.attack_path_score.cmp(&a.attack_path_score));
+        unique_paths.sort_by_key(|b| std::cmp::Reverse(b.attack_path_score));
         unique_paths
     }
 
