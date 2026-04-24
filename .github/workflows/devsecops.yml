@@ -61,20 +61,7 @@ jobs:
         run: |
           cd limma-burp-plugin
           chmod +x gradlew
-          ./gradlew clean build -x test --no-daemon
-
-      - name: Setup Node
-        if: matrix.language == 'javascript-typescript'
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Build JS Frontend
-        if: matrix.language == 'javascript-typescript'
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+          ./gradlew clean assemble -x test --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

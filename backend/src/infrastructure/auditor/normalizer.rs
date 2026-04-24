@@ -29,7 +29,9 @@ fn header_severity(name: &str, status: &SecurityHeaderStatus) -> SeverityLevel {
             return SeverityLevel::Medium;
         } // max-age=0
         SeverityLevel::Medium // Missing HSTS enables SSL stripping
-    } else if name_lower.contains("x-frame-options") || name_lower.contains("x-content-type-options") {
+    } else if name_lower.contains("x-frame-options")
+        || name_lower.contains("x-content-type-options")
+    {
         SeverityLevel::Medium // Missing enables clickjacking or MIME sniffing attacks
     } else if name_lower.contains("access-control") {
         if is_weak {

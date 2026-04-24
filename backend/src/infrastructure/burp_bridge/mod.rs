@@ -146,7 +146,9 @@ impl BurpBridgeManager {
                     .ok()
                     .and_then(|c| c.get(session_id).cloned())
                 {
-                    let _ = tx.send(BurpSseEvent::FindingDetected(Box::new(native_finding.clone())));
+                    let _ = tx.send(BurpSseEvent::FindingDetected(Box::new(
+                        native_finding.clone(),
+                    )));
                 }
 
                 burp_findings.push(native_finding);
