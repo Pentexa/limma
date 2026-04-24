@@ -46,19 +46,22 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
+      - name: Fix LD_LIBRARY_PATH format
+        run: echo "LD_LIBRARY_PATH=/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib" >> "$GITHUB_ENV"
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: ./backend
 
       - name: Check formatting
-        run: env -u LD_LIBRARY_PATH cargo fmt --check
+        run: cargo fmt --check
 
       - name: Lint with Clippy
-        run: env -u LD_LIBRARY_PATH cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Run tests
-        run: env -u LD_LIBRARY_PATH cargo test
+        run: cargo test
         env:
           DATABASE_URL: postgres://postgres:password@127.0.0.1:5432/limma?sslmode=disable
 
@@ -73,6 +76,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Fix LD_LIBRARY_PATH format
+        run: echo "LD_LIBRARY_PATH=/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib" >> "$GITHUB_ENV"
+
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
 
@@ -80,5 +86,5 @@ jobs:
         run: cargo binstall cargo-audit -y --force
 
       - name: Run cargo audit
-        run: env -u LD_LIBRARY_PATH cargo audit
+        run: cargo audit
         continue-on-error: true
