@@ -1,0 +1,90 @@
+name: 'Limma Security Recon'
+description: |
+  Automated reconnaissance and security triage for CI/CD pipelines.
+  Detects attack surface changes, security misconfigurations, and
+  provides prioritized findings with ML-based scoring.
+
+author: 'Limma IO'
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  target:
+    description: 'Target URL to scan (e.g., https://staging.example.com)'
+    required: true
+
+  fail-on-p1:
+    description: 'Fail the pipeline if P1 (critical) finding is detected'
+    required: false
+    default: 'false'
+
+  fail-on-p2:
+    description: 'Fail the pipeline if P2 (high) finding is detected'
+    required: false
+    default: 'false'
+
+  timeout:
+    description: 'Scan timeout in minutes'
+    required: false
+    default: '10'
+
+  webhook:
+    description: 'Slack/Teams webhook URL for notifications'
+    required: false
+
+  api-key:
+    description: 'Limma API key for authenticated scans (placeholder)'
+    required: false
+
+  output-format:
+    description: 'Output format: json, sarif, markdown'
+    required: false
+    default: 'json'
+
+  correlation-mode:
+    description: 'Enable cross-module correlation analysis'
+    required: false
+    default: 'true'
+
+outputs:
+  scan-id:
+    description: 'Unique scan identifier'
+
+  report-url:
+    description: 'URL to detailed scan report'
+
+  findings-count:
+    description: 'Total number of findings detected'
+
+  p1-count:
+    description: 'Number of P1 (critical) findings'
+
+  p2-count:
+    description: 'Number of P2 (high) findings'
+
+  security-score:
+    description: 'Overall security health score (0-100)'
+
+  new-endpoints:
+    description: 'JSON array of newly discovered endpoints'
+
+  delta-report:
+    description: 'Changes since previous scan (if historical data exists)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    LIMMA_TARGET: ${{ inputs.target }}
+    LIMMA_TIMEOUT: ${{ inputs.timeout }}
+    LIMMA_OUTPUT_FORMAT: ${{ inputs.output-format }}
+    LIMMA_FAIL_ON_P1: ${{ inputs.fail-on-p1 }}
+    LIMMA_FAIL_ON_P2: ${{ inputs.fail-on-p2 }}
+    LIMMA_API_KEY: ${{ inputs.api-key }}
+    LIMMA_CORRELATION: ${{ inputs.correlation-mode }}
+    LIMMA_WEBHOOK: ${{ inputs.webhook }}
+    # GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_REF,
+    # GITHUB_EVENT_NAME, GITHUB_RUN_ID are auto-injected by the
+    # GitHub Actions runtime — no need to redeclare them here.
+

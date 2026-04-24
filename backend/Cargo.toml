@@ -3,7 +3,21 @@ name = "limma"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "limma"
+path = "src/main.rs"
+
+[[bin]]
+name = "limma-cli"
+path = "src/cli/main.rs"
+required-features = ["cli"]
+
+[features]
+default = []
+cli = ["clap"]
+
 [dependencies]
+clap = { version = "4.4", features = ["derive"], optional = true }
 tokio = { version = "1.0", features = ["full"] }
 axum = "0.7.1"
 serde = { version = "1.0", features = ["derive"] }
