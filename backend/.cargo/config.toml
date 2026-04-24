@@ -1,2 +1,2 @@
 [build]
-target-dir = "C:/rust-targets/limma-backend"
+target-dir = "target"
