@@ -387,4 +387,3 @@ pub struct ScanFindingDetail {
     pub url: String,
     pub status: String,
 }
-

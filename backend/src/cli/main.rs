@@ -11,8 +11,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "limma")]
 #[command(version)]
 #[command(about = "Limma — Security Reconnaissance CLI")]
-#[command(
-    long_about = "Limma — Security Reconnaissance CLI\n\n\
+#[command(long_about = "Limma — Security Reconnaissance CLI\n\n\
     Run security scans, compare results, and manage findings from the terminal.\n\n\
     Examples:\n  \
       limma scan https://example.com\n  \
@@ -22,11 +21,15 @@ use clap::{Parser, Subcommand};
       limma history https://example.com\n  \
       limma compare CURRENT_ID PREVIOUS_ID\n  \
       limma audit https://example.com\n  \
-      limma rules"
-)]
+      limma rules")]
 struct Cli {
     /// Backend API base URL
-    #[arg(long, global = true, default_value = "http://localhost:8900", env = "LIMMA_API_URL")]
+    #[arg(
+        long,
+        global = true,
+        default_value = "http://localhost:8900",
+        env = "LIMMA_API_URL"
+    )]
     api_url: String,
 
     /// API key for authenticated access
@@ -223,7 +226,15 @@ async fn main() -> Result<()> {
             fmt,
         } => {
             cmd_scan(
-                &client, &url, timeout, ci, correlate, meta_repo, meta_sha, meta_ref, meta_run_id,
+                &client,
+                &url,
+                timeout,
+                ci,
+                correlate,
+                meta_repo,
+                meta_sha,
+                meta_ref,
+                meta_run_id,
                 &fmt,
             )
             .await
@@ -240,7 +251,9 @@ async fn main() -> Result<()> {
         Commands::Investigate { url, fmt } => cmd_module(&client, "investigate", &url, &fmt).await,
         Commands::Audit { url, fmt } => cmd_module(&client, "audit-security", &url, &fmt).await,
         Commands::Discover { url, fmt } => cmd_module(&client, "discover-apis", &url, &fmt).await,
-        Commands::Services { url, fmt } => cmd_module(&client, "collect-services", &url, &fmt).await,
+        Commands::Services { url, fmt } => {
+            cmd_module(&client, "collect-services", &url, &fmt).await
+        }
         Commands::Forms { url, fmt } => cmd_module(&client, "map-forms", &url, &fmt).await,
         Commands::Rules => cmd_rules(&client).await,
         Commands::Version => {
@@ -307,7 +320,10 @@ async fn cmd_scan(
         let score = formatter::extract_score(&result);
 
         eprintln!();
-        eprintln!("📊 Summary: {}/100 score, {} findings ({}🔴 {}🟠)", score, findings, p1, p2);
+        eprintln!(
+            "📊 Summary: {}/100 score, {} findings ({}🔴 {}🟠)",
+            score, findings, p1, p2
+        );
         eprintln!("✅ Done");
     }
 
@@ -316,11 +332,7 @@ async fn cmd_scan(
 
 // ── result ───────────────────────────────────────────────────────────────────
 
-async fn cmd_result(
-    client: &scanner::LimmaClient,
-    scan_id: &str,
-    fmt: &FormatFlags,
-) -> Result<()> {
+async fn cmd_result(client: &scanner::LimmaClient, scan_id: &str, fmt: &FormatFlags) -> Result<()> {
     eprintln!("📥 Fetching scan {}...", scan_id);
 
     let result = client.get_scan_by_id(scan_id).await?;
@@ -338,7 +350,10 @@ async fn cmd_result(
     let findings = result["total_findings"].as_i64().unwrap_or(0);
     let target = result["target_url"].as_str().unwrap_or("—");
 
-    eprintln!("📊 {} — {:.0}/100, {} endpoints, {} findings", target, score, endpoints, findings);
+    eprintln!(
+        "📊 {} — {:.0}/100, {} endpoints, {} findings",
+        target, score, endpoints, findings
+    );
 
     Ok(())
 }
@@ -368,15 +383,22 @@ fn format_scan_detail_md(result: &serde_json::Value) -> String {
 
     if let Some(findings) = result["findings"].as_array() {
         if !findings.is_empty() {
-            md.push_str("## Findings\n\n| Sev | Name | URL | Status |\n|-----|------|-----|--------|\n");
+            md.push_str(
+                "## Findings\n\n| Sev | Name | URL | Status |\n|-----|------|-----|--------|\n",
+            );
             for f in findings {
                 let sev = f["severity"].as_str().unwrap_or("?");
                 let icon = match sev {
-                    "Critical" => "🔴", "High" => "🟠", "Medium" => "🟡", "Low" => "🟢", _ => "⚪"
+                    "Critical" => "🔴",
+                    "High" => "🟠",
+                    "Medium" => "🟡",
+                    "Low" => "🟢",
+                    _ => "⚪",
                 };
                 md.push_str(&format!(
                     "| {}{} | {} | {} | {} |\n",
-                    icon, sev,
+                    icon,
+                    sev,
                     f["name"].as_str().unwrap_or("—"),
                     f["url"].as_str().unwrap_or(""),
                     f["status"].as_str().unwrap_or("Open"),
@@ -396,7 +418,12 @@ async fn cmd_history(
     target_url: Option<&str>,
     limit: i64,
 ) -> Result<()> {
-    eprintln!("📜 Scan history{}", target_url.map(|t| format!(" for {}", t)).unwrap_or_default());
+    eprintln!(
+        "📜 Scan history{}",
+        target_url
+            .map(|t| format!(" for {}", t))
+            .unwrap_or_default()
+    );
 
     let scans = client.list_scans(target_url, Some(limit)).await?;
     let arr = scans.as_array().cloned().unwrap_or_default();
@@ -422,7 +449,10 @@ async fn cmd_history(
         let ep = s["total_endpoints"].as_i64().unwrap_or(0);
         let fd = s["total_findings"].as_i64().unwrap_or(0);
 
-        println!("{:<38} {:<12} {:>6.0} {:>10} {:>10}", id, date, score, ep, fd);
+        println!(
+            "{:<38} {:<12} {:>6.0} {:>10} {:>10}",
+            id, date, score, ep, fd
+        );
     }
 
     eprintln!("\n{} scans total", arr.len());
@@ -438,7 +468,11 @@ async fn cmd_compare(
     previous: &str,
     fmt: &FormatFlags,
 ) -> Result<()> {
-    eprintln!("🔄 {} vs {}", &current[..8.min(current.len())], &previous[..8.min(previous.len())]);
+    eprintln!(
+        "🔄 {} vs {}",
+        &current[..8.min(current.len())],
+        &previous[..8.min(previous.len())]
+    );
 
     let delta = client.get_delta(target, current, previous).await?;
 
@@ -450,11 +484,23 @@ async fn cmd_compare(
 
     write_output(&formatted, fmt.out.as_deref())?;
 
-    let new_ep = delta["new_endpoints"].as_array().map(|a| a.len()).unwrap_or(0);
-    let new_fd = delta["new_findings"].as_array().map(|a| a.len()).unwrap_or(0);
-    let resolved = delta["resolved_findings"].as_array().map(|a| a.len()).unwrap_or(0);
+    let new_ep = delta["new_endpoints"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let new_fd = delta["new_findings"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let resolved = delta["resolved_findings"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
 
-    eprintln!("📊 +{} endpoints, +{} findings, -{} resolved", new_ep, new_fd, resolved);
+    eprintln!(
+        "📊 +{} endpoints, +{} findings, -{} resolved",
+        new_ep, new_fd, resolved
+    );
     Ok(())
 }
 
@@ -532,7 +578,9 @@ async fn cmd_module(
         formatter::OutputFormat::Json => serde_json::to_string_pretty(&result)?,
         formatter::OutputFormat::Markdown => format!(
             "# {} Report\n\n**Target:** `{}`\n\n```json\n{}\n```\n",
-            label, url, serde_json::to_string_pretty(&result).unwrap_or_default()
+            label,
+            url,
+            serde_json::to_string_pretty(&result).unwrap_or_default()
         ),
         formatter::OutputFormat::Sarif => serde_json::to_string_pretty(&result)?,
     };
@@ -548,9 +596,18 @@ async fn cmd_rules(client: &scanner::LimmaClient) -> Result<()> {
     let status = client.get_rule_engine_status().await?;
 
     let total = status["total_rules"].as_i64().unwrap_or(0);
-    let active = status["active_rules"].as_array().map(|a| a.len()).unwrap_or(0);
-    let load_err = status["load_errors"].as_array().map(|a| a.len()).unwrap_or(0);
-    let val_err = status["validation_errors"].as_array().map(|a| a.len()).unwrap_or(0);
+    let active = status["active_rules"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let load_err = status["load_errors"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let val_err = status["validation_errors"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
 
     println!("📏 Rule Engine — {} total, {} active", total, active);
     println!();
@@ -593,7 +650,10 @@ async fn cmd_rules(client: &scanner::LimmaClient) -> Result<()> {
 
     if load_err > 0 || val_err > 0 {
         println!();
-        for (label, key) in [("Load errors", "load_errors"), ("Validation errors", "validation_errors")] {
+        for (label, key) in [
+            ("Load errors", "load_errors"),
+            ("Validation errors", "validation_errors"),
+        ] {
             if let Some(errs) = status[key].as_array() {
                 if !errs.is_empty() {
                     println!("⚠️  {}:", label);

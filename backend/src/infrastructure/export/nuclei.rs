@@ -1,6 +1,5 @@
 use crate::domain::entities::{
-    CanonicalFinding, ConfidenceLevel, FindingCategory, MasterReport,
-    SeverityLevel,
+    CanonicalFinding, ConfidenceLevel, FindingCategory, MasterReport, SeverityLevel,
 };
 use serde::{Deserialize, Serialize};
 

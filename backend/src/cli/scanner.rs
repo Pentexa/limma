@@ -32,10 +32,7 @@ impl LimmaClient {
     }
 
     /// Attach authorization header if api_key is set.
-    fn authorize(
-        &self,
-        request: reqwest::RequestBuilder,
-    ) -> reqwest::RequestBuilder {
+    fn authorize(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         if let Some(ref key) = self.api_key {
             request.header("Authorization", format!("Bearer {}", key))
         } else {
@@ -210,11 +207,7 @@ impl LimmaClient {
     // ── Private helpers ──────────────────────────────────────────────────────
 
     /// Generic POST with `{ "url": target }` body.
-    async fn post_url_request(
-        &self,
-        endpoint: &str,
-        target: &str,
-    ) -> Result<serde_json::Value> {
+    async fn post_url_request(&self, endpoint: &str, target: &str) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.base_url, endpoint);
         let body = serde_json::json!({ "url": target });
         let request = self.authorize(self.client.post(&url).json(&body));
@@ -226,10 +219,7 @@ impl LimmaClient {
     }
 
     /// Check HTTP response status and parse JSON body.
-    async fn check_response(
-        &self,
-        response: reqwest::Response,
-    ) -> Result<serde_json::Value> {
+    async fn check_response(&self, response: reqwest::Response) -> Result<serde_json::Value> {
         let status = response.status();
         if !status.is_success() {
             let body = response

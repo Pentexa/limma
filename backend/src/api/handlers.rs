@@ -729,10 +729,7 @@ pub async fn get_scan_by_id(
 
     match detail {
         Some(d) => Ok(Json(d)),
-        None => Err(AppError::BadRequest(format!(
-            "Scan not found: {}",
-            scan_id
-        ))),
+        None => Err(AppError::BadRequest(format!("Scan not found: {}", scan_id))),
     }
 }
 
@@ -759,4 +756,3 @@ pub async fn list_scans(
         .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(scans))
 }
-

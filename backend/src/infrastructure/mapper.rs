@@ -42,7 +42,8 @@ impl FormMapperRepository for HttpFormMapper {
             let method = form.value().attr("method").unwrap_or("get").to_string();
 
             let mut fields = Vec::new();
-            let input_selector = Selector::parse("input, select, textarea").expect("valid CSS selector");
+            let input_selector =
+                Selector::parse("input, select, textarea").expect("valid CSS selector");
             for input in form.select(&input_selector) {
                 let name = input.value().attr("name").unwrap_or("unnamed").to_string();
                 let input_type = input.value().attr("type").unwrap_or("text").to_string();

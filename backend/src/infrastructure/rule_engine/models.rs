@@ -99,7 +99,10 @@ impl<'de> Deserialize<'de> for RuleConditionNode {
             )));
         }
 
-        let (key, value) = map.into_iter().next().expect("guaranteed by length check above");
+        let (key, value) = map
+            .into_iter()
+            .next()
+            .expect("guaranteed by length check above");
 
         match key.as_str() {
             "header_missing" => {

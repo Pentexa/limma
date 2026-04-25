@@ -1,6 +1,4 @@
-use crate::domain::entities::{
-    ConfidenceLevel, MasterReport, SeverityLevel,
-};
+use crate::domain::entities::{ConfidenceLevel, MasterReport, SeverityLevel};
 use serde::{Deserialize, Serialize};
 
 /// Burp Suite XML export format.

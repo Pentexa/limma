@@ -37,15 +37,15 @@ impl JsStaticAnalyzer {
         ) {
             for cap in js_api_regex.captures_iter(content) {
                 if let Some(path) = cap.get(1) {
-                if let Some(full_match) = cap.get(0) {
-                    let (snippet, line_num) =
-                        Self::extract_snippet(content, full_match.as_str());
-                    paths_with_evidence.push((
-                        path.as_str().to_string(),
-                        snippet,
-                        "Explicit XHR/fetch call detected".to_string(),
-                        line_num,
-                    ));
+                    if let Some(full_match) = cap.get(0) {
+                        let (snippet, line_num) =
+                            Self::extract_snippet(content, full_match.as_str());
+                        paths_with_evidence.push((
+                            path.as_str().to_string(),
+                            snippet,
+                            "Explicit XHR/fetch call detected".to_string(),
+                            line_num,
+                        ));
                     }
                 }
             }
@@ -54,15 +54,15 @@ impl JsStaticAnalyzer {
         if let Ok(js_tpl_regex) = Regex::new(r#"`(/api/[^`\$]+)\$(?:\{|)[^`]+`"#) {
             for cap in js_tpl_regex.captures_iter(content) {
                 if let Some(path) = cap.get(1) {
-                if let Some(full_match) = cap.get(0) {
-                    let (snippet, line_num) =
-                        Self::extract_snippet(content, full_match.as_str());
-                    paths_with_evidence.push((
-                        format!("{}[VAR]", path.as_str()),
-                        snippet,
-                        "Dynamic API route template literal".to_string(),
-                        line_num,
-                    ));
+                    if let Some(full_match) = cap.get(0) {
+                        let (snippet, line_num) =
+                            Self::extract_snippet(content, full_match.as_str());
+                        paths_with_evidence.push((
+                            format!("{}[VAR]", path.as_str()),
+                            snippet,
+                            "Dynamic API route template literal".to_string(),
+                            line_num,
+                        ));
                     }
                 }
             }
@@ -72,7 +72,9 @@ impl JsStaticAnalyzer {
             Regex::new(r#"(?i)(?:/api/v[0-9]/[a-zA-Z0-9.\-_]+|/api/[a-zA-Z0-9.\-_/]+)"#)
         {
             for cap in path_regex.captures_iter(content) {
-                let Some(full_match) = cap.get(0) else { continue };
+                let Some(full_match) = cap.get(0) else {
+                    continue;
+                };
                 let match_str = full_match.as_str();
                 let (snippet, line_num) = Self::extract_snippet(content, match_str);
                 paths_with_evidence.push((
@@ -91,15 +93,15 @@ impl JsStaticAnalyzer {
                 if let Some(base_path) = cap.get(1) {
                     if base_path.as_str().starts_with("http") || base_path.as_str().starts_with('/')
                     {
-                    if let Some(full_match) = cap.get(0) {
-                        let (snippet, line_num) =
-                            Self::extract_snippet(content, full_match.as_str());
-                        paths_with_evidence.push((
-                            base_path.as_str().to_string(),
-                            snippet,
-                            "Base URL configuration syntax".to_string(),
-                            line_num,
-                        ));
+                        if let Some(full_match) = cap.get(0) {
+                            let (snippet, line_num) =
+                                Self::extract_snippet(content, full_match.as_str());
+                            paths_with_evidence.push((
+                                base_path.as_str().to_string(),
+                                snippet,
+                                "Base URL configuration syntax".to_string(),
+                                line_num,
+                            ));
                         }
                     }
                 }

@@ -1,7 +1,5 @@
 use crate::domain::entities::*;
-use crate::infrastructure::rule_engine::{
-    build_context_from_headers, DynamicRuleEngine,
-};
+use crate::infrastructure::rule_engine::{build_context_from_headers, DynamicRuleEngine};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
@@ -367,8 +365,7 @@ impl BurpBridgeManager {
 
         // 3. Persist traffic items to database
         for item in &items {
-            let req_headers_json =
-                serde_json::to_value(&item.request_headers).unwrap_or_default();
+            let req_headers_json = serde_json::to_value(&item.request_headers).unwrap_or_default();
             let resp_headers_json =
                 serde_json::to_value(&item.response_headers).unwrap_or_default();
 
