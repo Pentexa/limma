@@ -1,6 +1,6 @@
-/// Encoding Detection Layer for the Dynamic Rule Engine.
-/// Provides multi-layer content decoding (Unicode escapes, Base64, URL encoding)
-/// to detect obfuscated payloads that bypass simple string matching.
+//! Encoding Detection Layer for the Dynamic Rule Engine.
+//! Provides multi-layer content decoding (Unicode escapes, Base64, URL encoding)
+//! to detect obfuscated payloads that bypass simple string matching.
 
 /// Represents a decoded content fragment with its source encoding.
 #[derive(Debug, Clone)]

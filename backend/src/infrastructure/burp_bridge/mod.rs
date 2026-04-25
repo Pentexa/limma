@@ -437,7 +437,6 @@ impl BurpBridgeManager {
         }
 
         // 6. Update session counters (in-memory + DB)
-        let status_str;
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(session_id) {
                 session.imported_traffic_count += count;
@@ -446,7 +445,7 @@ impl BurpBridgeManager {
                 session.status = BurpSessionStatus::Syncing;
             }
         }
-        status_str = "syncing";
+        let status_str = "syncing";
 
         if let Err(e) = sqlx::query(
             r#"UPDATE burp_sessions
