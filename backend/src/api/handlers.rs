@@ -6,10 +6,9 @@ use crate::application::use_cases::{
     AnalyzeWebsite, AuditSecurity, CollectExternalServices, DiscoverApis, GenerateMasterReport,
     InvestigateServer, LoginUser, MapForms, RegisterUser,
 };
-use crate::domain::repositories::SecurityAuditorRepository;
 use crate::error::AppError;
 use crate::infrastructure::auditor::HttpSecurityAuditor;
-use crate::infrastructure::burp_bridge::{BurpBridgeManager, SharedBurpBridgeManager};
+use crate::infrastructure::burp_bridge::SharedBurpBridgeManager;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
 use crate::infrastructure::investigator::HttpInvestigator;
@@ -586,7 +585,7 @@ pub async fn burp_handshake(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<crate::domain::entities::BurpHandshakeRequest>,
 ) -> Result<Json<crate::domain::entities::BurpHandshakeResponse>, AppError> {
-    let response = state.burp_bridge.create_session(&payload);
+    let response = state.burp_bridge.create_session(&payload).await;
     Ok(Json(response))
 }
 
@@ -602,6 +601,7 @@ pub async fn burp_import_traffic(
             payload.items,
             &state.dynamic_rule_engine,
         )
+        .await
         .map_err(AppError::BadRequest)?;
     Ok(Json(response))
 }
@@ -715,3 +715,48 @@ pub async fn get_history_delta(
         .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(delta))
 }
+
+/// Fetch a single scan result by its UUID.
+pub async fn get_scan_by_id(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(scan_id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Json<crate::infrastructure::delta_engine::ScanDetail>, AppError> {
+    let detail = state
+        .delta_engine
+        .get_scan_by_id(scan_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    match detail {
+        Some(d) => Ok(Json(d)),
+        None => Err(AppError::BadRequest(format!(
+            "Scan not found: {}",
+            scan_id
+        ))),
+    }
+}
+
+/// List all scans, optionally filtered by target_url.
+#[derive(serde::Deserialize)]
+pub struct ListScansQuery {
+    target_url: Option<String>,
+    #[serde(default = "default_limit")]
+    limit: i64,
+}
+
+fn default_limit() -> i64 {
+    50
+}
+
+pub async fn list_scans(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<ListScansQuery>,
+) -> Result<Json<Vec<crate::infrastructure::delta_engine::TrendPoint>>, AppError> {
+    let scans = state
+        .delta_engine
+        .list_scans(query.target_url.as_deref(), query.limit)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(scans))
+}
+

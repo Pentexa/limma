@@ -35,7 +35,7 @@ impl AttackPathEngine {
             }
         }
 
-        // Deduplicate paths (quick hack, ideally standard graph traverse)
+        // Deduplicate paths by narrative + sorted canonical slugs signature
         let mut unique_paths = Vec::new();
         let mut seen = HashSet::new();
         for p in paths {

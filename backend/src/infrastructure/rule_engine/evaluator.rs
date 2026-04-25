@@ -101,6 +101,7 @@ pub fn evaluate_rule(rule: &RuleDefinition, ctx: &RuleContext) -> Option<Dynamic
 
 /// Evaluates all rules against the given context.
 /// Returns a list of findings for every rule that matched.
+#[allow(dead_code)]
 pub fn evaluate_all(rules: &[RuleDefinition], ctx: &RuleContext) -> Vec<DynamicRuleFinding> {
     rules
         .iter()
@@ -136,11 +137,7 @@ fn evaluate_node(
         RuleConditionNode::HeaderPresent { header } => {
             let key = header.to_lowercase();
             let present = ctx.headers.contains_key(&key);
-            let val_str = if present {
-                ctx.headers.get(&key).unwrap().clone()
-            } else {
-                "".to_string()
-            };
+            let val_str = ctx.headers.get(&key).cloned().unwrap_or_default();
             let detail = LocalizedMessage::new("dre.trace.header_present")
                 .with_param("header", header)
                 .with_param("value", &truncate(&val_str, 80));

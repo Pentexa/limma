@@ -1,6 +1,7 @@
 use regex::Regex;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct JsFileAnalysis {
     pub is_minified: bool,
     pub has_sourcemap: bool,

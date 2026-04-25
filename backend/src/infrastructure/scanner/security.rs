@@ -328,13 +328,13 @@ pub fn generate_insights(
 
     // 5. HTML Comment Leakage Detection
     // Scan for sensitive information accidentally left in <!-- --> comments
-    let comment_regex = regex::Regex::new(r"<!--([\s\S]*?)-->").unwrap();
+    let comment_regex = regex::Regex::new(r"<!--([\s\S]*?)-->").expect("valid HTML comment regex");
     let sensitive_patterns: Vec<(&str, regex::Regex)> = vec![
-        ("Password/Credential", regex::Regex::new(r"(?i)(password|passwd|pwd|secret|api[_-]?key|token|credential)\s*[:=]\s*\S+").unwrap()),
-        ("Database Connection", regex::Regex::new(r"(?i)(db[_-]?pass|database|mysql|postgres|mongodb|connection[_-]?string|jdbc)").unwrap()),
-        ("Internal IP Address", regex::Regex::new(r"(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})").unwrap()),
-        ("Server Version in Comment", regex::Regex::new(r"(?i)(apache|nginx|tomcat|iis|node|django|flask|rails|laravel|express)/[\d.]+").unwrap()),
-        ("TODO/FIXME with Sensitive Context", regex::Regex::new(r"(?i)(todo|fixme|hack|xxx|bug)\s*:.*(?:auth|security|password|secret|vuln)").unwrap()),
+        ("Password/Credential", regex::Regex::new(r"(?i)(password|passwd|pwd|secret|api[_-]?key|token|credential)\s*[:=]\s*\S+").expect("valid credential regex")),
+        ("Database Connection", regex::Regex::new(r"(?i)(db[_-]?pass|database|mysql|postgres|mongodb|connection[_-]?string|jdbc)").expect("valid database regex")),
+        ("Internal IP Address", regex::Regex::new(r"(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})").expect("valid IP regex")),
+        ("Server Version in Comment", regex::Regex::new(r"(?i)(apache|nginx|tomcat|iis|node|django|flask|rails|laravel|express)/[\d.]+").expect("valid server version regex")),
+        ("TODO/FIXME with Sensitive Context", regex::Regex::new(r"(?i)(todo|fixme|hack|xxx|bug)\s*:.*(?:auth|security|password|secret|vuln)").expect("valid todo/fixme regex")),
     ];
 
     for cap in comment_regex.captures_iter(body) {

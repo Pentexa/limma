@@ -20,7 +20,7 @@ impl HttpSecurityAuditor {
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
-                .unwrap(),
+                .expect("Failed to build HTTP client"),
             pool: None,
         }
     }
@@ -293,7 +293,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
                 "[DynamicRuleEngine] Building evaluation context from scan data...".to_string(),
             );
 
-            let page_body = web_scan.pages.first().and({
+            let _page_body = web_scan.pages.first().and({
                 // Extract body from the first crawled page if available
                 // The body isn't stored in ScannedPage, so use headers to build context
                 None::<&str>

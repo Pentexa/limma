@@ -70,6 +70,7 @@ impl DynamicRuleEngine {
     }
 
     /// Creates an engine with no rules (for testing or fallback).
+    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self {
             rules: Vec::new(),
@@ -94,8 +95,9 @@ impl DynamicRuleEngine {
     }
 
     /// Toggle Rule Pack
+    #[allow(dead_code)]
     pub fn toggle_pack(&self, pack: &str, enable: bool) {
-        let mut gov = self.governance.write().unwrap();
+        let mut gov = self.governance.write().expect("governance RwLock poisoned");
         if enable {
             gov.disabled_packs.remove(pack);
         } else {
@@ -104,8 +106,9 @@ impl DynamicRuleEngine {
     }
 
     /// Toggle Individual Rule
+    #[allow(dead_code)]
     pub fn toggle_rule(&self, rule_id: &str, enable: bool) {
-        let mut gov = self.governance.write().unwrap();
+        let mut gov = self.governance.write().expect("governance RwLock poisoned");
         if enable {
             gov.disabled_rules.remove(rule_id);
         } else {
@@ -115,7 +118,7 @@ impl DynamicRuleEngine {
 
     /// Check if a rule is governed as active
     pub fn is_rule_active(&self, rule: &RuleDefinition) -> bool {
-        let gov = self.governance.read().unwrap();
+        let gov = self.governance.read().expect("governance RwLock poisoned");
         if gov.disabled_packs.contains(&rule.pack) {
             return false;
         }
@@ -126,7 +129,7 @@ impl DynamicRuleEngine {
     }
 
     pub fn get_governance_snapshot(&self) -> (HashSet<String>, HashSet<String>) {
-        let gov = self.governance.read().unwrap();
+        let gov = self.governance.read().expect("governance RwLock poisoned");
         (gov.disabled_packs.clone(), gov.disabled_rules.clone())
     }
 

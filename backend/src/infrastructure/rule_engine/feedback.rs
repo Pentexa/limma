@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -59,7 +58,7 @@ impl RuleFeedbackEngine {
         user_id: String,
         action: FeedbackAction,
     ) {
-        let mut w = self.entries.write().unwrap();
+        let mut w = self.entries.write().expect("entries RwLock poisoned");
         w.push(RuleFeedbackEntry {
             rule_id,
             target_url,
@@ -70,7 +69,7 @@ impl RuleFeedbackEngine {
     }
 
     pub fn get_rule_stats(&self, rule_id: &str) -> RuleReputationStats {
-        let r = self.entries.read().unwrap();
+        let r = self.entries.read().expect("entries RwLock poisoned");
         let mut stats = RuleReputationStats::default();
 
         for entry in r.iter().filter(|e| e.rule_id == rule_id) {
@@ -101,7 +100,7 @@ impl RuleFeedbackEngine {
     }
 
     pub fn get_feedback_history(&self) -> Vec<RuleFeedbackEntry> {
-        let r = self.entries.read().unwrap();
+        let r = self.entries.read().expect("entries RwLock poisoned");
         r.clone()
     }
 }

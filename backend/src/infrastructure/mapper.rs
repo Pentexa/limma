@@ -15,7 +15,7 @@ impl HttpFormMapper {
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
-                .unwrap(),
+                .expect("Failed to build HTTP client"),
         }
     }
 }
@@ -36,13 +36,13 @@ impl FormMapperRepository for HttpFormMapper {
         let mut login_pages = Vec::new();
 
         // 1. Detect Forms
-        let form_selector = Selector::parse("form").unwrap();
+        let form_selector = Selector::parse("form").expect("valid CSS selector");
         for form in document.select(&form_selector) {
             let action = form.value().attr("action").unwrap_or("#").to_string();
             let method = form.value().attr("method").unwrap_or("get").to_string();
 
             let mut fields = Vec::new();
-            let input_selector = Selector::parse("input, select, textarea").unwrap();
+            let input_selector = Selector::parse("input, select, textarea").expect("valid CSS selector");
             for input in form.select(&input_selector) {
                 let name = input.value().attr("name").unwrap_or("unnamed").to_string();
                 let input_type = input.value().attr("type").unwrap_or("text").to_string();

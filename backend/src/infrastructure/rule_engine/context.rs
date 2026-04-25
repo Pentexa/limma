@@ -18,7 +18,7 @@ pub fn build_context_from_headers(
     let is_https = url.starts_with("https://");
 
     // Parse URL for path and query
-    let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").unwrap());
+    let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").expect("static URL parse"));
     let path = parsed_url.path().to_lowercase();
 
     // Simple heuristics for semantic flags
@@ -44,6 +44,7 @@ pub fn build_context_from_headers(
 }
 
 /// Builds a RuleContext from multi-value headers (ServerInfo format).
+#[allow(dead_code)]
 pub fn build_context_from_multi_headers(
     url: &str,
     status_code: u16,
@@ -58,7 +59,7 @@ pub fn build_context_from_multi_headers(
     let is_https = url.starts_with("https://");
 
     // Parse URL for path and query
-    let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").unwrap());
+    let parsed_url = Url::parse(url).unwrap_or_else(|_| Url::parse("http://unknown").expect("static URL parse"));
     let path = parsed_url.path().to_lowercase();
 
     // Simple heuristics for semantic flags

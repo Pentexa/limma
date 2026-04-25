@@ -840,6 +840,7 @@ pub enum FeedbackAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct FeedbackEvent {
     pub action: FeedbackAction,
     pub timestamp_sec: u64,
@@ -847,6 +848,7 @@ pub struct FeedbackEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct PatternReliabilityHistory {
     pub total_feedback_events: u32,
     pub fp_weight: f32,
@@ -855,6 +857,7 @@ pub struct PatternReliabilityHistory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct PatternCalibrationMetrics {
     pub total_observations: u32,
     pub successful_verifications: u32,
@@ -1098,6 +1101,7 @@ pub struct CorrelationLink {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct CorrelationGroup {
     pub id: String,
     pub core_target: String,

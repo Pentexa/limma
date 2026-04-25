@@ -28,7 +28,7 @@ impl HttpWebsiteScanner {
                 .pool_idle_timeout(std::time::Duration::from_secs(30))
                 .tcp_keepalive(std::time::Duration::from_secs(15))
                 .build()
-                .unwrap(),
+                .expect("Failed to build HTTP client"),
             fingerprinter: fingerprint::FingerprintEngine::new(),
         }
     }
@@ -242,7 +242,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
             event_type: "FINAL_RESULT".to_string(),
             level: "INFO".to_string(),
             message: "Scan successfully completed".to_string(),
-            payload: Some(serde_json::to_value(&result).unwrap()),
+            payload: Some(serde_json::to_value(&result).unwrap_or(serde_json::Value::Null)),
         });
 
         Ok(result)

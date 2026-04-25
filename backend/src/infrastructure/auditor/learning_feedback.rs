@@ -1,4 +1,4 @@
-use crate::domain::entities::{FeedbackAction, FeedbackEvent};
+use crate::domain::entities::FeedbackAction;
 use sqlx::PgPool;
 
 #[derive(Debug)]

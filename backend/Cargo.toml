@@ -2,6 +2,7 @@
 name = "limma"
 version = "0.1.0"
 edition = "2021"
+default-run = "limma"
 
 [[bin]]
 name = "limma"
@@ -17,7 +18,7 @@ default = []
 cli = ["clap"]
 
 [dependencies]
-clap = { version = "4.4", features = ["derive"], optional = true }
+clap = { version = "4.4", features = ["derive", "env"], optional = true }
 tokio = { version = "1.0", features = ["full"] }
 axum = "0.7.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -46,3 +47,4 @@ sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "uuid"
 dotenvy = "0.15"
 bcrypt = "0.15"
 jsonwebtoken = "9"
+urlencoding = "2"

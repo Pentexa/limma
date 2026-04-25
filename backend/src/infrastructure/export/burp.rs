@@ -1,5 +1,5 @@
 use crate::domain::entities::{
-    CanonicalFinding, ConfidenceLevel, MasterReport, SecurityAuditFinding, SeverityLevel,
+    ConfidenceLevel, MasterReport, SeverityLevel,
 };
 use serde::{Deserialize, Serialize};
 
@@ -198,7 +198,7 @@ impl BurpExport {
 fn parse_target_url(url: &str) -> (String, i32, String) {
     let parsed = url::Url::parse(url).unwrap_or_else(|_| {
         url::Url::parse(&format!("https://{}", url))
-            .unwrap_or_else(|_| url::Url::parse("https://unknown").unwrap())
+            .unwrap_or_else(|_| url::Url::parse("https://unknown").expect("static URL parse"))
     });
     let host = parsed.host_str().unwrap_or("unknown").to_string();
     let protocol = parsed.scheme().to_string();

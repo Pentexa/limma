@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports, unused_variables, unused_mut)]
+
 
 mod api;
 mod application;
@@ -10,9 +10,9 @@ use crate::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, burp_get_findings, burp_handshake,
     burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services, discover_apis,
     export_to_burp, export_to_nuclei, generate_master_report, get_feedback_stats,
-    get_history_delta, get_history_trends, get_me, get_rule_engine_status, investigate_server,
-    investigate_server_stream, login_user, map_forms, proxy_request, register_user,
-    submit_feedback, submit_rule_feedback, verify_port, AppState,
+    get_history_delta, get_history_trends, get_me, get_rule_engine_status, get_scan_by_id,
+    investigate_server, investigate_server_stream, list_scans, login_user, map_forms,
+    proxy_request, register_user, submit_feedback, submit_rule_feedback, verify_port, AppState,
 };
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::burp_bridge::BurpBridgeManager;
@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         rules_dir
     );
 
-    let burp_bridge = Arc::new(BurpBridgeManager::new());
+    let burp_bridge = Arc::new(BurpBridgeManager::new(pool.clone()).await);
 
     // Delta Engine
     let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
@@ -155,6 +155,11 @@ async fn main() -> anyhow::Result<()> {
             axum::routing::get(get_history_trends),
         )
         .route("/api/history/delta", axum::routing::get(get_history_delta))
+        .route(
+            "/api/history/scan/:scan_id",
+            axum::routing::get(get_scan_by_id),
+        )
+        .route("/api/history/scans", axum::routing::get(list_scans))
         .with_state(shared_state)
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
             300,

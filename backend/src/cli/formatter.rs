@@ -52,8 +52,7 @@ fn extract_endpoints(result: &serde_json::Value) -> Vec<serde_json::Value> {
         .unwrap_or_default()
 }
 
-/// Generates a placeholder report URL.
-/// TODO: Make configurable via LIMMA_REPORT_BASE_URL env var.
+/// Generates the report URL using `LIMMA_REPORT_BASE_URL` env var (default: `https://limma.io/reports`).
 fn generate_report_url(result: &serde_json::Value) -> String {
     let base = std::env::var("LIMMA_REPORT_BASE_URL")
         .unwrap_or_else(|_| "https://limma.io/reports".to_string());

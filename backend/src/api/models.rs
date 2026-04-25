@@ -27,6 +27,7 @@ pub struct UserPublic {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 pub struct UserResponse {
     pub id: String,
     pub name: String,

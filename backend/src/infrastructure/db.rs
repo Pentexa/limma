@@ -1,6 +1,6 @@
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
-    ConnectOptions, PgPool,
+    PgPool,
 };
 use std::str::FromStr;
 use std::time::Duration;
@@ -119,6 +119,81 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_scan_findings_scan_id ON scan_findings(scan_id);")
         .execute(&pool)
         .await?;
+
+    // ── Burp Bridge Persistence Tables ──
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS burp_sessions (
+            session_id VARCHAR(128) PRIMARY KEY,
+            target_url VARCHAR(2048) NOT NULL,
+            burp_version VARCHAR(128),
+            plugin_version VARCHAR(128),
+            connected_at TIMESTAMPTZ NOT NULL,
+            last_heartbeat TIMESTAMPTZ NOT NULL,
+            imported_traffic_count INTEGER NOT NULL DEFAULT 0,
+            exported_findings_count INTEGER NOT NULL DEFAULT 0,
+            status VARCHAR(50) NOT NULL DEFAULT 'connected'
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS burp_traffic_items (
+            id SERIAL PRIMARY KEY,
+            session_id VARCHAR(128) NOT NULL REFERENCES burp_sessions(session_id) ON DELETE CASCADE,
+            url VARCHAR(2048) NOT NULL,
+            method VARCHAR(20) NOT NULL,
+            request_headers JSONB NOT NULL DEFAULT '{}',
+            request_body TEXT,
+            response_status INTEGER NOT NULL,
+            response_headers JSONB NOT NULL DEFAULT '{}',
+            response_body TEXT,
+            timestamp BIGINT NOT NULL,
+            tool_source VARCHAR(50) NOT NULL DEFAULT 'proxy'
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_burp_traffic_session ON burp_traffic_items(session_id);",
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS burp_findings (
+            id SERIAL PRIMARY KEY,
+            session_id VARCHAR(128) NOT NULL REFERENCES burp_sessions(session_id) ON DELETE CASCADE,
+            name VARCHAR(512) NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            severity VARCHAR(50) NOT NULL,
+            confidence VARCHAR(50) NOT NULL,
+            url VARCHAR(2048) NOT NULL,
+            path VARCHAR(2048) NOT NULL DEFAULT '/',
+            host VARCHAR(512) NOT NULL,
+            port INTEGER NOT NULL DEFAULT 443,
+            protocol VARCHAR(20) NOT NULL DEFAULT 'https',
+            remediation TEXT NOT NULL DEFAULT '',
+            issue_type INTEGER NOT NULL DEFAULT 0,
+            cwe_id INTEGER
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_burp_findings_session ON burp_findings(session_id);",
+    )
+    .execute(&pool)
+    .await?;
 
     Ok(pool)
 }

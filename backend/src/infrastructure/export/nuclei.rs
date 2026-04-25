@@ -1,5 +1,5 @@
 use crate::domain::entities::{
-    CanonicalFinding, ConfidenceLevel, FindingCategory, MasterReport, SecurityAuditFinding,
+    CanonicalFinding, ConfidenceLevel, FindingCategory, MasterReport,
     SeverityLevel,
 };
 use serde::{Deserialize, Serialize};
@@ -212,7 +212,7 @@ fn build_tags(finding: &CanonicalFinding) -> Vec<String> {
 
 fn build_detection_logic(
     finding: &CanonicalFinding,
-    target_url: &str,
+    _target_url: &str,
 ) -> (Vec<NucleiMatcher>, Vec<NucleiRequest>) {
     let mut matchers = Vec::new();
     let mut requests = Vec::new();

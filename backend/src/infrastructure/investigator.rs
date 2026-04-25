@@ -19,7 +19,7 @@ impl HttpInvestigator {
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
-                .unwrap(),
+                .expect("Failed to build HTTP client"),
         }
     }
 }
@@ -41,7 +41,7 @@ impl ServerInvestigator for HttpInvestigator {
             let event = crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs()
                     .to_string(),
                 event_type: "INVESTIGATION_COMPLETED".to_string(),
@@ -66,7 +66,7 @@ impl HttpInvestigator {
             let _ = t.send(crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs()
                     .to_string(),
                 event_type: "INVESTIGATION_STARTED".to_string(),
@@ -169,7 +169,7 @@ impl HttpInvestigator {
             let _ = t.send(crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs()
                     .to_string(),
                 event_type: "ROUTE_COMPARED".to_string(),
@@ -223,7 +223,7 @@ impl HttpInvestigator {
             let _ = t.send(crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs()
                     .to_string(),
                 event_type: "HEADERS_NORMALIZED".to_string(),
@@ -416,7 +416,7 @@ impl HttpInvestigator {
                 let _ = t.send(crate::domain::entities::InvestigationEvent {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
+                        .unwrap_or_default()
                         .as_secs()
                         .to_string(),
                     event_type: "INFRA_SIGNAL_DETECTED".to_string(),
@@ -745,7 +745,7 @@ impl HttpInvestigator {
                 let _ = t.send(crate::domain::entities::InvestigationEvent {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
+                        .unwrap_or_default()
                         .as_secs()
                         .to_string(),
                     event_type: "CMS_FINGERPRINT_MATCHED".to_string(),
@@ -869,7 +869,7 @@ impl HttpInvestigator {
                 let _ = t.send(crate::domain::entities::InvestigationEvent {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
+                        .unwrap_or_default()
                         .as_secs()
                         .to_string(),
                     event_type: "CACHE_BEHAVIOR_ANALYZED".to_string(),
@@ -1051,7 +1051,7 @@ impl HttpInvestigator {
                 let _ = t.send(crate::domain::entities::InvestigationEvent {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
+                        .unwrap_or_default()
                         .as_secs()
                         .to_string(),
                     event_type: "SECURITY_SIGNAL_EVALUATED".to_string(),

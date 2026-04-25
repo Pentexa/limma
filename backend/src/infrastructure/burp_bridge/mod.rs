@@ -1,34 +1,216 @@
 use crate::domain::entities::*;
 use crate::infrastructure::rule_engine::{
-    build_context_from_headers, DynamicRuleEngine, DynamicRuleFinding,
+    build_context_from_headers, DynamicRuleEngine,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
-/// In-memory Burp Bridge session manager.
+/// Persistent Burp Bridge session manager.
 ///
-/// Tracks active plugin connections and their imported traffic.
-/// Phase 1: in-memory only. Phase 2+: optionally persisted to DB.
+/// Maintains an in-memory write-through cache backed by PostgreSQL.
+/// Sessions, traffic, and findings survive server restarts.
+/// SSE broadcast channels are always in-memory (transient by nature).
 pub struct BurpBridgeManager {
     sessions: RwLock<HashMap<String, BurpBridgeSession>>,
     traffic_store: RwLock<HashMap<String, Vec<BurpTrafficItem>>>,
     findings_store: RwLock<HashMap<String, Vec<BurpNativeFinding>>>,
     event_channels: RwLock<HashMap<String, broadcast::Sender<BurpSseEvent>>>,
+    pool: sqlx::PgPool,
 }
 
 impl BurpBridgeManager {
-    pub fn new() -> Self {
-        Self {
+    /// Create manager and hydrate in-memory caches from the database.
+    pub async fn new(pool: sqlx::PgPool) -> Self {
+        let manager = Self {
             sessions: RwLock::new(HashMap::new()),
             traffic_store: RwLock::new(HashMap::new()),
             findings_store: RwLock::new(HashMap::new()),
             event_channels: RwLock::new(HashMap::new()),
+            pool,
+        };
+
+        // Restore persisted state on startup
+        if let Err(e) = manager.hydrate_from_db().await {
+            tracing::warn!("[BurpBridge] Failed to hydrate from database: {}", e);
         }
+
+        manager
+    }
+
+    /// Hydrate in-memory caches from the database on startup.
+    async fn hydrate_from_db(&self) -> Result<(), String> {
+        // 1. Restore sessions
+        #[derive(sqlx::FromRow)]
+        struct SessionRow {
+            session_id: String,
+            target_url: String,
+            burp_version: Option<String>,
+            plugin_version: Option<String>,
+            connected_at: chrono::DateTime<chrono::Utc>,
+            last_heartbeat: chrono::DateTime<chrono::Utc>,
+            imported_traffic_count: i32,
+            exported_findings_count: i32,
+            status: String,
+        }
+
+        let session_rows: Vec<SessionRow> = sqlx::query_as(
+            "SELECT session_id, target_url, burp_version, plugin_version, connected_at, last_heartbeat, imported_traffic_count, exported_findings_count, status FROM burp_sessions"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to load sessions: {}", e))?;
+
+        let session_count = session_rows.len();
+
+        if let Ok(mut sessions) = self.sessions.write() {
+            for row in &session_rows {
+                let status = match row.status.as_str() {
+                    "connected" => BurpSessionStatus::Connected,
+                    "syncing" => BurpSessionStatus::Syncing,
+                    "idle" => BurpSessionStatus::Idle,
+                    _ => BurpSessionStatus::Disconnected,
+                };
+
+                sessions.insert(
+                    row.session_id.clone(),
+                    BurpBridgeSession {
+                        session_id: row.session_id.clone(),
+                        target_url: row.target_url.clone(),
+                        burp_version: row.burp_version.clone(),
+                        plugin_version: row.plugin_version.clone(),
+                        connected_at: row.connected_at,
+                        last_heartbeat: row.last_heartbeat,
+                        imported_traffic_count: row.imported_traffic_count as usize,
+                        exported_findings_count: row.exported_findings_count as usize,
+                        status,
+                    },
+                );
+            }
+        }
+
+        // 2. Restore traffic items per session
+        #[derive(sqlx::FromRow)]
+        struct TrafficRow {
+            session_id: String,
+            url: String,
+            method: String,
+            request_headers: serde_json::Value,
+            request_body: Option<String>,
+            response_status: i32,
+            response_headers: serde_json::Value,
+            response_body: Option<String>,
+            timestamp: i64,
+            tool_source: String,
+        }
+
+        let traffic_rows: Vec<TrafficRow> = sqlx::query_as(
+            "SELECT session_id, url, method, request_headers, request_body, response_status, response_headers, response_body, timestamp, tool_source FROM burp_traffic_items ORDER BY id ASC"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to load traffic: {}", e))?;
+
+        let traffic_count = traffic_rows.len();
+
+        if let Ok(mut store) = self.traffic_store.write() {
+            for row in traffic_rows {
+                let req_headers: HashMap<String, String> =
+                    serde_json::from_value(row.request_headers).unwrap_or_default();
+                let resp_headers: HashMap<String, String> =
+                    serde_json::from_value(row.response_headers).unwrap_or_default();
+
+                let item = BurpTrafficItem {
+                    url: row.url,
+                    method: row.method,
+                    request_headers: req_headers,
+                    request_body: row.request_body,
+                    response_status: row.response_status as u16,
+                    response_headers: resp_headers,
+                    response_body: row.response_body,
+                    timestamp: row.timestamp,
+                    tool_source: row.tool_source,
+                };
+
+                store
+                    .entry(row.session_id)
+                    .or_insert_with(Vec::new)
+                    .push(item);
+            }
+        }
+
+        // 3. Restore findings per session
+        #[derive(sqlx::FromRow)]
+        struct FindingRow {
+            session_id: String,
+            name: String,
+            detail: String,
+            severity: String,
+            confidence: String,
+            url: String,
+            path: String,
+            host: String,
+            port: i32,
+            protocol: String,
+            remediation: String,
+            issue_type: i32,
+            cwe_id: Option<i32>,
+        }
+
+        let finding_rows: Vec<FindingRow> = sqlx::query_as(
+            "SELECT session_id, name, detail, severity, confidence, url, path, host, port, protocol, remediation, issue_type, cwe_id FROM burp_findings ORDER BY id ASC"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to load findings: {}", e))?;
+
+        let findings_count = finding_rows.len();
+
+        if let Ok(mut f_store) = self.findings_store.write() {
+            for row in finding_rows {
+                let finding = BurpNativeFinding {
+                    name: row.name,
+                    detail: row.detail,
+                    severity: row.severity,
+                    confidence: row.confidence,
+                    url: row.url,
+                    path: row.path,
+                    host: row.host,
+                    port: row.port,
+                    protocol: row.protocol,
+                    remediation: row.remediation,
+                    issue_type: row.issue_type as u32,
+                    cwe_id: row.cwe_id.map(|v| v as u32),
+                };
+
+                f_store
+                    .entry(row.session_id)
+                    .or_insert_with(Vec::new)
+                    .push(finding);
+            }
+        }
+
+        // 4. Initialize SSE channels for restored sessions
+        if let Ok(mut channels) = self.event_channels.write() {
+            for row in &session_rows {
+                let (tx, _rx) = broadcast::channel(100);
+                channels.insert(row.session_id.clone(), tx);
+            }
+        }
+
+        tracing::info!(
+            "[BurpBridge] Hydrated from DB: {} sessions, {} traffic items, {} findings",
+            session_count,
+            traffic_count,
+            findings_count
+        );
+
+        Ok(())
     }
 
     /// Create a new bridge session from a handshake request.
-    pub fn create_session(&self, req: &BurpHandshakeRequest) -> BurpHandshakeResponse {
+    /// Persists session to the database immediately.
+    pub async fn create_session(&self, req: &BurpHandshakeRequest) -> BurpHandshakeResponse {
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now();
 
@@ -44,6 +226,7 @@ impl BurpBridgeManager {
             status: BurpSessionStatus::Connected,
         };
 
+        // Write to in-memory cache
         if let Ok(mut sessions) = self.sessions.write() {
             sessions.insert(session_id.clone(), session);
         }
@@ -59,6 +242,26 @@ impl BurpBridgeManager {
         let (tx, _rx) = broadcast::channel(100);
         if let Ok(mut channels) = self.event_channels.write() {
             channels.insert(session_id.clone(), tx);
+        }
+
+        // Persist to database
+        let status_str = "connected";
+        if let Err(e) = sqlx::query(
+            r#"INSERT INTO burp_sessions
+               (session_id, target_url, burp_version, plugin_version, connected_at, last_heartbeat, imported_traffic_count, exported_findings_count, status)
+               VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7)"#,
+        )
+        .bind(&session_id)
+        .bind(&req.target_url)
+        .bind(&req.burp_version)
+        .bind(&req.plugin_version)
+        .bind(now)
+        .bind(now)
+        .bind(status_str)
+        .execute(&self.pool)
+        .await
+        {
+            tracing::error!("[BurpBridge] Failed to persist session {}: {}", session_id, e);
         }
 
         tracing::info!(
@@ -80,7 +283,8 @@ impl BurpBridgeManager {
     }
 
     /// Import a batch of traffic items into a session.
-    pub fn import_traffic(
+    /// Persists traffic and generated findings to the database.
+    pub async fn import_traffic(
         &self,
         session_id: &str,
         items: Vec<BurpTrafficItem>,
@@ -155,23 +359,88 @@ impl BurpBridgeManager {
             }
         }
 
-        // 2. Store traffic items
+        // 2. Store traffic items (in-memory)
         if let Ok(mut store) = self.traffic_store.write() {
             let entry = store.entry(session_id.to_string()).or_insert_with(Vec::new);
-            entry.extend(items);
+            entry.extend(items.clone());
         }
 
-        // 3. Store generated findings
+        // 3. Persist traffic items to database
+        for item in &items {
+            let req_headers_json =
+                serde_json::to_value(&item.request_headers).unwrap_or_default();
+            let resp_headers_json =
+                serde_json::to_value(&item.response_headers).unwrap_or_default();
+
+            if let Err(e) = sqlx::query(
+                r#"INSERT INTO burp_traffic_items
+                   (session_id, url, method, request_headers, request_body, response_status, response_headers, response_body, timestamp, tool_source)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
+            )
+            .bind(session_id)
+            .bind(&item.url)
+            .bind(&item.method)
+            .bind(&req_headers_json)
+            .bind(&item.request_body)
+            .bind(item.response_status as i32)
+            .bind(&resp_headers_json)
+            .bind(&item.response_body)
+            .bind(item.timestamp)
+            .bind(&item.tool_source)
+            .execute(&self.pool)
+            .await
+            {
+                tracing::error!(
+                    "[BurpBridge] Failed to persist traffic item for session {}: {}",
+                    session_id,
+                    e
+                );
+            }
+        }
+
+        // 4. Store generated findings (in-memory)
         if !burp_findings.is_empty() {
             if let Ok(mut f_store) = self.findings_store.write() {
                 let entry = f_store
                     .entry(session_id.to_string())
                     .or_insert_with(Vec::new);
-                entry.extend(burp_findings);
+                entry.extend(burp_findings.clone());
             }
         }
 
-        // 4. Update session counters
+        // 5. Persist findings to database
+        for finding in &burp_findings {
+            if let Err(e) = sqlx::query(
+                r#"INSERT INTO burp_findings
+                   (session_id, name, detail, severity, confidence, url, path, host, port, protocol, remediation, issue_type, cwe_id)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"#,
+            )
+            .bind(session_id)
+            .bind(&finding.name)
+            .bind(&finding.detail)
+            .bind(&finding.severity)
+            .bind(&finding.confidence)
+            .bind(&finding.url)
+            .bind(&finding.path)
+            .bind(&finding.host)
+            .bind(finding.port)
+            .bind(&finding.protocol)
+            .bind(&finding.remediation)
+            .bind(finding.issue_type as i32)
+            .bind(finding.cwe_id.map(|v| v as i32))
+            .execute(&self.pool)
+            .await
+            {
+                tracing::error!(
+                    "[BurpBridge] Failed to persist finding for session {}: {}",
+                    session_id,
+                    e
+                );
+            }
+        }
+
+        // 6. Update session counters (in-memory + DB)
+        let status_str;
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(session_id) {
                 session.imported_traffic_count += count;
@@ -179,6 +448,30 @@ impl BurpBridgeManager {
                 session.last_heartbeat = chrono::Utc::now();
                 session.status = BurpSessionStatus::Syncing;
             }
+        }
+        status_str = "syncing";
+
+        if let Err(e) = sqlx::query(
+            r#"UPDATE burp_sessions
+               SET imported_traffic_count = imported_traffic_count + $1,
+                   exported_findings_count = exported_findings_count + $2,
+                   last_heartbeat = $3,
+                   status = $4
+               WHERE session_id = $5"#,
+        )
+        .bind(count as i32)
+        .bind(new_findings_count as i32)
+        .bind(chrono::Utc::now())
+        .bind(status_str)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await
+        {
+            tracing::error!(
+                "[BurpBridge] Failed to update session counters for {}: {}",
+                session_id,
+                e
+            );
         }
 
         tracing::info!(
@@ -224,6 +517,7 @@ impl BurpBridgeManager {
     }
 
     /// Get traffic items for a session.
+    #[allow(dead_code)]
     pub fn get_traffic(&self, session_id: &str) -> Vec<BurpTrafficItem> {
         self.traffic_store
             .read()
@@ -233,6 +527,7 @@ impl BurpBridgeManager {
     }
 
     /// Get traffic count for a session.
+    #[allow(dead_code)]
     pub fn get_traffic_count(&self, session_id: &str) -> usize {
         self.traffic_store
             .read()
@@ -251,6 +546,7 @@ impl BurpBridgeManager {
     }
 
     /// Convert a NormalizedAuditReport's findings into Burp-native format.
+    #[allow(dead_code)]
     pub fn findings_to_burp_native(report: &NormalizedAuditReport) -> Vec<BurpNativeFinding> {
         let (host, port, protocol) = parse_url_parts(&report.target);
 
@@ -317,7 +613,7 @@ impl BurpBridgeManager {
 fn parse_url_parts(url: &str) -> (String, i32, String) {
     let parsed = url::Url::parse(url).unwrap_or_else(|_| {
         url::Url::parse(&format!("https://{}", url))
-            .unwrap_or_else(|_| url::Url::parse("https://unknown").unwrap())
+            .unwrap_or_else(|_| url::Url::parse("https://unknown").expect("static URL parse"))
     });
     let host = parsed.host_str().unwrap_or("unknown").to_string();
     let protocol = parsed.scheme().to_string();

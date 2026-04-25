@@ -148,7 +148,7 @@ impl DeltaEngine {
 
     pub async fn calculate_delta(
         &self,
-        target_url: &str,
+        _target_url: &str,
         current_scan_id: Uuid,
         previous_scan_id: Uuid,
     ) -> Result<DeltaResult, sqlx::Error> {
@@ -232,4 +232,159 @@ impl DeltaEngine {
                 .collect(),
         })
     }
+
+    /// Retrieve a single scan by its ID, including its endpoints and findings.
+    pub async fn get_scan_by_id(&self, scan_id: Uuid) -> Result<Option<ScanDetail>, sqlx::Error> {
+        #[derive(sqlx::FromRow)]
+        struct SessionRow {
+            id: Uuid,
+            target_url: String,
+            timestamp_sec: i64,
+            score: f32,
+            total_endpoints: i32,
+            total_findings: i32,
+        }
+
+        let session: Option<SessionRow> = sqlx::query_as(
+            "SELECT id, target_url, timestamp_sec, score, total_endpoints, total_findings FROM scan_sessions WHERE id = $1",
+        )
+        .bind(scan_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let session = match session {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        #[derive(sqlx::FromRow)]
+        struct EpRow {
+            url: String,
+            method: String,
+        }
+
+        let endpoints: Vec<EpRow> = sqlx::query_as(
+            "SELECT url, method FROM scan_endpoints WHERE scan_id = $1 ORDER BY id ASC",
+        )
+        .bind(scan_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        #[derive(sqlx::FromRow)]
+        struct FdRow {
+            name: String,
+            severity: String,
+            url: String,
+            status: String,
+        }
+
+        let findings: Vec<FdRow> = sqlx::query_as(
+            "SELECT name, severity, url, status FROM scan_findings WHERE scan_id = $1 ORDER BY id ASC",
+        )
+        .bind(scan_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(Some(ScanDetail {
+            scan_id: session.id,
+            target_url: session.target_url,
+            timestamp_sec: session.timestamp_sec,
+            score: session.score,
+            total_endpoints: session.total_endpoints,
+            total_findings: session.total_findings,
+            endpoints: endpoints
+                .into_iter()
+                .map(|r| DeltaEndpoint {
+                    url: r.url,
+                    method: r.method,
+                })
+                .collect(),
+            findings: findings
+                .into_iter()
+                .map(|r| ScanFindingDetail {
+                    name: r.name,
+                    severity: r.severity,
+                    url: r.url,
+                    status: r.status,
+                })
+                .collect(),
+        }))
+    }
+
+    /// List all scans, optionally filtered by target_url.
+    pub async fn list_scans(
+        &self,
+        target_url: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<TrendPoint>, sqlx::Error> {
+        #[derive(sqlx::FromRow)]
+        struct RawTrend {
+            id: Uuid,
+            timestamp_sec: i64,
+            score: f32,
+            total_endpoints: i32,
+            total_findings: i32,
+        }
+
+        let records: Vec<RawTrend> = if let Some(target) = target_url {
+            sqlx::query_as(
+                r#"
+                SELECT id, timestamp_sec, score, total_endpoints, total_findings
+                FROM scan_sessions
+                WHERE target_url = $1
+                ORDER BY timestamp_sec DESC
+                LIMIT $2
+                "#,
+            )
+            .bind(target)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as(
+                r#"
+                SELECT id, timestamp_sec, score, total_endpoints, total_findings
+                FROM scan_sessions
+                ORDER BY timestamp_sec DESC
+                LIMIT $1
+                "#,
+            )
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(records
+            .into_iter()
+            .map(|r| TrendPoint {
+                scan_id: r.id,
+                timestamp_sec: r.timestamp_sec,
+                score: r.score,
+                total_endpoints: r.total_endpoints,
+                total_findings: r.total_findings,
+            })
+            .collect())
+    }
 }
+
+/// Detailed view of a single historical scan.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanDetail {
+    pub scan_id: Uuid,
+    pub target_url: String,
+    pub timestamp_sec: i64,
+    pub score: f32,
+    pub total_endpoints: i32,
+    pub total_findings: i32,
+    pub endpoints: Vec<DeltaEndpoint>,
+    pub findings: Vec<ScanFindingDetail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanFindingDetail {
+    pub name: String,
+    pub severity: String,
+    pub url: String,
+    pub status: String,
+}
+
