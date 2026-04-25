@@ -1,5 +1,3 @@
-
-
 mod api;
 mod application;
 mod domain;
