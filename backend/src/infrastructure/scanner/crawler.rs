@@ -4,7 +4,7 @@ use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use url::Url;
 
 pub struct CrawlResult {
@@ -24,7 +24,7 @@ pub async fn crawl(
     client: &Client,
     fingerprinter: &fingerprint::FingerprintEngine,
     start_url: &str,
-    max_pages: u32,
+    config: &crate::domain::engine_config::EngineConfig,
     tx: Option<tokio::sync::mpsc::UnboundedSender<ScanEvent>>,
 ) -> Result<CrawlResult, String> {
     let mut pages = Vec::new();
@@ -58,6 +58,27 @@ pub async fn crawl(
     let mut main_final_url = start_url.to_string();
     let mut main_chain = Vec::new();
 
+    // Wordlist discovery injection
+    let mut added_wordlists = 0;
+    for word in &config.wordlist {
+        if added_wordlists >= config.max_wordlist_items_per_scan { break; }
+        let mut w_url = base_parsed.clone();
+        // Append wordlist to path cleanly
+            let current_path = w_url.path();
+            let new_path = if current_path.ends_with('/') {
+                format!("{}{}", current_path, word)
+            } else {
+                format!("{}/{}", current_path, word)
+            };
+            w_url.set_path(&new_path);
+            let w_url_str = w_url.to_string();
+            queue.push_back(QueueItem {
+                url: w_url_str,
+                depth: 1, // Start injected wordlists at depth 1
+            });
+            added_wordlists += 1;
+    }
+
     emit_event(
         "SCAN_STARTED",
         "INFO",
@@ -66,7 +87,7 @@ pub async fn crawl(
     );
 
     while let Some(item) = queue.pop_front() {
-        if pages.len() as u32 >= max_pages {
+        if pages.len() as u32 >= (config.max_depth * 10).max(10) { // Limit total pages reasonably based on depth
             emit_event(
                 "CRAWL_LIMIT_REACHED",
                 "WARN",
@@ -88,9 +109,8 @@ pub async fn crawl(
             None,
         );
 
-        // Sleep to bypass rate limits (200ms)
         if !pages.is_empty() {
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            config.rate_limiter.wait().await;
         }
 
         // Fetch process similar to scanner.rs
@@ -153,7 +173,7 @@ pub async fn crawl(
                 }
 
                 // Link extraction if depth is within limits
-                if item.depth < 2 && ct.unwrap_or_default().contains("text/html") {
+                if item.depth < config.max_depth && ct.unwrap_or_default().contains("text/html") {
                     let extracted = extract_same_domain_links(&body, &final_url, &base_parsed);
 
                     // Prioritize links

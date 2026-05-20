@@ -5,12 +5,18 @@ mod error;
 mod infrastructure;
 
 use crate::api::handlers::{
-    analyze_website, analyze_website_stream, audit_security, burp_get_findings, burp_handshake,
-    burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services, discover_apis,
-    export_to_burp, export_to_nuclei, generate_master_report, get_feedback_stats,
-    get_history_delta, get_history_trends, get_me, get_rule_engine_status, get_scan_by_id,
-    investigate_server, investigate_server_stream, list_scans, login_user, map_forms,
-    proxy_request, register_user, submit_feedback, submit_rule_feedback, verify_port, AppState,
+    analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
+    burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
+    create_custom_rule, delete_custom_rule,
+    discover_apis, download_poc, export_to_burp, export_to_nuclei, generate_master_report,
+    generate_poc, get_feedback_stats, get_history_delta, get_history_trends,
+    get_rule_engine_status, get_scan_by_id, delete_history_scan, get_settings_profiles, investigate_server,
+    investigate_server_stream, list_scans, map_forms, proxy_request,
+    submit_feedback, submit_rule_feedback, update_settings_profile, verify_exploit, verify_port,
+    start_active_scan, get_active_scan, list_active_findings, get_active_finding,
+    list_active_scans, delete_active_scan, list_active_findings_filtered, update_active_finding,
+    generate_poc_for_finding, verify_finding,
+    AppState,
 };
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::burp_bridge::BurpBridgeManager;
@@ -20,14 +26,16 @@ use crate::infrastructure::delta_engine::DeltaEngine;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
 use crate::infrastructure::investigator::HttpInvestigator;
 use crate::infrastructure::mapper::HttpFormMapper;
-use crate::infrastructure::persistence::PgUserRepository;
+
+use crate::infrastructure::repositories::pg_settings::PgSettingsRepository;
 use crate::infrastructure::rule_engine::{resolve_rules_dir, DynamicRuleEngine};
 use crate::infrastructure::scanner::HttpWebsiteScanner;
 use anyhow::Context;
 use axum::{routing::post, Router};
 use std::sync::Arc;
 use std::time::Duration;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+// Rate limiter disabled for development
+// use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -44,8 +52,7 @@ async fn main() -> anyhow::Result<()> {
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgres://postgres:password@127.0.0.1:5432/limma?sslmode=disable".to_string()
     });
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "default_dev_secret_change_in_production".to_string());
+
     tracing::info!("[DB] Connecting to: {}", database_url);
     let pool = init_db(&database_url)
         .await
@@ -53,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("[DB] Connected successfully");
 
     // Dependency Injection
-    let user_repo = Arc::new(PgUserRepository::new(pool.clone()));
+
     let website_scanner = Arc::new(HttpWebsiteScanner::new());
     let server_investigator = Arc::new(HttpInvestigator::new());
     let api_discoverer = Arc::new(HttpApiDiscoverer::new());
@@ -70,13 +77,103 @@ async fn main() -> anyhow::Result<()> {
         rules_dir
     );
 
+    // Load custom rules from DB and hot-load into the engine
+    {
+        let rows = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT id, name, yaml_content FROM custom_rules"
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+        let mut loaded = 0usize;
+        for (_id, _name, yaml_content) in &rows {
+            match serde_yaml::from_str::<crate::infrastructure::rule_engine::models::RuleDefinition>(yaml_content) {
+                Ok(rule_def) => {
+                    dynamic_rule_engine.add_rule(rule_def);
+                    loaded += 1;
+                }
+                Err(e) => {
+                    tracing::warn!("[CustomRules] Failed to parse custom rule '{}': {}", _id, e);
+                }
+            }
+        }
+        if loaded > 0 {
+            tracing::info!("[CustomRules] {} custom rules loaded from database", loaded);
+        }
+    }
+
     let burp_bridge = Arc::new(BurpBridgeManager::new(pool.clone()).await);
 
     // Delta Engine
     let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
 
+    // ── Faz F: Blind Detection & Exploitation ──
+    let blind_detection_engine = Arc::new(
+        crate::infrastructure::blind_detection::HttpBlindDetectionEngine::new(),
+    );
+    let poc_generator = Arc::new(
+        crate::infrastructure::exploitation::poc_generator::CompositePocGenerator::new(),
+    );
+    let sandbox_verifier = Arc::new(
+        crate::infrastructure::exploitation::sandbox::NoopSandboxProvider::new(),
+    );
+    let safety_framework = Arc::new(
+        crate::infrastructure::safety::SafetyFrameworkImpl::new(
+            vec![], // Open scope: all domains allowed
+            60,     // 60 requests per minute rate limit
+        ),
+    );
+    let blind_finding_repo = Arc::new(
+        crate::infrastructure::repositories::blind_finding_repo::PgBlindFindingRepository::new(
+            pool.clone(),
+        ),
+    );
+    let poc_repo = Arc::new(
+        crate::infrastructure::repositories::poc_repo::PgPocRepository::new(pool.clone()),
+    );
+    let exploit_result_repo = Arc::new(
+        crate::infrastructure::repositories::exploit_result_repo::PgExploitResultRepository::new(
+            pool.clone(),
+        ),
+    );
+    tracing::info!("[Faz F] Blind detection engine, PoC generator, safety framework initialized");
+    tracing::info!("[Faz F] Sandbox: NoopSandboxProvider (Docker disabled)");
+
+    // ── Faz 4: System Settings PostgreSQL Store ──
+    let settings_repo = Arc::new(PgSettingsRepository::new(pool.clone()));
+    use crate::domain::repositories::SettingsRepository;
+    settings_repo.init_defaults().await.map_err(|e| anyhow::anyhow!("Failed to init default settings: {}", e))?;
+    tracing::info!("[Faz 4] PgSettingsRepository initialized with PostgreSQL persistence");
+
+    // ── Faz 1: Active Vulnerability Engine ──
+    let payload_db = Arc::new(crate::infrastructure::active_detection::payloads::PayloadDatabase::new());
+    
+    // We create a generic client for detectors. In a real app, this might be per-profile
+    let req_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .context("Failed to build reqwest client for detectors")?;
+
+    let active_detectors: Arc<Vec<Box<dyn crate::infrastructure::active_detection::detectors::VulnDetector>>> = Arc::new(vec![
+        Box::new(crate::infrastructure::active_detection::detectors::xss_detector::XssDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::sqli_detector::SqliDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::cmdi_detector::CmdiDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::lfi_detector::LfiDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::ssrf_detector::SsrfDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::xxe_detector::XxeDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::redirect_detector::RedirectDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::jwt_detector::JwtDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::deser_detector::DeserDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::idor_detector::IdorDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::nosql_detector::NosqlDetector::new(req_client.clone(), payload_db.clone())),
+        Box::new(crate::infrastructure::active_detection::detectors::ssti_detector::SstiDetector::new(req_client.clone(), payload_db.clone())),
+    ]);
+    let active_scan_repo = Arc::new(crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository::new(pool.clone()));
+    let active_finding_repo = Arc::new(crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository::new(pool.clone()));
+    tracing::info!("[Faz 1] Active Detection Engine initialized with {} vulnerability detectors", active_detectors.len());
+
     let shared_state = Arc::new(AppState {
-        user_repo,
         website_scanner,
         server_investigator,
         api_discoverer,
@@ -86,8 +183,19 @@ async fn main() -> anyhow::Result<()> {
         dynamic_rule_engine,
         burp_bridge,
         delta_engine,
+        blind_detection_engine,
+        poc_generator,
+        sandbox_verifier,
+        safety_framework,
+        blind_finding_repo,
+        poc_repo,
+        exploit_result_repo,
+        settings_repo,
+        active_scan_repo,
+        active_finding_repo,
+        active_detectors,
+        payload_db,
         db_pool: pool,
-        jwt_secret,
     });
 
     // Configure middleware layers
@@ -95,19 +203,10 @@ async fn main() -> anyhow::Result<()> {
         .allow_origin(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any)
         .allow_methods(tower_http::cors::Any);
-    let governor_config = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(20)
-            .burst_size(40)
-            .finish()
-            .context("Failed to build rate limit configuration")?,
-    );
+    // Rate limiter disabled for development
 
     // Build our application with routes
     let app = Router::new()
-        .route("/auth/register", post(register_user))
-        .route("/auth/login", post(login_user))
-        .route("/auth/me", axum::routing::get(get_me))
         .route("/analyze", post(analyze_website))
         .route(
             "/analyze/stream",
@@ -135,6 +234,9 @@ async fn main() -> anyhow::Result<()> {
             "/api/feedback-stats",
             axum::routing::get(get_feedback_stats),
         )
+        // Custom Rules CRUD
+        .route("/api/rules", post(create_custom_rule))
+        .route("/api/rules/:id", axum::routing::delete(delete_custom_rule))
         .route("/api/export/burp", post(export_to_burp))
         .route("/api/export/nuclei", post(export_to_nuclei))
         .route("/api/burp/handshake", post(burp_handshake))
@@ -155,16 +257,36 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/history/delta", axum::routing::get(get_history_delta))
         .route(
             "/api/history/scan/:scan_id",
-            axum::routing::get(get_scan_by_id),
+            axum::routing::get(get_scan_by_id).delete(delete_history_scan),
         )
         .route("/api/history/scans", axum::routing::get(list_scans))
+        // Faz 4: Settings API
+        .route("/api/settings/profiles", axum::routing::get(get_settings_profiles))
+        .route("/api/settings/profiles/:id", axum::routing::put(update_settings_profile))
+        // Faz F: Blind Detection & Exploitation routes
+        .route("/api/blind-scan", post(blind_scan))
+        .route("/api/poc/generate", post(generate_poc))
+        .route("/api/exploit/verify", post(verify_exploit))
+        .route(
+            "/api/poc/:id",
+            axum::routing::get(download_poc),
+        )
+        // Faz 1: Active Vulnerability Detection routes
+        .route("/api/active-scan", post(start_active_scan))
+        .route("/api/active-scan/:id", axum::routing::get(get_active_scan))
+        .route("/api/active-scan/:scan_id/findings", axum::routing::get(list_active_findings))
+        .route("/api/active-finding/:id", axum::routing::get(get_active_finding))
+        .route("/api/active-scans", axum::routing::get(list_active_scans))
+        .route("/api/active-scans/:id", axum::routing::delete(delete_active_scan))
+        .route("/api/active-findings", axum::routing::get(list_active_findings_filtered))
+        .route("/api/active-findings/:id", axum::routing::patch(update_active_finding))
+        .route("/api/active-findings/:id/poc", post(generate_poc_for_finding))
+        .route("/api/active-findings/:id/verify", post(verify_finding))
         .with_state(shared_state)
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
             300,
         )))
-        .layer(GovernorLayer {
-            config: governor_config,
-        })
+        // GovernorLayer (rate limiter) disabled for development
         .layer(cors);
 
     // Run our app

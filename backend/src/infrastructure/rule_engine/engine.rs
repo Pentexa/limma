@@ -15,7 +15,7 @@ pub struct RuleEngineGovernance {
 /// The DynamicRuleEngine orchestrates the full pipeline:
 /// Load → Validate → Store rules at startup, then Evaluate against scan contexts.
 pub struct DynamicRuleEngine {
-    rules: Vec<RuleDefinition>,
+    rules: RwLock<Vec<RuleDefinition>>,
     governance: RwLock<RuleEngineGovernance>,
     pub feedback_engine: Arc<super::feedback::RuleFeedbackEngine>,
     load_errors: Vec<String>,
@@ -58,7 +58,7 @@ impl DynamicRuleEngine {
         }
 
         Self {
-            rules: valid_rules,
+            rules: RwLock::new(valid_rules),
             governance: RwLock::new(RuleEngineGovernance {
                 disabled_rules: HashSet::new(),
                 disabled_packs: HashSet::new(),
@@ -73,7 +73,7 @@ impl DynamicRuleEngine {
     #[allow(dead_code)]
     pub fn empty() -> Self {
         Self {
-            rules: Vec::new(),
+            rules: RwLock::new(Vec::new()),
             governance: RwLock::new(RuleEngineGovernance {
                 disabled_rules: HashSet::new(),
                 disabled_packs: HashSet::new(),
@@ -86,12 +86,37 @@ impl DynamicRuleEngine {
 
     /// Returns the number of loaded rules.
     pub fn rule_count(&self) -> usize {
-        self.rules.len()
+        self.rules.read().expect("rules RwLock poisoned").len()
     }
 
-    /// Returns all loaded rule definitions (read-only).
-    pub fn rules(&self) -> &[RuleDefinition] {
-        &self.rules
+    /// Returns a snapshot of all loaded rule definitions.
+    pub fn rules_snapshot(&self) -> Vec<RuleDefinition> {
+        self.rules.read().expect("rules RwLock poisoned").clone()
+    }
+
+    /// Hot-load a new rule into the engine at runtime.
+    pub fn add_rule(&self, rule: RuleDefinition) {
+        let mut rules = self.rules.write().expect("rules RwLock poisoned");
+        // Remove existing rule with same ID to avoid duplicates
+        rules.retain(|r| r.id != rule.id);
+        tracing::info!(
+            "[DynamicRuleEngine] Hot-loaded custom rule: {} [{}]",
+            rule.id,
+            rule.name
+        );
+        rules.push(rule);
+    }
+
+    /// Remove a rule by ID from the engine at runtime.
+    pub fn remove_rule(&self, rule_id: &str) -> bool {
+        let mut rules = self.rules.write().expect("rules RwLock poisoned");
+        let before = rules.len();
+        rules.retain(|r| r.id != rule_id);
+        let removed = rules.len() < before;
+        if removed {
+            tracing::info!("[DynamicRuleEngine] Removed rule: {}", rule_id);
+        }
+        removed
     }
 
     /// Toggle Rule Pack
@@ -201,8 +226,9 @@ impl DynamicRuleEngine {
     /// Returns a list of findings for every rule that matched, processing scope pre-filters and deduplication.
     pub fn evaluate(&self, ctx: &RuleContext) -> Vec<DynamicRuleFinding> {
         let mut raw_findings = Vec::new();
+        let rules = self.rules.read().expect("rules RwLock poisoned");
 
-        for rule in &self.rules {
+        for rule in rules.iter() {
             if !self.is_rule_active(rule) {
                 continue;
             }
@@ -335,8 +361,9 @@ impl DynamicRuleEngine {
 
         // 3. Process supersedes
         let mut superseded_ids = std::collections::HashSet::new();
+        let rules = self.rules.read().expect("rules RwLock poisoned");
         for f in &active_findings {
-            if let Some(rule_def) = self.rules.iter().find(|r| r.id == f.rule_id) {
+            if let Some(rule_def) = rules.iter().find(|r| r.id == f.rule_id) {
                 if let Some(supersedes) = &rule_def.supersedes {
                     for sid in supersedes {
                         superseded_ids.insert(sid.clone());
@@ -353,10 +380,11 @@ impl DynamicRuleEngine {
 
     /// Generates log entries summarizing the engine boot state (for the normalization log).
     pub fn boot_log(&self) -> Vec<String> {
+        let rules = self.rules.read().expect("rules RwLock poisoned");
         let mut log = Vec::new();
         log.push(format!(
             "[DynamicRuleEngine] Loaded {} active rules ({} load errors, {} validation errors)",
-            self.rules.len(),
+            rules.len(),
             self.load_errors.len(),
             self.validation_errors.len()
         ));
@@ -366,7 +394,7 @@ impl DynamicRuleEngine {
         for err in &self.validation_errors {
             log.push(format!("[DynamicRuleEngine] VALIDATION_ERR: {}", err));
         }
-        for rule in &self.rules {
+        for rule in rules.iter() {
             log.push(format!(
                 "[DynamicRuleEngine] Active: {} — {} [severity={}]",
                 rule.id, rule.name, rule.default_severity

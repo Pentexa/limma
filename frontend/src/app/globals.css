@@ -1,0 +1,330 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: 'Inter', system-ui, sans-serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* ── shadcn base tokens ── */
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+
+    /* ── Semantic Security Severity (muted, professional) ── */
+    --color-critical: hsl(0 72% 51%);
+    --color-high: hsl(21 90% 48%);
+    --color-medium: hsl(38 92% 50%);
+    --color-low: hsl(207 90% 54%);
+
+    /* ── Phase Colors ── */
+    --color-recon: hsl(207 90% 54%);
+    --color-analysis: hsl(142 60% 40%);
+    --color-attention: hsl(38 92% 50%);
+    --color-risk: hsl(0 72% 51%);
+    --color-output: hsl(262 52% 50%);
+
+    /* ── Verification ── */
+    --color-verified: hsl(142 60% 40%);
+    --color-unverified: hsl(262 52% 50%);
+    --color-tentative: hsl(38 92% 50%);
+}
+
+/* ── Dark Enterprise Theme ── */
+:root {
+    --background: hsl(220 16% 6%);
+    --foreground: hsl(210 17% 82%);
+    --card: hsl(220 16% 8%);
+    --card-foreground: hsl(210 17% 82%);
+    --popover: hsl(220 16% 9%);
+    --popover-foreground: hsl(210 17% 82%);
+    --primary: hsl(207 90% 54%);
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(220 14% 12%);
+    --secondary-foreground: hsl(210 17% 82%);
+    --muted: hsl(220 14% 11%);
+    --muted-foreground: hsl(215 10% 48%);
+    --accent: hsl(220 14% 13%);
+    --accent-foreground: hsl(210 17% 82%);
+    --destructive: hsl(0 72% 51%);
+    --border: hsl(220 13% 15%);
+    --input: hsl(220 13% 16%);
+    --ring: hsl(207 90% 54%);
+    --chart-1: hsl(207 90% 54%);
+    --chart-2: hsl(142 60% 40%);
+    --chart-3: hsl(38 92% 50%);
+    --chart-4: hsl(262 52% 50%);
+    --chart-5: hsl(0 72% 51%);
+    --radius: 0.375rem;
+    --sidebar: hsl(220 16% 7%);
+    --sidebar-foreground: hsl(215 10% 48%);
+    --sidebar-primary: hsl(207 90% 54%);
+    --sidebar-primary-foreground: hsl(210 17% 90%);
+    --sidebar-accent: hsl(220 14% 11%);
+    --sidebar-accent-foreground: hsl(210 17% 82%);
+    --sidebar-border: hsl(220 13% 12%);
+    --sidebar-ring: hsl(207 90% 54%);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    html {
+        @apply font-sans;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+        background: hsl(220 13% 18%);
+        border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: hsl(220 13% 24%); }
+}
+
+/* ════════════════════════════════
+   Enterprise Component Styles
+   ════════════════════════════════ */
+
+@layer components {
+
+    /* ── Panel: the primary container ── */
+    .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+    .panel-header {
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: hsl(220 14% 9%);
+    }
+    .panel-title {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: hsl(215 10% 45%);
+    }
+    .panel-body {
+        padding: 10px 12px;
+    }
+
+    /* ── Metric: compact number display ── */
+    .metric {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .metric-value {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+    }
+    .metric-label {
+        font-size: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(215 10% 48%);
+    }
+
+    /* ── Severity Indicators ── */
+    .sev-critical { color: var(--color-critical); }
+    .sev-high { color: var(--color-high); }
+    .sev-medium { color: var(--color-medium); }
+    .sev-low { color: var(--color-low); }
+
+    .sev-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 1px;
+    }
+    .sev-dot-critical { background: var(--color-critical); }
+    .sev-dot-high { background: var(--color-high); }
+    .sev-dot-medium { background: var(--color-medium); }
+    .sev-dot-low { background: var(--color-low); }
+
+    .sev-badge {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 1px 6px;
+        border-radius: 2px;
+    }
+    .sev-badge-critical { background: hsl(0 72% 51% / 0.12); color: hsl(0 72% 60%); }
+    .sev-badge-high { background: hsl(21 90% 48% / 0.12); color: hsl(21 90% 58%); }
+    .sev-badge-medium { background: hsl(38 92% 50% / 0.10); color: hsl(38 92% 56%); }
+    .sev-badge-low { background: hsl(207 90% 54% / 0.10); color: hsl(207 90% 60%); }
+    .sev-badge-info { background: hsl(220 14% 13%); color: hsl(215 10% 52%); }
+
+    /* ── Status: verified/tentative ── */
+    .status-verified { color: var(--color-verified); }
+    .status-tentative { color: var(--color-tentative); }
+    .status-unverified { color: hsl(215 10% 40%); }
+
+    /* ── Table row ── */
+    .table-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        padding: 5px 12px;
+        border-bottom: 1px solid hsl(220 13% 10%);
+        font-size: 12px;
+        transition: background 0.1s;
+    }
+    .table-row:hover {
+        background: hsl(220 14% 9.5%);
+    }
+    .table-row:last-child {
+        border-bottom: none;
+    }
+    .table-row:nth-child(even) {
+        background: hsl(220 14% 7.5%);
+    }
+    .table-row:nth-child(even):hover {
+        background: hsl(220 14% 9.5%);
+    }
+
+    /* ── Progress Bar (flat, no glow) ── */
+    .progress-bar {
+        height: 3px;
+        border-radius: 1px;
+        background: hsl(220 13% 12%);
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        border-radius: 1px;
+        transition: width 0.4s ease;
+    }
+
+    /* ── Compact Nav Item ── */
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: hsl(215 10% 48%);
+        border-radius: 3px;
+        transition: color 0.15s, background 0.15s;
+    }
+    .nav-link:hover {
+        color: hsl(210 17% 72%);
+        background: hsl(220 14% 10%);
+    }
+    .nav-link-active {
+        color: hsl(210 17% 90%);
+        background: hsl(220 14% 11%);
+        font-weight: 600;
+    }
+    .nav-link-active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 3px;
+        bottom: 3px;
+        width: 2px;
+        border-radius: 0 2px 2px 0;
+        background: var(--primary);
+    }
+
+    /* ── Section Label ── */
+    .section-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: hsl(215 10% 35%);
+        padding: 0 10px;
+        margin-bottom: 4px;
+    }
+    /* ── Event Stream Terminal ── */
+    .terminal-header {
+        background: hsl(220 18% 7%);
+    }
+    .terminal-body {
+        height: 300px;
+        max-height: 300px;
+        background: hsl(225 20% 4.5%);
+        box-shadow: inset 0 1px 4px hsl(0 0% 0% / 0.3);
+    }
+    .terminal-row {
+        display: grid;
+        grid-template-columns: 28px 56px 52px 1fr;
+        gap: 0;
+        padding: 5px 10px;
+        font-size: 10.5px;
+        line-height: 1.45;
+    }
+    .terminal-line-num {
+        color: hsl(215 15% 22%);
+        font-size: 9px;
+        padding-top: 1px;
+    }
+    .terminal-timestamp {
+        color: hsl(215 15% 35%);
+        font-size: 10px;
+        padding-top: 1px;
+    }
+    .terminal-msg-info { color: hsl(215 15% 70%); padding-top: 1px; }
+    .terminal-msg-error { color: hsl(0 20% 80%); padding-top: 1px; }
+    .terminal-msg-success { color: hsl(142 15% 75%); padding-top: 1px; }
+}

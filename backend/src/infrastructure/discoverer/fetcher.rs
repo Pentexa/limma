@@ -1,28 +1,19 @@
 use crate::domain::entities::RuntimeVerification;
-use reqwest::{Client, ClientBuilder};
+use reqwest::Client;
 use std::time::{Duration, Instant};
 
 pub struct CrawlerFetcher {
     client: Client,
+    rate_limiter: std::sync::Arc<crate::infrastructure::safety::rate_limiter::SharedRateLimiter>,
 }
 
 impl CrawlerFetcher {
-    pub fn new() -> Self {
-        // Build a powerful client with cookies, timeouts, compression, and redirect following.
-        let client = ClientBuilder::new()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .timeout(Duration::from_secs(15))
-            .cookie_store(true)
-            .brotli(true)
-            .gzip(true)
-            .deflate(true)
-            .build()
-            .unwrap_or_else(|_| Client::new());
-
-        Self { client }
+    pub fn new(client: Client, rate_limiter: std::sync::Arc<crate::infrastructure::safety::rate_limiter::SharedRateLimiter>) -> Self {
+        Self { client, rate_limiter }
     }
 
     pub async fn fetch_html(&self, url: &str) -> Result<String, String> {
+        self.rate_limiter.wait().await;
         let resp = self
             .client
             .get(url)
@@ -45,6 +36,7 @@ impl CrawlerFetcher {
     }
 
     pub async fn fetch_js(&self, url: &str) -> Result<String, String> {
+        self.rate_limiter.wait().await;
         let resp = self
             .client
             .get(url)
@@ -70,6 +62,7 @@ impl CrawlerFetcher {
     }
 
     pub async fn test_endpoint(&self, url: &str) -> bool {
+        self.rate_limiter.wait().await;
         // Quick HEAD/GET test for common endpoints
         if let Ok(resp) = self
             .client
@@ -106,6 +99,7 @@ impl CrawlerFetcher {
         let mut best_result: Option<RuntimeVerification> = None;
 
         for method in attempts {
+            self.rate_limiter.wait().await;
             let request = match method {
                 "HEAD" => self.client.head(url),
                 "GET" => self.client.get(url),

@@ -1,15 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct User {
-    pub id: Uuid,
-    pub name: String,
-    pub email: String,
-    #[serde(default, skip_serializing)]
-    pub password_hash: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
 
 // ── Epistemic Honesty: Global Certainty Primitives ──
 
@@ -1301,3 +1292,482 @@ pub enum BurpSseEvent {
         message: String,
     },
 }
+
+// ── Faz F: Blind Detection & Active Exploitation ──
+
+/// Blind vulnerability type classification
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BlindVulnType {
+    DomXss,
+    BlindSqliBoolean,
+    BlindSqliTimeBased,
+    BlindSqliErrorBased,
+    BlindSsrfDns,
+    BlindSsrfHttp,
+    SecondOrderInjection,
+    RaceCondition,
+    JwtNoneAlg,
+    XmlExternalEntity,
+    InsecureDeserialization,
+}
+
+/// How the vulnerability was detected
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BlindDetectionMethod {
+    DomExecution,
+    TimingAnalysis { delay_ms: u32 },
+    OobCallback { callback_id: String },
+    DifferentialAnalysis,
+    ConcurrentTesting,
+}
+
+/// Timing comparison data for blind SQLi
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimingData {
+    pub baseline_ms: u32,
+    pub delayed_ms: u32,
+    pub iterations: u32,
+    pub delay_ratio: f32,
+}
+
+/// OOB callback data for SSRF detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallbackData {
+    pub callback_id: String,
+    pub received_at: chrono::DateTime<chrono::Utc>,
+    pub source_ip: Option<String>,
+    pub response_data: Option<String>,
+}
+
+/// Evidence collected during blind detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlindEvidence {
+    pub dom_snapshot: Option<String>,
+    pub timing_comparison: Option<TimingData>,
+    pub callback_received: Option<CallbackData>,
+    pub payload_hash: String,
+}
+
+/// Blind detection finding — non-deterministic vulnerability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlindFinding {
+    pub id: Uuid,
+    pub scan_id: Uuid,
+    pub target_id: Uuid,
+    pub vulnerability_type: BlindVulnType,
+    pub detection_method: BlindDetectionMethod,
+    pub confidence: f32,
+    pub evidence: BlindEvidence,
+    pub payload_used: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub verified: bool,
+}
+
+/// Proof of Concept type classification
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PocType {
+    SqlInjection,
+    CommandInjection,
+    PathTraversal,
+    ServerSideRequestForgery,
+    XmlExternalEntity,
+    InsecureDeserialization,
+    CrossSiteScripting,
+}
+
+/// Language used for PoC code
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PocLanguage {
+    Python,
+    Ruby,
+    JavaScript,
+    Bash,
+    Rust,
+}
+
+/// Safety level for exploit execution — ordered by risk (PartialOrd)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[serde(rename_all = "snake_case")]
+pub enum SafetyLevel {
+    L1SafeReadOnly,
+    L2VerifiedSandbox,
+    L3ActiveWithConsent,
+}
+
+/// Verification status for exploit PoCs
+/// (distinct from the existing VerificationStatus used for audit findings)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExploitVerificationStatus {
+    Pending,
+    VerifiedInSandbox,
+    FailedVerification,
+    VerifiedInProduction,
+}
+
+/// Proof of Concept — exploit code attached to a finding
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Poc {
+    pub id: Uuid,
+    pub finding_id: Uuid,
+    pub poc_type: PocType,
+    pub code: String,
+    pub language: PocLanguage,
+    pub safety_level: SafetyLevel,
+    pub verification_status: ExploitVerificationStatus,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exploit execution result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExploitResult {
+    pub id: Uuid,
+    pub poc_id: Uuid,
+    pub executed_at: chrono::DateTime<chrono::Utc>,
+    pub success: bool,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub execution_time_ms: u64,
+    pub sandbox_logs: Option<String>,
+}
+
+/// Safety scope — defines what is allowed during exploitation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyScope {
+    pub target_domains: Vec<String>,
+    pub allowed_methods: Vec<String>,
+    pub read_only: bool,
+    pub max_requests_per_second: u32,
+    pub time_limit_seconds: u32,
+}
+
+impl SafetyScope {
+    /// Create a default read-only safety scope
+    #[allow(dead_code)]
+    pub fn default_readonly() -> Self {
+        Self {
+            target_domains: Vec::new(),
+            allowed_methods: vec![
+                "GET".to_string(),
+                "HEAD".to_string(),
+                "OPTIONS".to_string(),
+            ],
+            read_only: true,
+            max_requests_per_second: 10,
+            time_limit_seconds: 60,
+        }
+    }
+}
+
+/// Exploit complexity level
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
+pub enum ExploitComplexity {
+    Low,
+    Medium,
+    High,
+}
+
+/// Raw blind finding — intermediate DTO from detection engine before domain scoring
+#[derive(Debug, Clone)]
+pub struct RawBlindFinding {
+    pub vulnerability_type: BlindVulnType,
+    pub detection_method: BlindDetectionMethod,
+    pub raw_confidence: f32,
+    pub payload_used: String,
+    pub evidence: BlindEvidence,
+    #[allow(dead_code)]
+    pub target_url: String,
+}
+
+impl RawBlindFinding {
+    /// Convert to a domain BlindFinding entity with overridden confidence
+    pub fn to_entity(&self, scan_id: Uuid, target_id: Uuid, confidence: f32) -> BlindFinding {
+        BlindFinding {
+            id: Uuid::new_v4(),
+            scan_id,
+            target_id,
+            vulnerability_type: self.vulnerability_type.clone(),
+            detection_method: self.detection_method.clone(),
+            confidence,
+            evidence: self.evidence.clone(),
+            payload_used: self.payload_used.clone(),
+            created_at: chrono::Utc::now(),
+            verified: false,
+        }
+    }
+}
+
+/// Summary of blind detection results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetectionSummary {
+    pub total_detected: usize,
+    pub by_type: std::collections::HashMap<String, usize>,
+    pub avg_confidence: f32,
+    pub duration_ms: u64,
+}
+
+impl DetectionSummary {
+    pub fn from_findings(findings: &[BlindFinding], duration_ms: u64) -> Self {
+        let mut by_type = std::collections::HashMap::new();
+        let mut total_confidence: f32 = 0.0;
+        for f in findings {
+            let key = format!("{:?}", f.vulnerability_type);
+            *by_type.entry(key).or_insert(0) += 1;
+            total_confidence += f.confidence;
+        }
+        let avg = if findings.is_empty() {
+            0.0
+        } else {
+            total_confidence / findings.len() as f32
+        };
+        Self {
+            total_detected: findings.len(),
+            by_type,
+            avg_confidence: avg,
+            duration_ms,
+        }
+    }
+}
+
+// ── Phase 4: System Configuration Settings ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalSettings {
+    pub timeout_ms: u64,
+    pub rate_limit_req_per_sec: u32,
+    pub use_proxy: bool,
+    pub proxy_url: String,
+    pub target_scope: String,
+    pub auth_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannerSettings {
+    pub user_agent: String,
+    pub wordlist_size: String,
+    pub follow_redirects: bool,
+    pub max_depth: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvestigatorSettings {
+    pub dns_resolution: String,
+    pub fingerprint_level: u32,
+    pub concurrent_hosts: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiDiscoverySettings {
+    pub wordlist_size: String,
+    pub custom_headers: bool,
+    pub schema_parsing: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceCollectorSettings {
+    pub port_scan_range: String,
+    pub banner_grabbing: bool,
+    pub timeout_per_port_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FormMapperSettings {
+    pub fuzzing_intensity: String,
+    pub extract_hidden_inputs: bool,
+    pub avoid_waf: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditSettings {
+    pub risk_coefficient: f32,
+    pub ignore_informational: bool,
+    pub auto_map_cwe: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleEngineSettings {
+    pub strict_mode: bool,
+    pub auto_sync_rules: bool,
+    pub custom_rule_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExploitSettings {
+    pub mode: String, // "safe_verification" | "authorized_active"
+    pub sandbox_validation: bool,
+    pub manual_approval_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxySettings {
+    pub intercept_requests: bool,
+    pub history_limit: u32,
+    pub auto_drop_malicious: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSettings {
+    pub auto_delete_days: u32,
+    pub archive_artifacts: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SettingsProfile {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub is_custom: bool,
+    pub global: GlobalSettings,
+    pub scanner: ScannerSettings,
+    pub investigator: InvestigatorSettings,
+    pub api_discovery: ApiDiscoverySettings,
+    pub services: ServiceCollectorSettings,
+    pub forms: FormMapperSettings,
+    pub audit: AuditSettings,
+    pub rules: RuleEngineSettings,
+    pub exploit: ExploitSettings,
+    pub proxy: ProxySettings,
+    pub sessions: SessionSettings,
+}
+
+impl Default for GlobalSettings {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 30000,
+            rate_limit_req_per_sec: 10,
+            use_proxy: false,
+            proxy_url: String::new(),
+            target_scope: "*.target.com".to_string(),
+            auth_profile_id: None,
+        }
+    }
+}
+
+impl Default for ScannerSettings {
+    fn default() -> Self {
+        Self {
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36".to_string(),
+            wordlist_size: "medium".to_string(),
+            follow_redirects: false,
+            max_depth: 5,
+        }
+    }
+}
+
+impl Default for InvestigatorSettings {
+    fn default() -> Self {
+        Self {
+            dns_resolution: "system".to_string(),
+            fingerprint_level: 3,
+            concurrent_hosts: 5,
+        }
+    }
+}
+
+impl Default for ApiDiscoverySettings {
+    fn default() -> Self {
+        Self {
+            wordlist_size: "medium".to_string(),
+            custom_headers: false,
+            schema_parsing: true,
+        }
+    }
+}
+
+impl Default for ServiceCollectorSettings {
+    fn default() -> Self {
+        Self {
+            port_scan_range: "common".to_string(),
+            banner_grabbing: true,
+            timeout_per_port_ms: 3000,
+        }
+    }
+}
+
+impl Default for FormMapperSettings {
+    fn default() -> Self {
+        Self {
+            fuzzing_intensity: "medium".to_string(),
+            extract_hidden_inputs: true,
+            avoid_waf: false,
+        }
+    }
+}
+
+impl Default for AuditSettings {
+    fn default() -> Self {
+        Self {
+            risk_coefficient: 1.0,
+            ignore_informational: false,
+            auto_map_cwe: true,
+        }
+    }
+}
+
+impl Default for RuleEngineSettings {
+    fn default() -> Self {
+        Self {
+            strict_mode: false,
+            auto_sync_rules: true,
+            custom_rule_path: String::new(),
+        }
+    }
+}
+
+impl Default for ExploitSettings {
+    fn default() -> Self {
+        Self {
+            mode: "safe_verification".to_string(),
+            sandbox_validation: true,
+            manual_approval_required: true,
+        }
+    }
+}
+
+impl Default for ProxySettings {
+    fn default() -> Self {
+        Self {
+            intercept_requests: false,
+            history_limit: 500,
+            auto_drop_malicious: true,
+        }
+    }
+}
+
+impl Default for SessionSettings {
+    fn default() -> Self {
+        Self {
+            auto_delete_days: 30,
+            archive_artifacts: true,
+        }
+    }
+}
+
+impl Default for SettingsProfile {
+    fn default() -> Self {
+        Self {
+            id: "default".to_string(),
+            name: "Default Profile".to_string(),
+            description: "Standard security scan configuration".to_string(),
+            is_custom: false,
+            global: GlobalSettings::default(),
+            scanner: ScannerSettings::default(),
+            investigator: InvestigatorSettings::default(),
+            api_discovery: ApiDiscoverySettings::default(),
+            services: ServiceCollectorSettings::default(),
+            forms: FormMapperSettings::default(),
+            audit: AuditSettings::default(),
+            rules: RuleEngineSettings::default(),
+            exploit: ExploitSettings::default(),
+            proxy: ProxySettings::default(),
+            sessions: SessionSettings::default(),
+        }
+    }
+}
+

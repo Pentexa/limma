@@ -562,7 +562,7 @@ mod tests {
             ),
         ];
 
-        let mut results = correlator.correlate(&findings);
+        let results = correlator.correlate(&findings);
         assert_eq!(results.len(), 1);
         assert!(results[0].is_hygiene_gap);
     }
@@ -585,7 +585,7 @@ mod tests {
             ),
         ];
 
-        let mut results = correlator.correlate(&findings);
+        let results = correlator.correlate(&findings);
         assert_eq!(results.len(), 1);
         assert!(!results[0].is_hygiene_gap);
     }
@@ -614,7 +614,7 @@ mod tests {
             ),
         ];
 
-        let mut results = correlator.correlate(&findings);
+        let results = correlator.correlate(&findings);
         // Should trigger both Duplicate/Overlaps if any, but specifically CSP_XSS
         let xss_chain = results.iter().find(|c| c.reason.code == "CSP_XSS_CHAIN");
         assert!(xss_chain.is_some());

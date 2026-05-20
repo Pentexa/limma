@@ -18,6 +18,17 @@ pub enum AppError {
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Safety violation: {0}")]
+    #[allow(dead_code)]
+    SafetyViolation(String),
+
+    #[error("Domain error: {0}")]
+    #[allow(dead_code)]
+    DomainError(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +49,9 @@ impl IntoResponse for AppError {
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::BadGateway(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::Serialization(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            AppError::SafetyViolation(msg) => (StatusCode::FORBIDDEN, msg.clone()),
+            AppError::DomainError(msg) => (StatusCode::UNPROCESSABLE_ENTITY, msg.clone()),
         };
 
         let body = ErrorEnvelope {

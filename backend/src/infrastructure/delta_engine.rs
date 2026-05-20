@@ -233,6 +233,25 @@ impl DeltaEngine {
         })
     }
 
+    pub async fn delete_scan(&self, scan_id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM scan_findings WHERE scan_id = $1")
+            .bind(scan_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM scan_endpoints WHERE scan_id = $1")
+            .bind(scan_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM scan_sessions WHERE id = $1")
+            .bind(scan_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     /// Retrieve a single scan by its ID, including its endpoints and findings.
     pub async fn get_scan_by_id(&self, scan_id: Uuid) -> Result<Option<ScanDetail>, sqlx::Error> {
         #[derive(sqlx::FromRow)]

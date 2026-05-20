@@ -8,35 +8,53 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::time::Instant;
 
-pub struct HttpInvestigator {
-    client: Client,
-}
+pub struct HttpInvestigator {}
 
 impl HttpInvestigator {
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Failed to build HTTP client"),
+        Self {}
+    }
+
+    fn build_client(&self, profile: &crate::domain::engine_config::EngineConfig) -> Client {
+        let mut builder = Client::builder()
+            .user_agent(&profile.user_agent)
+            .timeout(std::time::Duration::from_millis(profile.timeout_ms))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .tcp_keepalive(std::time::Duration::from_secs(15));
+            
+        if profile.use_proxy {
+            if let Some(proxy_url) = &profile.proxy_url {
+                if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+                    builder = builder.proxy(proxy);
+                }
+            }
         }
+
+        builder.build().expect("Failed to build profile-specific HTTP client")
     }
 }
 
 #[async_trait]
 impl ServerInvestigator for HttpInvestigator {
-    async fn investigate(&self, url_str: &str) -> Result<ServerInfo, String> {
-        self.investigate_multi_inner(url_str, &mut None).await
+    async fn investigate(
+        &self,
+        url_str: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<ServerInfo, String> {
+        let client = self.build_client(profile);
+        self.investigate_multi_inner(url_str, &client, profile, &mut None).await
     }
 
     async fn investigate_stream(
         &self,
         url_str: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
         tx: tokio::sync::mpsc::UnboundedSender<crate::domain::entities::InvestigationEvent>,
     ) -> Result<ServerInfo, String> {
         let mut tx_opt = Some(tx.clone());
-        let res = self.investigate_multi_inner(url_str, &mut tx_opt).await;
+        let client = self.build_client(profile);
+        let res = self.investigate_multi_inner(url_str, &client, profile, &mut tx_opt).await;
         if let Ok(ref info) = res {
             let event = crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
@@ -58,6 +76,8 @@ impl HttpInvestigator {
     async fn investigate_multi_inner(
         &self,
         url_str: &str,
+        client: &Client,
+        profile: &crate::domain::engine_config::EngineConfig,
         tx: &mut Option<
             tokio::sync::mpsc::UnboundedSender<crate::domain::entities::InvestigationEvent>,
         >,
@@ -76,7 +96,7 @@ impl HttpInvestigator {
         }
 
         // clone sender for analyze_route to avoid borrowing issues inside futures or loops
-        let mut primary_info = self.analyze_route(url_str, tx.clone()).await?;
+        let mut primary_info = self.analyze_route(url_str, client, profile, tx.clone()).await?;
 
         let base_url = if let Ok(parsed) = reqwest::Url::parse(&primary_info.resolved_url) {
             let port_str = if let Some(p) = parsed.port_or_known_default() {
@@ -104,7 +124,7 @@ impl HttpInvestigator {
         let mut responses = Vec::new();
 
         for target in targets {
-            if let Ok(info) = self.analyze_route(&target, tx.clone()).await {
+            if let Ok(info) = self.analyze_route(&target, client, profile, tx.clone()).await {
                 routes_checked.push(info.resolved_url.clone());
                 responses.push(info);
             }
@@ -189,6 +209,8 @@ impl HttpInvestigator {
     async fn analyze_route(
         &self,
         url_str: &str,
+        client: &Client,
+        _profile: &crate::domain::engine_config::EngineConfig,
         tx: Option<tokio::sync::mpsc::UnboundedSender<crate::domain::entities::InvestigationEvent>>,
     ) -> Result<ServerInfo, String> {
         let mut activity_log = Vec::new();
@@ -197,7 +219,7 @@ impl HttpInvestigator {
         let start_time = Instant::now();
         activity_log.push("Fetching response".to_string());
 
-        let resp = self.client.get(url_str).send().await.map_err(|e| {
+        let resp = client.get(url_str).send().await.map_err(|e| {
             activity_log.push(format!("Failed to fetch response: {}", e));
             e.to_string()
         })?;

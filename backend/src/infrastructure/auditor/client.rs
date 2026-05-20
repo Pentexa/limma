@@ -8,19 +8,12 @@ use reqwest::Client;
 use url::Url;
 
 pub struct HttpSecurityAuditor {
-    client: Client,
     pub pool: Option<sqlx::PgPool>,
 }
 
 impl HttpSecurityAuditor {
     pub fn new() -> Self {
         Self {
-            client: Client::builder()
-                .redirect(reqwest::redirect::Policy::limited(5))
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Failed to build HTTP client"),
             pool: None,
         }
     }
@@ -29,13 +22,38 @@ impl HttpSecurityAuditor {
         self.pool = Some(pool);
         self
     }
+
+    fn build_client(&self, profile: &crate::domain::engine_config::EngineConfig) -> Client {
+        let mut builder = Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .user_agent(&profile.user_agent)
+            .timeout(std::time::Duration::from_millis(profile.timeout_ms))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .tcp_keepalive(std::time::Duration::from_secs(15));
+            
+        if profile.use_proxy {
+            if let Some(proxy_url) = &profile.proxy_url {
+                if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+                    builder = builder.proxy(proxy);
+                }
+            }
+        }
+
+        builder.build().expect("Failed to build profile-specific HTTP client")
+    }
 }
 
 #[async_trait]
 impl SecurityAuditorRepository for HttpSecurityAuditor {
-    async fn audit(&self, url_str: &str) -> Result<SecurityReport, String> {
-        let resp = self
-            .client
+    async fn audit(
+        &self,
+        url_str: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<SecurityReport, String> {
+        let client = self.build_client(profile);
+        profile.rate_limiter.wait().await;
+        let resp = client
             .get(url_str)
             .send()
             .await
@@ -123,7 +141,8 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
             // Check security.txt
             let mut security_txt_found = false;
             let security_url = format!("{}/.well-known/security.txt", base);
-            if let Ok(sec_resp) = self.client.get(&security_url).send().await {
+            profile.rate_limiter.wait().await;
+            if let Ok(sec_resp) = client.get(&security_url).send().await {
                 if sec_resp.status().is_success() {
                     security_txt_found = true;
                 }
@@ -135,7 +154,8 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
 
             // Check robots.txt
             let robot_url = format!("{}/robots.txt", base);
-            if let Ok(robot_resp) = self.client.get(&robot_url).send().await {
+            profile.rate_limiter.wait().await;
+            if let Ok(robot_resp) = client.get(&robot_url).send().await {
                 if robot_resp.status().is_success() {
                     let robot_body = robot_resp.text().await.unwrap_or_default();
                     let suspicious_keywords =
@@ -188,6 +208,7 @@ impl SecurityAuditorRepository for HttpSecurityAuditor {
         server_info: &ServerInfo,
         api_discovery: &ApiDiscoveryResult,
         dynamic_engine: Option<&crate::infrastructure::rule_engine::DynamicRuleEngine>,
+        _profile: &crate::domain::engine_config::EngineConfig,
     ) -> Result<NormalizedAuditReport, String> {
         let mut all_findings: Vec<SecurityAuditFinding> = Vec::new();
         let mut log = Vec::new();

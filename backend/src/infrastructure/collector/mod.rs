@@ -32,7 +32,11 @@ impl HttpServiceCollector {
 
 #[async_trait]
 impl ServiceCollector for HttpServiceCollector {
-    async fn collect(&self, url_str: &str) -> Result<CollectorSnapshot, String> {
+    async fn collect(
+        &self,
+        url_str: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<CollectorSnapshot, String> {
         let mut timeline = Vec::new();
         let errors = Vec::new();
 
@@ -118,11 +122,8 @@ impl ServiceCollector for HttpServiceCollector {
             metadata: None,
         });
 
-        // === 3. Safe Port Probing ===
-        let safe_ports: Vec<u16> = vec![
-            21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306, 3389,
-            5432, 6379, 8080, 8443,
-        ];
+        // === 3. Port Probing (from EngineConfig) ===
+        let target_ports = &profile.target_ports;
 
         let target_ip = primary_ip.ok_or("No primary IP resolved")?;
 
@@ -132,7 +133,7 @@ impl ServiceCollector for HttpServiceCollector {
             event_type: "SCAN_STARTED".to_string(),
             message: format!(
                 "Starting protocol-aware scan of {} ports against {}",
-                safe_ports.len(),
+                target_ports.len(),
                 target_ip
             ),
             metadata: None,
@@ -141,12 +142,15 @@ impl ServiceCollector for HttpServiceCollector {
         let host_for_probes = host.clone();
         let ip_for_probes = target_ip.clone();
 
-        let probe_results = stream::iter(safe_ports.iter().copied().map(|port| {
+        let timeout_ms = profile.timeout_ms;
+        let max_concurrent = profile.max_concurrent_ports;
+
+        let probe_results = stream::iter(target_ports.iter().copied().map(|port| {
             let host = host_for_probes.clone();
             let ip = ip_for_probes.clone();
-            async move { fallback_router::probe_with_fallback(&host, &ip, port).await }
+            async move { fallback_router::probe_with_fallback(&host, &ip, port, timeout_ms).await }
         }))
-        .buffer_unordered(10)
+        .buffer_unordered(max_concurrent)
         .collect::<Vec<(PortProbeResult, Vec<ActivityEvent>)>>()
         .await;
 

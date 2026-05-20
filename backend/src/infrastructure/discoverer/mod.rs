@@ -18,15 +18,32 @@ use js_collector::JsCollector;
 use js_static_analyzer::JsStaticAnalyzer;
 use normalizer::PathNormalizer;
 
-pub struct HttpApiDiscoverer {
-    fetcher: CrawlerFetcher,
-}
+pub struct HttpApiDiscoverer {}
 
 impl HttpApiDiscoverer {
     pub fn new() -> Self {
-        Self {
-            fetcher: CrawlerFetcher::new(),
+        Self {}
+    }
+
+    fn build_fetcher(&self, profile: &crate::domain::engine_config::EngineConfig) -> CrawlerFetcher {
+        let mut builder = reqwest::ClientBuilder::new()
+            .user_agent(&profile.user_agent)
+            .timeout(std::time::Duration::from_millis(profile.timeout_ms))
+            .cookie_store(true)
+            .brotli(true)
+            .gzip(true)
+            .deflate(true);
+
+        if profile.use_proxy {
+            if let Some(proxy_url) = &profile.proxy_url {
+                if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+                    builder = builder.proxy(proxy);
+                }
+            }
         }
+
+        let client = builder.build().unwrap_or_else(|_| reqwest::Client::new());
+        CrawlerFetcher::new(client, profile.rate_limiter.clone())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -66,11 +83,17 @@ impl HttpApiDiscoverer {
 
 #[async_trait]
 impl ApiDiscoverer for HttpApiDiscoverer {
-    async fn discover(&self, url_str: &str) -> Result<ApiDiscoveryResult, String> {
+    async fn discover(
+        &self,
+        url_str: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<ApiDiscoveryResult, String> {
         let base_url = Url::parse(url_str).map_err(|e| format!("Invalid Base URL: {}", e))?;
+        
+        let fetcher = self.build_fetcher(profile);
 
         // 1. Fetcher layer
-        let html_body = self.fetcher.fetch_html(url_str).await?;
+        let html_body = fetcher.fetch_html(url_str).await?;
 
         let mut endpoints_map: HashMap<String, EndpointDetail> = HashMap::new();
         let mut tech_stack = HashSet::new();
@@ -145,13 +168,13 @@ impl ApiDiscoverer for HttpApiDiscoverer {
                 let host = js_url.host_str().unwrap_or("");
                 let orig_host = actual_base_url.host_str().unwrap_or("");
                 if host == orig_host || host.contains("cdn") || host.contains("unpkg") {
-                    if let Ok(js_code) = self.fetcher.fetch_js(js_url.as_str()).await {
+                    if let Ok(js_code) = fetcher.fetch_js(js_url.as_str()).await {
                         let metadata = JsCollector::analyze_metadata(&js_code);
 
                         for chunk in metadata.potential_chunks.into_iter().take(5) {
                             if let Ok(chunk_url) = actual_base_url.join(&chunk) {
                                 if let Ok(chunk_code) =
-                                    self.fetcher.fetch_js(chunk_url.as_str()).await
+                                    fetcher.fetch_js(chunk_url.as_str()).await
                                 {
                                     js_sources_to_eval
                                         .push((chunk_code, "External JS (Dynamic Import)"));
@@ -218,7 +241,7 @@ impl ApiDiscoverer for HttpApiDiscoverer {
         ];
         for path in common_paths {
             if let Ok(test_url) = actual_base_url.join(path) {
-                if self.fetcher.test_endpoint(test_url.as_str()).await {
+                if fetcher.test_endpoint(test_url.as_str()).await {
                     let snippet = format!(
                         "Automated brute-force active ping returned 200 OK for: {}",
                         path
@@ -273,8 +296,7 @@ impl ApiDiscoverer for HttpApiDiscoverer {
                 format!("{}/{}", base_str, path_str)
             };
 
-            if let Some(verification) = self
-                .fetcher
+            if let Some(verification) = fetcher
                 .verify_endpoint_deep(&full_url, &ep.method_prediction)
                 .await
             {

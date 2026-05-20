@@ -13,34 +13,52 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 pub struct HttpWebsiteScanner {
-    client: Client,
     fingerprinter: fingerprint::FingerprintEngine,
 }
 
 impl HttpWebsiteScanner {
     pub fn new() -> Self {
         Self {
-            client: Client::builder()
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                .redirect(Policy::none()) // Prevent automatic redirects to track them manually
-                .timeout(std::time::Duration::from_secs(30))
-                .pool_max_idle_per_host(10)
-                .pool_idle_timeout(std::time::Duration::from_secs(30))
-                .tcp_keepalive(std::time::Duration::from_secs(15))
-                .build()
-                .expect("Failed to build HTTP client"),
             fingerprinter: fingerprint::FingerprintEngine::new(),
         }
+    }
+
+    fn build_client(&self, profile: &crate::domain::engine_config::EngineConfig) -> Client {
+        let mut builder = Client::builder()
+            .user_agent(&profile.user_agent)
+            .timeout(std::time::Duration::from_millis(profile.timeout_ms))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .tcp_keepalive(std::time::Duration::from_secs(15));
+            
+        if !profile.follow_redirects {
+            builder = builder.redirect(Policy::none());
+        }
+
+        if profile.use_proxy {
+            if let Some(proxy_url) = &profile.proxy_url {
+                if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+                    builder = builder.proxy(proxy);
+                }
+            }
+        }
+
+        builder.build().expect("Failed to build profile-specific HTTP client")
     }
 }
 
 #[async_trait]
 impl WebsiteScanner for HttpWebsiteScanner {
-    async fn scan(&self, url: &str) -> Result<WebScanResult, String> {
+    async fn scan(
+        &self,
+        url: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<WebScanResult, String> {
         let scan_start_time = Utc::now();
         let total_start = Instant::now();
 
-        let mut crawl_res = crawler::crawl(&self.client, &self.fingerprinter, url, 5, None).await?;
+        let client = self.build_client(profile);
+        let mut crawl_res = crawler::crawl(&client, &self.fingerprinter, url, profile, None).await?;
         let summary =
             consistency::analyze_consistency(&mut crawl_res.pages, &mut crawl_res.events, &None);
         let correlation_report =
@@ -136,13 +154,14 @@ impl WebsiteScanner for HttpWebsiteScanner {
     async fn scan_stream(
         &self,
         url: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
         tx: tokio::sync::mpsc::UnboundedSender<crate::domain::entities::ScanEvent>,
     ) -> Result<WebScanResult, String> {
         let scan_start_time = Utc::now();
         let total_start = Instant::now();
 
-        let mut crawl_res =
-            crawler::crawl(&self.client, &self.fingerprinter, url, 5, Some(tx.clone())).await?;
+        let client = self.build_client(profile);
+        let mut crawl_res = crawler::crawl(&client, &self.fingerprinter, url, profile, Some(tx.clone())).await?;
         let summary = consistency::analyze_consistency(
             &mut crawl_res.pages,
             &mut crawl_res.events,
