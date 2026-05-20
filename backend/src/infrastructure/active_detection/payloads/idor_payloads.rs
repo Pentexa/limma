@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 use uuid::Uuid;
 

@@ -1,3 +1,4 @@
+#![allow(clippy::explicit_counter_loop)]
 use crate::domain::entities::{RedirectChainEntry, ScanEvent, ScannedPage};
 use crate::infrastructure::scanner::{fingerprint, security};
 use chrono::Utc;
@@ -61,22 +62,24 @@ pub async fn crawl(
     // Wordlist discovery injection
     let mut added_wordlists = 0;
     for word in &config.wordlist {
-        if added_wordlists >= config.max_wordlist_items_per_scan { break; }
+        if added_wordlists >= config.max_wordlist_items_per_scan {
+            break;
+        }
         let mut w_url = base_parsed.clone();
         // Append wordlist to path cleanly
-            let current_path = w_url.path();
-            let new_path = if current_path.ends_with('/') {
-                format!("{}{}", current_path, word)
-            } else {
-                format!("{}/{}", current_path, word)
-            };
-            w_url.set_path(&new_path);
-            let w_url_str = w_url.to_string();
-            queue.push_back(QueueItem {
-                url: w_url_str,
-                depth: 1, // Start injected wordlists at depth 1
-            });
-            added_wordlists += 1;
+        let current_path = w_url.path();
+        let new_path = if current_path.ends_with('/') {
+            format!("{}{}", current_path, word)
+        } else {
+            format!("{}/{}", current_path, word)
+        };
+        w_url.set_path(&new_path);
+        let w_url_str = w_url.to_string();
+        queue.push_back(QueueItem {
+            url: w_url_str,
+            depth: 1, // Start injected wordlists at depth 1
+        });
+        added_wordlists += 1;
     }
 
     emit_event(
@@ -87,7 +90,8 @@ pub async fn crawl(
     );
 
     while let Some(item) = queue.pop_front() {
-        if pages.len() as u32 >= (config.max_depth * 10).max(10) { // Limit total pages reasonably based on depth
+        if pages.len() as u32 >= (config.max_depth * 10).max(10) {
+            // Limit total pages reasonably based on depth
             emit_event(
                 "CRAWL_LIMIT_REACHED",
                 "WARN",

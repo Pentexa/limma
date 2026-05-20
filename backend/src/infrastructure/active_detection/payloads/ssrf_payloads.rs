@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 
 pub fn get_payloads() -> Vec<PayloadDefinition> {
@@ -7,7 +7,10 @@ pub fn get_payloads() -> Vec<PayloadDefinition> {
             id: "ssrf_01".into(),
             payload: "http://127.0.0.1".into(),
             description: "Localhost SSRF probe".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "internal_page".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "internal_page".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },

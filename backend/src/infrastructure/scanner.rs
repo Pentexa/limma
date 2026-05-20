@@ -30,7 +30,7 @@ impl HttpWebsiteScanner {
             .pool_max_idle_per_host(10)
             .pool_idle_timeout(std::time::Duration::from_secs(30))
             .tcp_keepalive(std::time::Duration::from_secs(15));
-            
+
         if !profile.follow_redirects {
             builder = builder.redirect(Policy::none());
         }
@@ -43,7 +43,9 @@ impl HttpWebsiteScanner {
             }
         }
 
-        builder.build().expect("Failed to build profile-specific HTTP client")
+        builder
+            .build()
+            .expect("Failed to build profile-specific HTTP client")
     }
 }
 
@@ -58,7 +60,8 @@ impl WebsiteScanner for HttpWebsiteScanner {
         let total_start = Instant::now();
 
         let client = self.build_client(profile);
-        let mut crawl_res = crawler::crawl(&client, &self.fingerprinter, url, profile, None).await?;
+        let mut crawl_res =
+            crawler::crawl(&client, &self.fingerprinter, url, profile, None).await?;
         let summary =
             consistency::analyze_consistency(&mut crawl_res.pages, &mut crawl_res.events, &None);
         let correlation_report =
@@ -161,7 +164,8 @@ impl WebsiteScanner for HttpWebsiteScanner {
         let total_start = Instant::now();
 
         let client = self.build_client(profile);
-        let mut crawl_res = crawler::crawl(&client, &self.fingerprinter, url, profile, Some(tx.clone())).await?;
+        let mut crawl_res =
+            crawler::crawl(&client, &self.fingerprinter, url, profile, Some(tx.clone())).await?;
         let summary = consistency::analyze_consistency(
             &mut crawl_res.pages,
             &mut crawl_res.events,

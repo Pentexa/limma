@@ -8,8 +8,16 @@ pub struct CrawlerFetcher {
 }
 
 impl CrawlerFetcher {
-    pub fn new(client: Client, rate_limiter: std::sync::Arc<crate::infrastructure::safety::rate_limiter::SharedRateLimiter>) -> Self {
-        Self { client, rate_limiter }
+    pub fn new(
+        client: Client,
+        rate_limiter: std::sync::Arc<
+            crate::infrastructure::safety::rate_limiter::SharedRateLimiter,
+        >,
+    ) -> Self {
+        Self {
+            client,
+            rate_limiter,
+        }
     }
 
     pub async fn fetch_html(&self, url: &str) -> Result<String, String> {

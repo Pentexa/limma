@@ -1,5 +1,5 @@
-use reqwest::RequestBuilder;
 use rand::seq::IndexedRandom;
+use reqwest::RequestBuilder;
 
 const USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -11,13 +11,7 @@ const USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51",
 ];
 
-const BYPASS_IPS: &[&str] = &[
-    "127.0.0.1",
-    "192.168.0.1",
-    "10.0.0.1",
-    "8.8.8.8",
-    "1.1.1.1",
-];
+const BYPASS_IPS: &[&str] = &["127.0.0.1", "192.168.0.1", "10.0.0.1", "8.8.8.8", "1.1.1.1"];
 
 /// Applies WAF bypass headers to a RequestBuilder to evade basic detection mechanisms.
 pub fn apply_waf_bypass(mut builder: RequestBuilder) -> RequestBuilder {

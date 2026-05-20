@@ -13,9 +13,7 @@ pub struct HttpSecurityAuditor {
 
 impl HttpSecurityAuditor {
     pub fn new() -> Self {
-        Self {
-            pool: None,
-        }
+        Self { pool: None }
     }
 
     pub fn with_pool(mut self, pool: sqlx::PgPool) -> Self {
@@ -31,7 +29,7 @@ impl HttpSecurityAuditor {
             .pool_max_idle_per_host(10)
             .pool_idle_timeout(std::time::Duration::from_secs(30))
             .tcp_keepalive(std::time::Duration::from_secs(15));
-            
+
         if profile.use_proxy {
             if let Some(proxy_url) = &profile.proxy_url {
                 if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
@@ -40,7 +38,9 @@ impl HttpSecurityAuditor {
             }
         }
 
-        builder.build().expect("Failed to build profile-specific HTTP client")
+        builder
+            .build()
+            .expect("Failed to build profile-specific HTTP client")
     }
 }
 

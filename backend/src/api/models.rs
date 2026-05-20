@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
-
 #[derive(Deserialize)]
 pub struct AnalysisRequest {
     pub url: String,
@@ -62,4 +60,3 @@ pub struct ActiveScanApiRequest {
     pub profile_id: Option<String>,
     pub custom_parameters: Option<Vec<String>>,
 }
-

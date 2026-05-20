@@ -102,11 +102,7 @@ impl BlindDetectionScoringService {
     /// - 4x+ delay ratio with 3+ iterations = high confidence (0.9+)
     /// - 2x-4x delay ratio = medium confidence (0.7+)
     /// - Below 2x = low confidence (0.5)
-    pub fn calculate_timing_confidence(
-        baseline_ms: u32,
-        delayed_ms: u32,
-        iterations: u32,
-    ) -> f32 {
+    pub fn calculate_timing_confidence(baseline_ms: u32, delayed_ms: u32, iterations: u32) -> f32 {
         let delay_ratio = delayed_ms as f32 / baseline_ms.max(1) as f32;
         let iteration_bonus = (iterations as f32 * 0.05).min(0.2);
 

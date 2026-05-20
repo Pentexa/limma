@@ -81,8 +81,7 @@ impl<'a> PerformBlindScan<'a> {
             BlindDetectionMethod::TimingAnalysis { delay_ms } => {
                 BlindDetectionScoringService::calculate_timing_confidence(
                     100, // baseline assumption
-                    *delay_ms,
-                    3, // default iterations
+                    *delay_ms, 3, // default iterations
                 )
             }
             _ => finding.raw_confidence,

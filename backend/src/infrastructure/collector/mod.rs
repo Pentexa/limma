@@ -145,14 +145,19 @@ impl ServiceCollector for HttpServiceCollector {
         let timeout_ms = profile.timeout_ms;
         let max_concurrent = profile.max_concurrent_ports;
 
-        let probe_results = stream::iter(target_ports.iter().copied().map(|port| {
-            let host = host_for_probes.clone();
-            let ip = ip_for_probes.clone();
-            async move { fallback_router::probe_with_fallback(&host, &ip, port, timeout_ms).await }
-        }))
-        .buffer_unordered(max_concurrent)
-        .collect::<Vec<(PortProbeResult, Vec<ActivityEvent>)>>()
-        .await;
+        let probe_results =
+            stream::iter(
+                target_ports.iter().copied().map(|port| {
+                    let host = host_for_probes.clone();
+                    let ip = ip_for_probes.clone();
+                    async move {
+                        fallback_router::probe_with_fallback(&host, &ip, port, timeout_ms).await
+                    }
+                }),
+            )
+            .buffer_unordered(max_concurrent)
+            .collect::<Vec<(PortProbeResult, Vec<ActivityEvent>)>>()
+            .await;
 
         // Collect results and merge timelines
         let mut port_results: Vec<PortProbeResult> = Vec::new();

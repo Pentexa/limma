@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 
 pub fn get_error_based() -> Vec<PayloadDefinition> {
@@ -52,7 +52,10 @@ pub fn get_union_based() -> Vec<PayloadDefinition> {
             id: "sqli_union_01".into(),
             payload: "' UNION SELECT NULL--".into(),
             description: "Union with 1 column NULL probe".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "column_count_match".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "column_count_match".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
@@ -60,7 +63,10 @@ pub fn get_union_based() -> Vec<PayloadDefinition> {
             id: "sqli_union_02".into(),
             payload: "' UNION SELECT NULL,NULL--".into(),
             description: "Union with 2 column NULL probe".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "column_count_match".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "column_count_match".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
@@ -68,7 +74,10 @@ pub fn get_union_based() -> Vec<PayloadDefinition> {
             id: "sqli_union_03".into(),
             payload: "' UNION SELECT NULL,NULL,NULL--".into(),
             description: "Union with 3 column NULL probe".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "column_count_match".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "column_count_match".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
@@ -76,7 +85,10 @@ pub fn get_union_based() -> Vec<PayloadDefinition> {
             id: "sqli_union_04".into(),
             payload: "' ORDER BY 1--".into(),
             description: "ORDER BY column enumeration start".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "order_by_success".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "order_by_success".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
@@ -118,7 +130,10 @@ pub fn get_boolean_based() -> Vec<PayloadDefinition> {
             id: "sqli_bool_01".into(),
             payload: "' AND 1=1--".into(),
             description: "Boolean true condition (should return normal)".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "true_condition".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "true_condition".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
@@ -126,7 +141,10 @@ pub fn get_boolean_based() -> Vec<PayloadDefinition> {
             id: "sqli_bool_02".into(),
             payload: "' AND 1=2--".into(),
             description: "Boolean false condition (should differ from true)".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "false_condition".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "false_condition".into(),
+            },
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },

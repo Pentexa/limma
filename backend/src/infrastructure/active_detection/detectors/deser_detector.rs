@@ -1,8 +1,8 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
@@ -41,23 +41,36 @@ impl VulnDetector for DeserDetector {
         baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
-        
-        let payloads = self.payload_db.get_all_payloads_for_types(&self.supported_types(), payload_selector.is_safe_mode());
+
+        let payloads = self
+            .payload_db
+            .get_all_payloads_for_types(&self.supported_types(), payload_selector.is_safe_mode());
 
         for (vuln_type, payload_def) in payloads {
-            if rate_limit_ms > 0 { tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await; }
+            if rate_limit_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
+            }
 
-            let test_url = format!("{}?{}={}", target_url, parameter, urlencoding::encode(&payload_def.payload));
+            let test_url = format!(
+                "{}?{}={}",
+                target_url,
+                parameter,
+                urlencoding::encode(&payload_def.payload)
+            );
             let start = std::time::Instant::now();
             let mut req = self.client.get(&test_url);
-            
-            if payload_selector.is_waf_bypass_enabled() { req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(req); }
-            
+
+            if payload_selector.is_waf_bypass_enabled() {
+                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
+                    req,
+                );
+            }
+
             let resp = match req.send().await {
                 Ok(r) => r,
                 Err(_e) => continue, // Skip on connection error
             };
-            
+
             let elapsed = start.elapsed().as_millis() as u64;
             let status = resp.status().as_u16();
 
@@ -71,18 +84,17 @@ impl VulnDetector for DeserDetector {
             let mut is_vuln = false;
             let mut matched_ind = String::new();
 
-            match &payload_def.expected_indicator {
-                ExpectedIndicator::ErrorPattern(pattern) => {
-                    if body.contains(pattern) {
-                        is_vuln = true;
-                        matched_ind = format!("Error pattern matched: {}", pattern);
-                    }
-                },
-                _ => {}
+            if let ExpectedIndicator::ErrorPattern(pattern) = &payload_def.expected_indicator {
+                if body.contains(pattern) {
+                    is_vuln = true;
+                    matched_ind = format!("Error pattern matched: {}", pattern);
+                }
             }
 
             if is_vuln {
-                let is_false_positive = baseline.map(|b| b.contains_indicator(&payload_def.payload)).unwrap_or(false);
+                let is_false_positive = baseline
+                    .map(|b| b.contains_indicator(&payload_def.payload))
+                    .unwrap_or(false);
                 if is_false_positive {
                     continue;
                 }
@@ -103,7 +115,7 @@ impl VulnDetector for DeserDetector {
                         matched_indicator: matched_ind,
                         additional_notes: vec![
                             payload_def.description.clone(),
-                            "Deserialization error pattern found in response".to_string()
+                            "Deserialization error pattern found in response".to_string(),
                         ],
                     },
                     severity: payload_def.severity,

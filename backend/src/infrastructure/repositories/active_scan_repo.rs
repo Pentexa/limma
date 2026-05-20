@@ -1,7 +1,8 @@
-use async_trait::async_trait;
-use sqlx::PgPool;
+#![allow(clippy::needless_borrows_for_generic_args)]
 use crate::domain::active_vuln::{ActiveScanResult, ActiveScanStatus};
 use crate::domain::repositories::ActiveScanRepository;
+use async_trait::async_trait;
+use sqlx::PgPool;
 
 pub struct PgActiveScanRepository {
     pool: PgPool,
@@ -47,7 +48,11 @@ impl ActiveScanRepository for PgActiveScanRepository {
         Ok(())
     }
 
-    async fn update_status(&self, scan_id: uuid::Uuid, status: ActiveScanStatus) -> Result<(), String> {
+    async fn update_status(
+        &self,
+        scan_id: uuid::Uuid,
+        status: ActiveScanStatus,
+    ) -> Result<(), String> {
         let status_str = serde_json::to_value(&status)
             .unwrap_or_else(|_| serde_json::json!("pending"))
             .as_str()
@@ -88,7 +93,8 @@ impl ActiveScanRepository for PgActiveScanRepository {
         match row {
             Some(r) => {
                 let status_val = serde_json::Value::String(r.2);
-                let status: ActiveScanStatus = serde_json::from_value(status_val).unwrap_or(ActiveScanStatus::Pending);
+                let status: ActiveScanStatus =
+                    serde_json::from_value(status_val).unwrap_or(ActiveScanStatus::Pending);
                 let summary = serde_json::from_value(r.6).unwrap_or_default();
                 let errors = serde_json::from_value(r.7).unwrap_or_default();
 
@@ -108,7 +114,10 @@ impl ActiveScanRepository for PgActiveScanRepository {
         }
     }
 
-    async fn list_scans(&self, filters: &crate::domain::active_vuln::ScanQueryParams) -> Result<Vec<ActiveScanResult>, String> {
+    async fn list_scans(
+        &self,
+        filters: &crate::domain::active_vuln::ScanQueryParams,
+    ) -> Result<Vec<ActiveScanResult>, String> {
         let mut builder = sqlx::QueryBuilder::new(
             "SELECT id, target_url, status, start_time, end_time, total_requests, summary, errors FROM active_scans WHERE 1=1"
         );
@@ -119,14 +128,28 @@ impl ActiveScanRepository for PgActiveScanRepository {
         }
 
         if let Some(ref status) = filters.status {
-            let status_str = serde_json::to_value(status).unwrap().as_str().unwrap().to_string();
+            let status_str = serde_json::to_value(status)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             builder.push(" AND status = ");
             builder.push_bind(status_str);
         }
 
         builder.push(" ORDER BY start_time DESC");
 
-        let rows = builder.build_query_as::<(uuid::Uuid, String, String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>, i32, serde_json::Value, serde_json::Value)>()
+        let rows = builder
+            .build_query_as::<(
+                uuid::Uuid,
+                String,
+                String,
+                chrono::DateTime<chrono::Utc>,
+                Option<chrono::DateTime<chrono::Utc>>,
+                i32,
+                serde_json::Value,
+                serde_json::Value,
+            )>()
             .fetch_all(&self.pool)
             .await
             .map_err(|e| format!("DB error fetching active scans: {}", e))?;
@@ -134,7 +157,8 @@ impl ActiveScanRepository for PgActiveScanRepository {
         let mut scans = Vec::new();
         for r in rows {
             let status_val = serde_json::Value::String(r.2);
-            let status: ActiveScanStatus = serde_json::from_value(status_val).unwrap_or(ActiveScanStatus::Pending);
+            let status: ActiveScanStatus =
+                serde_json::from_value(status_val).unwrap_or(ActiveScanStatus::Pending);
             let summary = serde_json::from_value(r.6).unwrap_or_default();
             let errors = serde_json::from_value(r.7).unwrap_or_default();
 

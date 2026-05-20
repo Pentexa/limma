@@ -18,7 +18,7 @@ impl HttpFormMapper {
             .pool_max_idle_per_host(10)
             .pool_idle_timeout(std::time::Duration::from_secs(30))
             .tcp_keepalive(std::time::Duration::from_secs(15));
-            
+
         if profile.use_proxy {
             if let Some(proxy_url) = &profile.proxy_url {
                 if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
@@ -27,7 +27,9 @@ impl HttpFormMapper {
             }
         }
 
-        builder.build().expect("Failed to build profile-specific HTTP client")
+        builder
+            .build()
+            .expect("Failed to build profile-specific HTTP client")
     }
 }
 
@@ -62,10 +64,10 @@ impl FormMapperRepository for HttpFormMapper {
             for input in form.select(&input_selector) {
                 let name = input.value().attr("name").unwrap_or("unnamed").to_string();
                 let input_type = input.value().attr("type").unwrap_or("text").to_string();
-                
+
                 // Extract hidden inputs logic currently defaults to true since it's not in EngineConfig
                 // We'll leave it as true for now.
-                
+
                 fields.push(format!("{}({})", name, input_type));
 
                 // Detection for potential login

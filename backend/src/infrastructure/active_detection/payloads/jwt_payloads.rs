@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 
 pub fn get_none_alg_payloads() -> Vec<PayloadDefinition> {
@@ -33,18 +33,28 @@ pub fn get_none_alg_payloads() -> Vec<PayloadDefinition> {
 pub fn get_weak_secret_payloads() -> Vec<PayloadDefinition> {
     // Common weak JWT secrets to test
     let weak_secrets = vec![
-        "secret", "password", "123456", "key", "jwt_secret",
-        "changeme", "test", "admin", "default", "mysecret",
+        "secret",
+        "password",
+        "123456",
+        "key",
+        "jwt_secret",
+        "changeme",
+        "test",
+        "admin",
+        "default",
+        "mysecret",
     ];
 
-    weak_secrets.iter().enumerate().map(|(i, secret)| {
-        PayloadDefinition {
+    weak_secrets
+        .iter()
+        .enumerate()
+        .map(|(i, secret)| PayloadDefinition {
             id: format!("jwt_weak_{:02}", i + 1),
             payload: secret.to_string(),
             description: format!("Weak JWT secret brute-force: '{}'", secret),
             expected_indicator: ExpectedIndicator::JwtAccepted,
             severity: SeverityLevel::High,
             safe_for_production: true,
-        }
-    }).collect()
+        })
+        .collect()
 }

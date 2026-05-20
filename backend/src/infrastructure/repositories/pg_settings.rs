@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-use sqlx::PgPool;
 use crate::domain::entities::SettingsProfile;
 use crate::domain::repositories::SettingsRepository;
+use async_trait::async_trait;
+use sqlx::PgPool;
 
 /// PostgreSQL-backed settings repository.
 /// Stores each profile as a row with the full profile serialized into JSONB.
@@ -132,7 +132,8 @@ impl PgSettingsRepository {
         let mut redteam = base;
         redteam.id = "redteam".to_string();
         redteam.name = "Red Team (Active)".to_string();
-        redteam.description = "Aggressive offensive security testing with proxy support".to_string();
+        redteam.description =
+            "Aggressive offensive security testing with proxy support".to_string();
         redteam.global.timeout_ms = 20000;
         redteam.global.rate_limit_req_per_sec = 100;
         redteam.global.use_proxy = true;
@@ -155,12 +156,11 @@ impl PgSettingsRepository {
 #[async_trait]
 impl SettingsRepository for PgSettingsRepository {
     async fn get_all_profiles(&self) -> Result<Vec<SettingsProfile>, String> {
-        let rows: Vec<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT profile_data FROM settings_profiles ORDER BY id"
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| format!("DB error fetching profiles: {}", e))?;
+        let rows: Vec<(serde_json::Value,)> =
+            sqlx::query_as("SELECT profile_data FROM settings_profiles ORDER BY id")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| format!("DB error fetching profiles: {}", e))?;
 
         let profiles: Vec<SettingsProfile> = rows
             .into_iter()
@@ -171,13 +171,12 @@ impl SettingsRepository for PgSettingsRepository {
     }
 
     async fn get_profile(&self, id: &str) -> Result<Option<SettingsProfile>, String> {
-        let row: Option<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT profile_data FROM settings_profiles WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| format!("DB error fetching profile {}: {}", id, e))?;
+        let row: Option<(serde_json::Value,)> =
+            sqlx::query_as("SELECT profile_data FROM settings_profiles WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| format!("DB error fetching profile {}: {}", id, e))?;
 
         match row {
             Some((data,)) => {
@@ -219,22 +218,26 @@ impl SettingsRepository for PgSettingsRepository {
 
     async fn init_defaults(&self) -> Result<(), String> {
         // Check if any profiles exist
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM settings_profiles"
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| format!("DB error checking profile count: {}", e))?;
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM settings_profiles")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| format!("DB error checking profile count: {}", e))?;
 
         if count.0 == 0 {
-            tracing::info!("[PgSettingsRepository] No profiles found, seeding {} defaults...", Self::build_default_profiles().len());
+            tracing::info!(
+                "[PgSettingsRepository] No profiles found, seeding {} defaults...",
+                Self::build_default_profiles().len()
+            );
             let defaults = Self::build_default_profiles();
             for profile in defaults {
                 self.save_profile(profile).await?;
             }
             tracing::info!("[PgSettingsRepository] Default profiles seeded successfully");
         } else {
-            tracing::info!("[PgSettingsRepository] {} existing profiles found, skipping seed", count.0);
+            tracing::info!(
+                "[PgSettingsRepository] {} existing profiles found, skipping seed",
+                count.0
+            );
         }
 
         Ok(())

@@ -63,7 +63,10 @@ impl PayloadTransformer for CaseMutationTransformer {
     }
     fn supports(&self, vuln_type: &ActiveVulnType) -> bool {
         use ActiveVulnType::*;
-        matches!(vuln_type, ReflectedXss | StoredXss | DomXss | SqlInjectionUnion | SqlInjectionError)
+        matches!(
+            vuln_type,
+            ReflectedXss | StoredXss | DomXss | SqlInjectionUnion | SqlInjectionError
+        )
     }
 }
 
@@ -82,7 +85,13 @@ impl PayloadTransformer for SqlCommentInjector {
     }
     fn supports(&self, vuln_type: &ActiveVulnType) -> bool {
         use ActiveVulnType::*;
-        matches!(vuln_type, SqlInjectionError | SqlInjectionUnion | SqlInjectionBlindTime | SqlInjectionBlindBoolean)
+        matches!(
+            vuln_type,
+            SqlInjectionError
+                | SqlInjectionUnion
+                | SqlInjectionBlindTime
+                | SqlInjectionBlindBoolean
+        )
     }
 }
 
@@ -97,7 +106,10 @@ impl PayloadTransformer for NullByteInjector {
     }
     fn supports(&self, vuln_type: &ActiveVulnType) -> bool {
         use ActiveVulnType::*;
-        matches!(vuln_type, LocalFileInclusion | PathTraversal | RemoteFileInclusion | CommandInjection)
+        matches!(
+            vuln_type,
+            LocalFileInclusion | PathTraversal | RemoteFileInclusion | CommandInjection
+        )
     }
 }
 
@@ -126,14 +138,21 @@ impl PayloadTransformer for HexEncoder {
         "hex_encode"
     }
     fn transform<'a>(&self, payload: &'a str) -> Cow<'a, str> {
-        // Just a simple hex encode wrapper for the entire payload to demonstrate, 
+        // Just a simple hex encode wrapper for the entire payload to demonstrate,
         // in a real engine it would parse literals.
         let hex_encoded: String = payload.bytes().map(|b| format!("{:02x}", b)).collect();
         Cow::Owned(format!("0x{}", hex_encoded))
     }
     fn supports(&self, vuln_type: &ActiveVulnType) -> bool {
         use ActiveVulnType::*;
-        matches!(vuln_type, SqlInjectionError | SqlInjectionUnion | SqlInjectionBlindTime | SqlInjectionBlindBoolean | NoSqlInjection)
+        matches!(
+            vuln_type,
+            SqlInjectionError
+                | SqlInjectionUnion
+                | SqlInjectionBlindTime
+                | SqlInjectionBlindBoolean
+                | NoSqlInjection
+        )
     }
 }
 
@@ -152,7 +171,10 @@ impl PayloadTransformer for Base64Encoder {
     }
     fn supports(&self, vuln_type: &ActiveVulnType) -> bool {
         use ActiveVulnType::*;
-        matches!(vuln_type, CommandInjection | CommandInjectionBlind | ServerSideTemplateInjection)
+        matches!(
+            vuln_type,
+            CommandInjection | CommandInjectionBlind | ServerSideTemplateInjection
+        )
     }
 }
 

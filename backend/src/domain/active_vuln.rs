@@ -1,7 +1,7 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 // ── Active Vulnerability Types ──
 
@@ -72,21 +72,36 @@ impl ActiveVulnType {
     pub fn default_severity(&self) -> crate::domain::entities::SeverityLevel {
         use ActiveVulnType::*;
         match self {
-            SqlInjectionError | SqlInjectionUnion | SqlInjectionBlindTime | SqlInjectionBlindBoolean
-            | CommandInjection | CommandInjectionBlind
+            SqlInjectionError
+            | SqlInjectionUnion
+            | SqlInjectionBlindTime
+            | SqlInjectionBlindBoolean
+            | CommandInjection
+            | CommandInjectionBlind
             | RemoteFileInclusion
             | ServerSideRequestForgery
             | XmlExternalEntity
-            | InsecureDeserializationJava | InsecureDeserializationPhp | InsecureDeserializationPython
-            | HttpRequestSmuggling | ServerSideTemplateInjection => crate::domain::entities::SeverityLevel::Critical,
+            | InsecureDeserializationJava
+            | InsecureDeserializationPhp
+            | InsecureDeserializationPython
+            | HttpRequestSmuggling
+            | ServerSideTemplateInjection => crate::domain::entities::SeverityLevel::Critical,
 
-            ReflectedXss | StoredXss | DomXss
-            | LocalFileInclusion | PathTraversal
+            ReflectedXss
+            | StoredXss
+            | DomXss
+            | LocalFileInclusion
+            | PathTraversal
             | InsecureDirectObjectReference
-            | JwtNoneAlgorithm | JwtWeakSecret
-            | HostHeaderInjection | NoSqlInjection | GraphqlAbuse => crate::domain::entities::SeverityLevel::High,
+            | JwtNoneAlgorithm
+            | JwtWeakSecret
+            | HostHeaderInjection
+            | NoSqlInjection
+            | GraphqlAbuse => crate::domain::entities::SeverityLevel::High,
 
-            OpenRedirect | CorsMisconfiguration | CacheDeception => crate::domain::entities::SeverityLevel::Medium,
+            OpenRedirect | CorsMisconfiguration | CacheDeception => {
+                crate::domain::entities::SeverityLevel::Medium
+            }
 
             GraphqlIntrospectionEnabled => crate::domain::entities::SeverityLevel::Low,
         }
@@ -132,7 +147,10 @@ pub enum ExpectedIndicator {
     /// Specific HTTP status code expected
     StatusCode(u16),
     /// Response body differs significantly between true/false condition
-    ResponseDiff { baseline_hash: String, indicator: String },
+    ResponseDiff {
+        baseline_hash: String,
+        indicator: String,
+    },
     /// Location header redirects to attacker-controlled URL
     RedirectLocation(String),
     /// JWT accepted with manipulated algorithm/payload

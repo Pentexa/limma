@@ -1,6 +1,5 @@
 use crate::api::models::{
-    AnalysisRequest, FeedbackRequest, ProxyRequest,
-    VerifyPortRequest, VerifyPortResponse,
+    AnalysisRequest, FeedbackRequest, ProxyRequest, VerifyPortRequest, VerifyPortResponse,
 };
 use crate::application::use_cases::{
     AnalyzeWebsite, AuditSecurity, CollectExternalServices, DiscoverApis, GenerateMasterReport,
@@ -45,20 +44,28 @@ pub struct AppState {
     pub poc_repo: Arc<PgPocRepository>,
     pub exploit_result_repo: Arc<PgExploitResultRepository>,
     pub settings_repo: Arc<dyn crate::domain::repositories::SettingsRepository>,
-    
+
     // Faz 1: Active Vulnerability Detection
-    pub active_scan_repo: Arc<crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository>,
-    pub active_finding_repo: Arc<crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository>,
-    pub active_detectors: Arc<Vec<Box<dyn crate::infrastructure::active_detection::detectors::VulnDetector>>>,
+    pub active_scan_repo:
+        Arc<crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository>,
+    pub active_finding_repo:
+        Arc<crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository>,
+    pub active_detectors:
+        Arc<Vec<Box<dyn crate::infrastructure::active_detection::detectors::VulnDetector>>>,
     pub payload_db: Arc<crate::infrastructure::active_detection::payloads::PayloadDatabase>,
     pub db_pool: sqlx::PgPool,
 }
 
-
 /// Helper: resolve a SettingsProfile from the repo, falling back to default.
-async fn resolve_profile(state: &AppState, profile_id: Option<&str>) -> crate::domain::entities::SettingsProfile {
+async fn resolve_profile(
+    state: &AppState,
+    profile_id: Option<&str>,
+) -> crate::domain::entities::SettingsProfile {
     let key = profile_id.unwrap_or("default");
-    state.settings_repo.get_profile(key).await
+    state
+        .settings_repo
+        .get_profile(key)
+        .await
         .ok()
         .flatten()
         .unwrap_or_else(crate::domain::entities::SettingsProfile::default)
@@ -104,8 +111,11 @@ pub async fn analyze_website_stream(
     let url = query.url.clone();
 
     tokio::spawn(async move {
-        let profile = settings_repo.get_profile("default").await
-            .ok().flatten()
+        let profile = settings_repo
+            .get_profile("default")
+            .await
+            .ok()
+            .flatten()
             .unwrap_or_else(crate::domain::entities::SettingsProfile::default);
         let config = crate::domain::engine_config::EngineConfig::from_profile(&profile);
         if let Err(e) = scanner.scan_stream(&url, &config, tx).await {
@@ -154,8 +164,11 @@ pub async fn investigate_server_stream(
     let url = query.url.clone();
 
     tokio::spawn(async move {
-        let profile = settings_repo.get_profile("default").await
-            .ok().flatten()
+        let profile = settings_repo
+            .get_profile("default")
+            .await
+            .ok()
+            .flatten()
             .unwrap_or_else(crate::domain::entities::SettingsProfile::default);
         let config = crate::domain::engine_config::EngineConfig::from_profile(&profile);
         if let Err(e) = investigator.investigate_stream(&url, &config, tx).await {
@@ -509,7 +522,8 @@ pub async fn create_custom_rule(
             .map_err(|e| AppError::BadRequest(format!("Invalid YAML rule: {}", e)))?;
 
     // 2. Validate via the validator pipeline
-    let (valid, errors) = crate::infrastructure::rule_engine::validator::validate_rules(vec![rule_def.clone()]);
+    let (valid, errors) =
+        crate::infrastructure::rule_engine::validator::validate_rules(vec![rule_def.clone()]);
     if valid.is_empty() {
         return Err(AppError::BadRequest(format!(
             "Rule validation failed: {}",
@@ -773,7 +787,9 @@ pub async fn delete_history_scan(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({ "success": true, "message": "Scan deleted" })))
+    Ok(Json(
+        serde_json::json!({ "success": true, "message": "Scan deleted" }),
+    ))
 }
 
 /// List all scans, optionally filtered by target_url.
@@ -821,7 +837,10 @@ pub async fn blind_scan(
         detection_engine: &*state.blind_detection_engine,
     };
 
-    let result = use_case.execute(request).await.map_err(AppError::Internal)?;
+    let result = use_case
+        .execute(request)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(result)?;
     Ok(Json(value))
 }
@@ -846,7 +865,7 @@ pub async fn update_settings_profile(
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Ensure the payload ID matches the path ID
     payload.id = profile_id.clone();
-    
+
     state
         .settings_repo
         .save_profile(payload)
@@ -870,7 +889,10 @@ pub async fn generate_poc(
         generator: &*state.poc_generator,
     };
 
-    let poc = use_case.execute(payload).await.map_err(AppError::Internal)?;
+    let poc = use_case
+        .execute(payload)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(poc)?;
     Ok(Json(value))
 }
@@ -887,7 +909,10 @@ pub async fn verify_exploit(
         verifier: &*state.sandbox_verifier,
     };
 
-    let result = use_case.execute(payload).await.map_err(AppError::Internal)?;
+    let result = use_case
+        .execute(payload)
+        .await
+        .map_err(AppError::Internal)?;
     let value = serde_json::to_value(result)?;
     Ok(Json(value))
 }
@@ -935,14 +960,19 @@ pub async fn start_active_scan(
     // Derive safe_mode and waf_bypass from EngineConfig
     let safe_mode = !engine_config.active_exploit_enabled;
     let enable_waf_bypass = engine_config.avoid_waf
-        && matches!(engine_config.fuzzing_intensity,
-            crate::domain::engine_config::FuzzingIntensity::High | crate::domain::engine_config::FuzzingIntensity::Aggressive);
+        && matches!(
+            engine_config.fuzzing_intensity,
+            crate::domain::engine_config::FuzzingIntensity::High
+                | crate::domain::engine_config::FuzzingIntensity::Aggressive
+        );
 
     // Create PayloadSelector for the active scan
-    let payload_selector = Arc::new(crate::infrastructure::active_detection::payload_selector::PayloadSelector::from_config(
-        &engine_config,
-        state.payload_db.clone()
-    ));
+    let payload_selector = Arc::new(
+        crate::infrastructure::active_detection::payload_selector::PayloadSelector::from_config(
+            &engine_config,
+            state.payload_db.clone(),
+        ),
+    );
 
     let use_case = PerformActiveScan {
         scan_repo: &*state.active_scan_repo,
@@ -1039,7 +1069,7 @@ pub async fn delete_active_scan(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    use crate::domain::repositories::{ActiveScanRepository, ActiveFindingRepository};
+    use crate::domain::repositories::{ActiveFindingRepository, ActiveScanRepository};
 
     // First delete associated findings
     state
@@ -1105,8 +1135,8 @@ pub async fn generate_poc_for_finding(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    use crate::domain::repositories::ActiveFindingRepository;
     use crate::domain::entities::*;
+    use crate::domain::repositories::ActiveFindingRepository;
 
     // 1. Fetch the active finding
     let finding = state
@@ -1125,13 +1155,17 @@ pub async fn generate_poc_for_finding(
         | crate::domain::active_vuln::ActiveVulnType::NoSqlInjection => PocType::SqlInjection,
 
         crate::domain::active_vuln::ActiveVulnType::CommandInjection
-        | crate::domain::active_vuln::ActiveVulnType::CommandInjectionBlind => PocType::CommandInjection,
+        | crate::domain::active_vuln::ActiveVulnType::CommandInjectionBlind => {
+            PocType::CommandInjection
+        }
 
         crate::domain::active_vuln::ActiveVulnType::LocalFileInclusion
         | crate::domain::active_vuln::ActiveVulnType::RemoteFileInclusion
         | crate::domain::active_vuln::ActiveVulnType::PathTraversal => PocType::PathTraversal,
 
-        crate::domain::active_vuln::ActiveVulnType::ServerSideRequestForgery => PocType::ServerSideRequestForgery,
+        crate::domain::active_vuln::ActiveVulnType::ServerSideRequestForgery => {
+            PocType::ServerSideRequestForgery
+        }
 
         crate::domain::active_vuln::ActiveVulnType::XmlExternalEntity => PocType::XmlExternalEntity,
 
@@ -1200,7 +1234,11 @@ pub async fn generate_poc_for_finding(
     };
 
     use crate::domain::repositories::PocRepository;
-    state.poc_repo.save(&poc).await.map_err(AppError::Internal)?;
+    state
+        .poc_repo
+        .save(&poc)
+        .await
+        .map_err(AppError::Internal)?;
 
     // 5. Update active finding with poc_id
     state
@@ -1238,12 +1276,15 @@ pub async fn verify_finding(
             verifier: &*state.sandbox_verifier,
         };
 
-        let result = use_case.execute(payload).await.map_err(AppError::Internal)?;
+        let result = use_case
+            .execute(payload)
+            .await
+            .map_err(AppError::Internal)?;
 
         // Update finding status based on verification result
         let verified = result.success;
         let false_positive = !result.success;
-        
+
         state
             .active_finding_repo
             .update_status(id, verified, false_positive)
@@ -1252,6 +1293,9 @@ pub async fn verify_finding(
 
         Ok(Json(serde_json::to_value(result)?))
     } else {
-        Err(AppError::BadRequest(format!("Finding {} does not have a generated POC to verify", id)))
+        Err(AppError::BadRequest(format!(
+            "Finding {} does not have a generated POC to verify",
+            id
+        )))
     }
 }

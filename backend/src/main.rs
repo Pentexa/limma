@@ -7,16 +7,14 @@ mod infrastructure;
 use crate::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
     burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
-    create_custom_rule, delete_custom_rule,
-    discover_apis, download_poc, export_to_burp, export_to_nuclei, generate_master_report,
-    generate_poc, get_feedback_stats, get_history_delta, get_history_trends,
-    get_rule_engine_status, get_scan_by_id, delete_history_scan, get_settings_profiles, investigate_server,
-    investigate_server_stream, list_scans, map_forms, proxy_request,
-    submit_feedback, submit_rule_feedback, update_settings_profile, verify_exploit, verify_port,
-    start_active_scan, get_active_scan, list_active_findings, get_active_finding,
-    list_active_scans, delete_active_scan, list_active_findings_filtered, update_active_finding,
-    generate_poc_for_finding, verify_finding,
-    AppState,
+    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis,
+    download_poc, export_to_burp, export_to_nuclei, generate_master_report, generate_poc,
+    generate_poc_for_finding, get_active_finding, get_active_scan, get_feedback_stats,
+    get_history_delta, get_history_trends, get_rule_engine_status, get_scan_by_id,
+    get_settings_profiles, investigate_server, investigate_server_stream, list_active_findings,
+    list_active_findings_filtered, list_active_scans, list_scans, map_forms, proxy_request,
+    start_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
+    update_settings_profile, verify_exploit, verify_finding, verify_port, AppState,
 };
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::burp_bridge::BurpBridgeManager;
@@ -80,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
     // Load custom rules from DB and hot-load into the engine
     {
         let rows = sqlx::query_as::<_, (String, String, String)>(
-            "SELECT id, name, yaml_content FROM custom_rules"
+            "SELECT id, name, yaml_content FROM custom_rules",
         )
         .fetch_all(&pool)
         .await
@@ -88,7 +86,9 @@ async fn main() -> anyhow::Result<()> {
 
         let mut loaded = 0usize;
         for (_id, _name, yaml_content) in &rows {
-            match serde_yaml::from_str::<crate::infrastructure::rule_engine::models::RuleDefinition>(yaml_content) {
+            match serde_yaml::from_str::<crate::infrastructure::rule_engine::models::RuleDefinition>(
+                yaml_content,
+            ) {
                 Ok(rule_def) => {
                     dynamic_rule_engine.add_rule(rule_def);
                     loaded += 1;
@@ -109,29 +109,23 @@ async fn main() -> anyhow::Result<()> {
     let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
 
     // ── Faz F: Blind Detection & Exploitation ──
-    let blind_detection_engine = Arc::new(
-        crate::infrastructure::blind_detection::HttpBlindDetectionEngine::new(),
-    );
-    let poc_generator = Arc::new(
-        crate::infrastructure::exploitation::poc_generator::CompositePocGenerator::new(),
-    );
-    let sandbox_verifier = Arc::new(
-        crate::infrastructure::exploitation::sandbox::NoopSandboxProvider::new(),
-    );
-    let safety_framework = Arc::new(
-        crate::infrastructure::safety::SafetyFrameworkImpl::new(
-            vec![], // Open scope: all domains allowed
-            60,     // 60 requests per minute rate limit
-        ),
-    );
+    let blind_detection_engine =
+        Arc::new(crate::infrastructure::blind_detection::HttpBlindDetectionEngine::new());
+    let poc_generator =
+        Arc::new(crate::infrastructure::exploitation::poc_generator::CompositePocGenerator::new());
+    let sandbox_verifier =
+        Arc::new(crate::infrastructure::exploitation::sandbox::NoopSandboxProvider::new());
+    let safety_framework = Arc::new(crate::infrastructure::safety::SafetyFrameworkImpl::new(
+        vec![], // Open scope: all domains allowed
+        60,     // 60 requests per minute rate limit
+    ));
     let blind_finding_repo = Arc::new(
         crate::infrastructure::repositories::blind_finding_repo::PgBlindFindingRepository::new(
             pool.clone(),
         ),
     );
-    let poc_repo = Arc::new(
-        crate::infrastructure::repositories::poc_repo::PgPocRepository::new(pool.clone()),
-    );
+    let poc_repo =
+        Arc::new(crate::infrastructure::repositories::poc_repo::PgPocRepository::new(pool.clone()));
     let exploit_result_repo = Arc::new(
         crate::infrastructure::repositories::exploit_result_repo::PgExploitResultRepository::new(
             pool.clone(),
@@ -143,12 +137,16 @@ async fn main() -> anyhow::Result<()> {
     // ── Faz 4: System Settings PostgreSQL Store ──
     let settings_repo = Arc::new(PgSettingsRepository::new(pool.clone()));
     use crate::domain::repositories::SettingsRepository;
-    settings_repo.init_defaults().await.map_err(|e| anyhow::anyhow!("Failed to init default settings: {}", e))?;
+    settings_repo
+        .init_defaults()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to init default settings: {}", e))?;
     tracing::info!("[Faz 4] PgSettingsRepository initialized with PostgreSQL persistence");
 
     // ── Faz 1: Active Vulnerability Engine ──
-    let payload_db = Arc::new(crate::infrastructure::active_detection::payloads::PayloadDatabase::new());
-    
+    let payload_db =
+        Arc::new(crate::infrastructure::active_detection::payloads::PayloadDatabase::new());
+
     // We create a generic client for detectors. In a real app, this might be per-profile
     let req_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -169,9 +167,20 @@ async fn main() -> anyhow::Result<()> {
         Box::new(crate::infrastructure::active_detection::detectors::nosql_detector::NosqlDetector::new(req_client.clone(), payload_db.clone())),
         Box::new(crate::infrastructure::active_detection::detectors::ssti_detector::SstiDetector::new(req_client.clone(), payload_db.clone())),
     ]);
-    let active_scan_repo = Arc::new(crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository::new(pool.clone()));
-    let active_finding_repo = Arc::new(crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository::new(pool.clone()));
-    tracing::info!("[Faz 1] Active Detection Engine initialized with {} vulnerability detectors", active_detectors.len());
+    let active_scan_repo = Arc::new(
+        crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository::new(
+            pool.clone(),
+        ),
+    );
+    let active_finding_repo = Arc::new(
+        crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository::new(
+            pool.clone(),
+        ),
+    );
+    tracing::info!(
+        "[Faz 1] Active Detection Engine initialized with {} vulnerability detectors",
+        active_detectors.len()
+    );
 
     let shared_state = Arc::new(AppState {
         website_scanner,
@@ -261,26 +270,47 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/history/scans", axum::routing::get(list_scans))
         // Faz 4: Settings API
-        .route("/api/settings/profiles", axum::routing::get(get_settings_profiles))
-        .route("/api/settings/profiles/:id", axum::routing::put(update_settings_profile))
+        .route(
+            "/api/settings/profiles",
+            axum::routing::get(get_settings_profiles),
+        )
+        .route(
+            "/api/settings/profiles/:id",
+            axum::routing::put(update_settings_profile),
+        )
         // Faz F: Blind Detection & Exploitation routes
         .route("/api/blind-scan", post(blind_scan))
         .route("/api/poc/generate", post(generate_poc))
         .route("/api/exploit/verify", post(verify_exploit))
-        .route(
-            "/api/poc/:id",
-            axum::routing::get(download_poc),
-        )
+        .route("/api/poc/:id", axum::routing::get(download_poc))
         // Faz 1: Active Vulnerability Detection routes
         .route("/api/active-scan", post(start_active_scan))
         .route("/api/active-scan/:id", axum::routing::get(get_active_scan))
-        .route("/api/active-scan/:scan_id/findings", axum::routing::get(list_active_findings))
-        .route("/api/active-finding/:id", axum::routing::get(get_active_finding))
+        .route(
+            "/api/active-scan/:scan_id/findings",
+            axum::routing::get(list_active_findings),
+        )
+        .route(
+            "/api/active-finding/:id",
+            axum::routing::get(get_active_finding),
+        )
         .route("/api/active-scans", axum::routing::get(list_active_scans))
-        .route("/api/active-scans/:id", axum::routing::delete(delete_active_scan))
-        .route("/api/active-findings", axum::routing::get(list_active_findings_filtered))
-        .route("/api/active-findings/:id", axum::routing::patch(update_active_finding))
-        .route("/api/active-findings/:id/poc", post(generate_poc_for_finding))
+        .route(
+            "/api/active-scans/:id",
+            axum::routing::delete(delete_active_scan),
+        )
+        .route(
+            "/api/active-findings",
+            axum::routing::get(list_active_findings_filtered),
+        )
+        .route(
+            "/api/active-findings/:id",
+            axum::routing::patch(update_active_finding),
+        )
+        .route(
+            "/api/active-findings/:id/poc",
+            post(generate_poc_for_finding),
+        )
         .route("/api/active-findings/:id/verify", post(verify_finding))
         .with_state(shared_state)
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(

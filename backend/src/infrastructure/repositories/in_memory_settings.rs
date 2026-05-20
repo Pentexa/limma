@@ -1,13 +1,13 @@
+use crate::domain::entities::{
+    ApiDiscoverySettings, AuditSettings, ExploitSettings, FormMapperSettings, GlobalSettings,
+    InvestigatorSettings, ProxySettings, RuleEngineSettings, ScannerSettings,
+    ServiceCollectorSettings, SessionSettings, SettingsProfile,
+};
+use crate::domain::repositories::SettingsRepository;
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use async_trait::async_trait;
-use crate::domain::entities::{
-    ApiDiscoverySettings, AuditSettings, ExploitSettings, FormMapperSettings, GlobalSettings,
-    InvestigatorSettings, ProxySettings, RuleEngineSettings, ScannerSettings, ServiceCollectorSettings,
-    SessionSettings, SettingsProfile,
-};
-use crate::domain::repositories::SettingsRepository;
 
 #[allow(dead_code)]
 pub struct InMemorySettingsRepository {

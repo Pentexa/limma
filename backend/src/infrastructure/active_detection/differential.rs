@@ -17,12 +17,16 @@ impl BaselineProfile {
         if self.status_code != new_status {
             return true;
         }
-        
+
         let new_len = new_body.len();
         let diff_ratio = if self.content_length > 0 {
             (self.content_length as f64 - new_len as f64).abs() / (self.content_length as f64)
         } else {
-            if new_len > 0 { 1.0 } else { 0.0 }
+            if new_len > 0 {
+                1.0
+            } else {
+                0.0
+            }
         };
 
         diff_ratio > 0.05 // 5% delta threshold
@@ -35,9 +39,15 @@ impl BaselineProfile {
 }
 
 /// Builds a baseline profile for a given target URL and parameter.
-pub async fn build_baseline(client: &Client, target_url: &str, param: &str, safe_value: &str) -> Result<BaselineProfile, String> {
+pub async fn build_baseline(
+    client: &Client,
+    target_url: &str,
+    param: &str,
+    safe_value: &str,
+) -> Result<BaselineProfile, String> {
     let start_time = std::time::Instant::now();
-    let resp = client.get(target_url)
+    let resp = client
+        .get(target_url)
         .query(&[(param, safe_value)])
         .timeout(Duration::from_secs(5))
         .send()

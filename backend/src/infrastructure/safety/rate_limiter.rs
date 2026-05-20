@@ -87,12 +87,12 @@ impl SharedRateLimiter {
 
         let mut next = self.next_allowed.lock().await;
         let now = Instant::now();
-        
+
         if *next > now {
             let sleep_duration = *next - now;
             sleep(sleep_duration).await;
         }
-        
+
         *next = Instant::now() + std::time::Duration::from_millis(self.delay_ms);
     }
 }

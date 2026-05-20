@@ -1,12 +1,9 @@
+pub mod active_scan;
 pub mod blind_scan;
 pub mod generate_poc;
 pub mod verify_exploit;
-pub mod active_scan;
 
 // ── Re-exported original use cases (migrated from use_cases.rs) ──
-
-
-
 
 pub struct AnalyzeWebsite<'a, S: crate::domain::repositories::WebsiteScanner> {
     pub scanner: &'a S,
@@ -135,7 +132,10 @@ impl<
     ) -> Result<crate::domain::entities::MasterReport, String> {
         // Resolve profile: use provided profile_id or fallback to "default"
         let profile_key = profile_id.unwrap_or_else(|| "default".to_string());
-        let profile = self.settings_repo.get_profile(&profile_key).await
+        let profile = self
+            .settings_repo
+            .get_profile(&profile_key)
+            .await
             .ok()
             .flatten()
             .unwrap_or_else(crate::domain::entities::SettingsProfile::default);
@@ -195,8 +195,10 @@ impl<
         };
 
         // --- PHASE 3: Deep Scan Execution (parallel, individually failable) ---
-        let (service_collector_res, security_audit_res) =
-            tokio::join!(self.collector.collect(&url, &config), self.auditor.audit(&url, &config));
+        let (service_collector_res, security_audit_res) = tokio::join!(
+            self.collector.collect(&url, &config),
+            self.auditor.audit(&url, &config)
+        );
 
         let service_collector = match service_collector_res {
             Ok(v) => Some(v),

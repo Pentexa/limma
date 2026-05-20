@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
-use std::sync::Arc;
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 
 /// Global monitor for Web Application Firewall (WAF) triggers.
 /// Keeps track of suspicious HTTP status codes (403, 406, 429) per domain.
@@ -29,10 +29,19 @@ impl WafMonitor {
         let domain = extract_domain(target_url);
 
         let is_blocked = status_code == 403 || status_code == 406 || status_code == 429;
-        
-        let counter_entry = self.blocked_counters.entry(domain.clone()).or_insert_with(|| AtomicU32::new(0));
-        let detected_entry = self.waf_detected.entry(domain.clone()).or_insert_with(|| AtomicBool::new(false));
-        let circuit_entry = self.circuit_open.entry(domain.clone()).or_insert_with(|| AtomicBool::new(false));
+
+        let counter_entry = self
+            .blocked_counters
+            .entry(domain.clone())
+            .or_insert_with(|| AtomicU32::new(0));
+        let detected_entry = self
+            .waf_detected
+            .entry(domain.clone())
+            .or_insert_with(|| AtomicBool::new(false));
+        let circuit_entry = self
+            .circuit_open
+            .entry(domain.clone())
+            .or_insert_with(|| AtomicBool::new(false));
 
         if is_blocked {
             let count = counter_entry.fetch_add(1, Ordering::SeqCst) + 1;

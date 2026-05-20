@@ -1,12 +1,12 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{SeverityLevel, ConfidenceLevel};
+use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 use crate::infrastructure::active_detection::payloads::PayloadDatabase;
 
 pub struct XssDetector {
@@ -31,17 +31,30 @@ impl XssDetector {
         }
         // Check for active script/event handler contexts
         let dangerous_indicators = [
-            "<script", "onerror=", "onload=", "onclick=", "onfocus=",
-            "onmouseover=", "ontoggle=", "javascript:", "constructor.constructor",
+            "<script",
+            "onerror=",
+            "onload=",
+            "onclick=",
+            "onfocus=",
+            "onmouseover=",
+            "ontoggle=",
+            "javascript:",
+            "constructor.constructor",
         ];
-        dangerous_indicators.iter().any(|ind| payload.to_lowercase().contains(&ind.to_lowercase()))
+        dangerous_indicators
+            .iter()
+            .any(|ind| payload.to_lowercase().contains(&ind.to_lowercase()))
     }
 }
 
 #[async_trait]
 impl VulnDetector for XssDetector {
     fn supported_types(&self) -> Vec<ActiveVulnType> {
-        vec![ActiveVulnType::ReflectedXss, ActiveVulnType::StoredXss, ActiveVulnType::DomXss]
+        vec![
+            ActiveVulnType::ReflectedXss,
+            ActiveVulnType::StoredXss,
+            ActiveVulnType::DomXss,
+        ]
     }
 
     async fn detect(
@@ -58,13 +71,23 @@ impl VulnDetector for XssDetector {
         let payloads = payload_selector.select(ActiveVulnType::ReflectedXss);
 
         for payload_def in &payloads {
-            if rate_limit_ms > 0 { tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await; }
+            if rate_limit_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
+            }
 
-            let test_url = format!("{}?{}={}", target_url, parameter,
-                urlencoding::encode(&payload_def.payload));
+            let test_url = format!(
+                "{}?{}={}",
+                target_url,
+                parameter,
+                urlencoding::encode(&payload_def.payload)
+            );
             let start = std::time::Instant::now();
             let mut req = self.client.get(&test_url);
-            if payload_selector.is_waf_bypass_enabled() { req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(req); }
+            if payload_selector.is_waf_bypass_enabled() {
+                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
+                    req,
+                );
+            }
             let resp = req.send().await.map_err(|e| e.to_string())?;
             let elapsed = start.elapsed().as_millis() as u64;
             let status = resp.status().as_u16();
@@ -79,7 +102,9 @@ impl VulnDetector for XssDetector {
             if self.check_xss_reflection(&body, &payload_def.payload) {
                 // DIFFERENTIAL ANALYSIS: False Positive Check
                 // If the baseline inherently has this exact "payload" string (e.g. it was part of the original page script), ignore it.
-                let is_false_positive = baseline.map(|b| b.contains_indicator(&payload_def.payload)).unwrap_or(false);
+                let is_false_positive = baseline
+                    .map(|b| b.contains_indicator(&payload_def.payload))
+                    .unwrap_or(false);
 
                 if is_false_positive {
                     continue; // Skip, it's just normal page content

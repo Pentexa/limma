@@ -14,8 +14,6 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
         .connect_with(connect_options)
         .await?;
 
-
-
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS learning_feedback (
@@ -176,9 +174,11 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     // ── Faz F: Blind Detection & Active Exploitation Tables ──
 
     // Drop the foreign key constraint if it exists (ignoring errors if it doesn't)
-    let _ = sqlx::query("ALTER TABLE blind_findings DROP CONSTRAINT IF EXISTS blind_findings_scan_id_fkey;")
-        .execute(&pool)
-        .await;
+    let _ = sqlx::query(
+        "ALTER TABLE blind_findings DROP CONSTRAINT IF EXISTS blind_findings_scan_id_fkey;",
+    )
+    .execute(&pool)
+    .await;
 
     sqlx::query(
         r#"
@@ -222,11 +222,9 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_pocs_finding_id ON pocs(finding_id);",
-    )
-    .execute(&pool)
-    .await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_pocs_finding_id ON pocs(finding_id);")
+        .execute(&pool)
+        .await?;
 
     sqlx::query(
         r#"
@@ -339,9 +337,11 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_payload_library_vuln_type ON payload_library(vuln_type);")
-        .execute(&pool)
-        .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_payload_library_vuln_type ON payload_library(vuln_type);",
+    )
+    .execute(&pool)
+    .await?;
 
     sqlx::query(
         r#"
@@ -390,11 +390,9 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
-    sqlx::query(
-        "DROP TRIGGER IF EXISTS trigger_update_scan_stats ON active_findings;"
-    )
-    .execute(&pool)
-    .await?;
+    sqlx::query("DROP TRIGGER IF EXISTS trigger_update_scan_stats ON active_findings;")
+        .execute(&pool)
+        .await?;
 
     sqlx::query(
         r#"
@@ -402,7 +400,7 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             AFTER INSERT ON active_findings
             FOR EACH ROW
             EXECUTE FUNCTION update_active_scan_stats();
-        "#
+        "#,
     )
     .execute(&pool)
     .await?;

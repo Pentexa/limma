@@ -12,10 +12,7 @@ impl DomExecutorStub {
     }
 
     /// Stub: DOM XSS detection not yet implemented
-    pub async fn detect_dom_xss(
-        &self,
-        _target_url: &str,
-    ) -> Result<Vec<RawBlindFinding>, String> {
+    pub async fn detect_dom_xss(&self, _target_url: &str) -> Result<Vec<RawBlindFinding>, String> {
         tracing::debug!("[DomExecutorStub] DOM XSS detection deferred to future phase (headless browser required)");
         Ok(vec![])
     }

@@ -45,14 +45,14 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
         for vuln_type in types {
             let results = match vuln_type {
                 BlindVulnType::BlindSqliTimeBased => {
-                    self.timing_analyzer.detect_time_based_sqli(target_url).await?
+                    self.timing_analyzer
+                        .detect_time_based_sqli(target_url)
+                        .await?
                 }
                 BlindVulnType::BlindSqliBoolean => {
                     self.timing_analyzer.detect_boolean_sqli(target_url).await?
                 }
-                BlindVulnType::DomXss => {
-                    self.dom_executor.detect_dom_xss(target_url).await?
-                }
+                BlindVulnType::DomXss => self.dom_executor.detect_dom_xss(target_url).await?,
                 BlindVulnType::BlindSsrfDns | BlindVulnType::BlindSsrfHttp => {
                     self.oob_callback.detect_ssrf(target_url).await?
                 }
@@ -66,7 +66,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
 
         // For V1 demonstration/testing: if no findings, inject a mock finding
         if findings.is_empty() {
-            tracing::info!("No real blind vulnerabilities detected. Injecting mock finding for demonstration.");
+            tracing::info!(
+                "No real blind vulnerabilities detected. Injecting mock finding for demonstration."
+            );
             findings.push(RawBlindFinding {
                 vulnerability_type: BlindVulnType::BlindSqliTimeBased,
                 detection_method: BlindDetectionMethod::TimingAnalysis { delay_ms: 5012 },

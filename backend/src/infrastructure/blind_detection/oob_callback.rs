@@ -12,10 +12,7 @@ impl OobCallbackStub {
     }
 
     /// Stub: OOB SSRF detection not yet implemented
-    pub async fn detect_ssrf(
-        &self,
-        _target_url: &str,
-    ) -> Result<Vec<RawBlindFinding>, String> {
+    pub async fn detect_ssrf(&self, _target_url: &str) -> Result<Vec<RawBlindFinding>, String> {
         tracing::debug!("[OobCallbackStub] OOB SSRF detection deferred to future phase (callback server required)");
         Ok(vec![])
     }

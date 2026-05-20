@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-
 // ── Epistemic Honesty: Global Certainty Primitives ──
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1451,11 +1450,7 @@ impl SafetyScope {
     pub fn default_readonly() -> Self {
         Self {
             target_domains: Vec::new(),
-            allowed_methods: vec![
-                "GET".to_string(),
-                "HEAD".to_string(),
-                "OPTIONS".to_string(),
-            ],
+            allowed_methods: vec!["GET".to_string(), "HEAD".to_string(), "OPTIONS".to_string()],
             read_only: true,
             max_requests_per_second: 10,
             time_limit_seconds: 60,
@@ -1770,4 +1765,3 @@ impl Default for SettingsProfile {
         }
     }
 }
-

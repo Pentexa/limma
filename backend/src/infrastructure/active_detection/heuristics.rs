@@ -8,9 +8,15 @@ pub fn prioritize_vuln_types(param_name: &str) -> Vec<ActiveVulnType> {
     let name = param_name.to_lowercase();
 
     // LFI / Path Traversal Indicators
-    if name.contains("file") || name.contains("path") || name.contains("dir") 
-        || name.contains("doc") || name.contains("folder") || name.contains("template") 
-        || name.contains("page") || name.contains("include") {
+    if name.contains("file")
+        || name.contains("path")
+        || name.contains("dir")
+        || name.contains("doc")
+        || name.contains("folder")
+        || name.contains("template")
+        || name.contains("page")
+        || name.contains("include")
+    {
         prioritized.push(ActiveVulnType::LocalFileInclusion);
         prioritized.push(ActiveVulnType::PathTraversal);
         prioritized.push(ActiveVulnType::RemoteFileInclusion);
@@ -18,17 +24,31 @@ pub fn prioritize_vuln_types(param_name: &str) -> Vec<ActiveVulnType> {
     }
 
     // SSRF / Open Redirect Indicators
-    if name.contains("url") || name.contains("uri") || name.contains("redirect")
-        || name.contains("next") || name.contains("dest") || name.contains("target")
-        || name.contains("callback") || name.contains("host") || name.contains("return") {
+    if name.contains("url")
+        || name.contains("uri")
+        || name.contains("redirect")
+        || name.contains("next")
+        || name.contains("dest")
+        || name.contains("target")
+        || name.contains("callback")
+        || name.contains("host")
+        || name.contains("return")
+    {
         prioritized.push(ActiveVulnType::ServerSideRequestForgery);
         prioritized.push(ActiveVulnType::OpenRedirect);
     }
 
     // SQLi / NoSQLi Indicators
-    if name.contains("id") || name.contains("user") || name.contains("query")
-        || name.contains("search") || name.contains("sort") || name.contains("filter")
-        || name.contains("order") || name.contains("name") || name.contains("cat") {
+    if name.contains("id")
+        || name.contains("user")
+        || name.contains("query")
+        || name.contains("search")
+        || name.contains("sort")
+        || name.contains("filter")
+        || name.contains("order")
+        || name.contains("name")
+        || name.contains("cat")
+    {
         prioritized.push(ActiveVulnType::SqlInjectionError);
         prioritized.push(ActiveVulnType::SqlInjectionUnion);
         prioritized.push(ActiveVulnType::SqlInjectionBlindTime);
@@ -37,9 +57,15 @@ pub fn prioritize_vuln_types(param_name: &str) -> Vec<ActiveVulnType> {
     }
 
     // Command Injection Indicators
-    if name.contains("cmd") || name.contains("exec") || name.contains("command")
-        || name.contains("run") || name.contains("daemon") || name.contains("ping")
-        || name.contains("ip") || name.contains("host") {
+    if name.contains("cmd")
+        || name.contains("exec")
+        || name.contains("command")
+        || name.contains("run")
+        || name.contains("daemon")
+        || name.contains("ping")
+        || name.contains("ip")
+        || name.contains("host")
+    {
         prioritized.push(ActiveVulnType::CommandInjection);
         prioritized.push(ActiveVulnType::CommandInjectionBlind);
     }

@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 
 pub fn get_reflected_payloads() -> Vec<PayloadDefinition> {
@@ -7,7 +7,9 @@ pub fn get_reflected_payloads() -> Vec<PayloadDefinition> {
             id: "xss_reflected_01".into(),
             payload: "<script>alert('XSS')</script>".into(),
             description: "Basic script tag injection".into(),
-            expected_indicator: ExpectedIndicator::ReflectedContent("<script>alert('XSS')</script>".into()),
+            expected_indicator: ExpectedIndicator::ReflectedContent(
+                "<script>alert('XSS')</script>".into(),
+            ),
             severity: SeverityLevel::High,
             safe_for_production: true,
         },
@@ -23,7 +25,9 @@ pub fn get_reflected_payloads() -> Vec<PayloadDefinition> {
             id: "xss_reflected_03".into(),
             payload: "\"><script>alert(document.domain)</script>".into(),
             description: "Attribute breakout with script injection".into(),
-            expected_indicator: ExpectedIndicator::ReflectedContent("<script>alert(document.domain)</script>".into()),
+            expected_indicator: ExpectedIndicator::ReflectedContent(
+                "<script>alert(document.domain)</script>".into(),
+            ),
             severity: SeverityLevel::High,
             safe_for_production: true,
         },
@@ -71,7 +75,9 @@ pub fn get_reflected_payloads() -> Vec<PayloadDefinition> {
             id: "xss_reflected_09".into(),
             payload: "{{constructor.constructor('alert(1)')()}}".into(),
             description: "Template injection / Angular sandbox escape".into(),
-            expected_indicator: ExpectedIndicator::ReflectedContent("constructor.constructor".into()),
+            expected_indicator: ExpectedIndicator::ReflectedContent(
+                "constructor.constructor".into(),
+            ),
             severity: SeverityLevel::High,
             safe_for_production: true,
         },

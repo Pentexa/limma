@@ -1,8 +1,8 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
@@ -41,19 +41,30 @@ impl VulnDetector for SstiDetector {
         let payloads = payload_selector.select(ActiveVulnType::ServerSideTemplateInjection);
 
         for payload_def in payloads {
-            if rate_limit_ms > 0 { tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await; }
+            if rate_limit_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
+            }
 
-            let test_url = format!("{}?{}={}", target_url, parameter, urlencoding::encode(&payload_def.payload));
+            let test_url = format!(
+                "{}?{}={}",
+                target_url,
+                parameter,
+                urlencoding::encode(&payload_def.payload)
+            );
             let start = std::time::Instant::now();
             let mut req = self.client.get(&test_url);
-            
-            if payload_selector.is_waf_bypass_enabled() { req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(req); }
-            
+
+            if payload_selector.is_waf_bypass_enabled() {
+                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
+                    req,
+                );
+            }
+
             let resp = match req.send().await {
                 Ok(r) => r,
                 Err(_) => continue,
             };
-            
+
             let elapsed = start.elapsed().as_millis() as u64;
             let status = resp.status().as_u16();
 
@@ -73,18 +84,20 @@ impl VulnDetector for SstiDetector {
                         is_vuln = true;
                         matched_ind = format!("Template evaluated and reflected: {}", content);
                     }
-                },
+                }
                 ExpectedIndicator::ErrorPattern(pattern) => {
                     if body.contains(pattern) {
                         is_vuln = true;
                         matched_ind = format!("SSTI Error pattern matched: {}", pattern);
                     }
-                },
+                }
                 _ => {}
             }
 
             if is_vuln {
-                let is_false_positive = baseline.map(|b| b.contains_indicator(&payload_def.payload)).unwrap_or(false);
+                let is_false_positive = baseline
+                    .map(|b| b.contains_indicator(&payload_def.payload))
+                    .unwrap_or(false);
                 if is_false_positive {
                     continue;
                 }
@@ -103,9 +116,7 @@ impl VulnDetector for SstiDetector {
                         response_raw: body.chars().take(2000).collect(),
                         response_time_ms: elapsed,
                         matched_indicator: matched_ind,
-                        additional_notes: vec![
-                            payload_def.description.clone(),
-                        ],
+                        additional_notes: vec![payload_def.description.clone()],
                     },
                     severity: payload_def.severity,
                     confidence: ConfidenceLevel::Certain,

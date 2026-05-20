@@ -1,9 +1,10 @@
+#![allow(clippy::type_complexity, clippy::needless_borrows_for_generic_args)]
+use crate::domain::active_vuln::ExploitabilityLevel;
+use crate::domain::active_vuln::{ActiveVulnFinding, ActiveVulnType};
+use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::domain::repositories::ActiveFindingRepository;
 use async_trait::async_trait;
 use sqlx::PgPool;
-use crate::domain::active_vuln::{ActiveVulnFinding, ActiveVulnType};
-use crate::domain::entities::{SeverityLevel, ConfidenceLevel};
-use crate::domain::active_vuln::ExploitabilityLevel;
-use crate::domain::repositories::ActiveFindingRepository;
 
 pub struct PgActiveFindingRepository {
     pool: PgPool,
@@ -14,20 +15,37 @@ impl PgActiveFindingRepository {
         Self { pool }
     }
 
-    fn row_to_finding(row: (
-        uuid::Uuid, uuid::Uuid, chrono::DateTime<chrono::Utc>, String, String, String, String, String,
-        serde_json::Value, String, String, String, bool, Option<uuid::Uuid>, bool, bool
-    )) -> Result<ActiveVulnFinding, String> {
+    fn row_to_finding(
+        row: (
+            uuid::Uuid,
+            uuid::Uuid,
+            chrono::DateTime<chrono::Utc>,
+            String,
+            String,
+            String,
+            String,
+            String,
+            serde_json::Value,
+            String,
+            String,
+            String,
+            bool,
+            Option<uuid::Uuid>,
+            bool,
+            bool,
+        ),
+    ) -> Result<ActiveVulnFinding, String> {
         let vuln_type: ActiveVulnType = serde_json::from_value(serde_json::Value::String(row.3))
             .map_err(|e| format!("Invalid vuln_type: {}", e))?;
-        let severity: SeverityLevel = serde_json::from_value(serde_json::Value::String(row.9))
-            .unwrap_or(SeverityLevel::Low);
+        let severity: SeverityLevel =
+            serde_json::from_value(serde_json::Value::String(row.9)).unwrap_or(SeverityLevel::Low);
         let confidence: ConfidenceLevel = serde_json::from_value(serde_json::Value::String(row.10))
             .unwrap_or(ConfidenceLevel::Tentative);
-        let exploitability: ExploitabilityLevel = serde_json::from_value(serde_json::Value::String(row.11))
-            .unwrap_or(ExploitabilityLevel::Theoretical);
-        let evidence = serde_json::from_value(row.8)
-            .map_err(|e| format!("Invalid evidence JSON: {}", e))?;
+        let exploitability: ExploitabilityLevel =
+            serde_json::from_value(serde_json::Value::String(row.11))
+                .unwrap_or(ExploitabilityLevel::Theoretical);
+        let evidence =
+            serde_json::from_value(row.8).map_err(|e| format!("Invalid evidence JSON: {}", e))?;
 
         Ok(ActiveVulnFinding {
             id: row.0,
@@ -55,10 +73,26 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
     async fn save_finding(&self, finding: ActiveVulnFinding) -> Result<(), String> {
         let evidence_json = serde_json::to_value(&finding.evidence)
             .map_err(|e| format!("Failed to serialize evidence: {}", e))?;
-        let vuln_type_str = serde_json::to_value(&finding.vuln_type).unwrap().as_str().unwrap().to_string();
-        let severity_str = serde_json::to_value(&finding.severity).unwrap().as_str().unwrap().to_string();
-        let confidence_str = serde_json::to_value(&finding.confidence).unwrap().as_str().unwrap().to_string();
-        let expl_str = serde_json::to_value(&finding.exploitability).unwrap().as_str().unwrap().to_string();
+        let vuln_type_str = serde_json::to_value(&finding.vuln_type)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let severity_str = serde_json::to_value(&finding.severity)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let confidence_str = serde_json::to_value(&finding.confidence)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let expl_str = serde_json::to_value(&finding.exploitability)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
 
         sqlx::query(
             r#"
@@ -67,7 +101,7 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
                 http_method, payload_used, evidence, severity, confidence,
                 exploitability, poc_generated, poc_id, verified, false_positive
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-            "#
+            "#,
         )
         .bind(finding.id)
         .bind(finding.scan_id)
@@ -92,14 +126,17 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, finding_id: uuid::Uuid) -> Result<Option<ActiveVulnFinding>, String> {
+    async fn find_by_id(
+        &self,
+        finding_id: uuid::Uuid,
+    ) -> Result<Option<ActiveVulnFinding>, String> {
         let row = sqlx::query_as(
             r#"
             SELECT id, scan_id, timestamp, vuln_type, target_url, affected_parameter,
                    http_method, payload_used, evidence, severity, confidence,
                    exploitability, poc_generated, poc_id, verified, false_positive
             FROM active_findings WHERE id = $1
-            "#
+            "#,
         )
         .bind(finding_id)
         .fetch_optional(&self.pool)
@@ -120,7 +157,7 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
                    exploitability, poc_generated, poc_id, verified, false_positive
             FROM active_findings WHERE scan_id = $1
             ORDER BY timestamp DESC
-            "#
+            "#,
         )
         .bind(scan_id)
         .fetch_all(&self.pool)
@@ -134,7 +171,11 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
         Ok(findings)
     }
 
-    async fn update_poc_id(&self, finding_id: uuid::Uuid, poc_id: uuid::Uuid) -> Result<(), String> {
+    async fn update_poc_id(
+        &self,
+        finding_id: uuid::Uuid,
+        poc_id: uuid::Uuid,
+    ) -> Result<(), String> {
         sqlx::query("UPDATE active_findings SET poc_id = $1, poc_generated = true WHERE id = $2")
             .bind(poc_id)
             .bind(finding_id)
@@ -144,7 +185,10 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
         Ok(())
     }
 
-    async fn find_by_filters(&self, params: &crate::domain::active_vuln::ActiveFindingQueryParams) -> Result<Vec<ActiveVulnFinding>, String> {
+    async fn find_by_filters(
+        &self,
+        params: &crate::domain::active_vuln::ActiveFindingQueryParams,
+    ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut builder = sqlx::QueryBuilder::new(
             "SELECT id, scan_id, timestamp, vuln_type, target_url, affected_parameter, http_method, payload_used, evidence, severity, confidence, exploitability, poc_generated, poc_id, verified, false_positive FROM active_findings WHERE 1=1"
         );
@@ -155,20 +199,46 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
         }
 
         if let Some(ref vuln_type) = params.vuln_type {
-            let vuln_str = serde_json::to_value(vuln_type).unwrap().as_str().unwrap().to_string();
+            let vuln_str = serde_json::to_value(vuln_type)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             builder.push(" AND vuln_type = ");
             builder.push_bind(vuln_str);
         }
 
         if let Some(ref severity) = params.severity {
-            let sev_str = serde_json::to_value(severity).unwrap().as_str().unwrap().to_string();
+            let sev_str = serde_json::to_value(severity)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             builder.push(" AND severity = ");
             builder.push_bind(sev_str);
         }
 
         builder.push(" ORDER BY timestamp DESC");
 
-        let rows = builder.build_query_as::<(uuid::Uuid, uuid::Uuid, chrono::DateTime<chrono::Utc>, String, String, String, String, String, serde_json::Value, String, String, String, bool, Option<uuid::Uuid>, bool, bool)>()
+        let rows = builder
+            .build_query_as::<(
+                uuid::Uuid,
+                uuid::Uuid,
+                chrono::DateTime<chrono::Utc>,
+                String,
+                String,
+                String,
+                String,
+                String,
+                serde_json::Value,
+                String,
+                String,
+                String,
+                bool,
+                Option<uuid::Uuid>,
+                bool,
+                bool,
+            )>()
             .fetch_all(&self.pool)
             .await
             .map_err(|e| format!("DB error fetching filtered findings: {}", e))?;
@@ -180,7 +250,12 @@ impl ActiveFindingRepository for PgActiveFindingRepository {
         Ok(findings)
     }
 
-    async fn update_status(&self, finding_id: uuid::Uuid, verified: bool, false_positive: bool) -> Result<(), String> {
+    async fn update_status(
+        &self,
+        finding_id: uuid::Uuid,
+        verified: bool,
+        false_positive: bool,
+    ) -> Result<(), String> {
         sqlx::query("UPDATE active_findings SET verified = $1, false_positive = $2 WHERE id = $3")
             .bind(verified)
             .bind(false_positive)

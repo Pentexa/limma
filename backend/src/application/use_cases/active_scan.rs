@@ -1,21 +1,22 @@
+use crate::domain::active_vuln::*;
+use crate::domain::repositories::{ActiveFindingRepository, ActiveScanRepository};
+use crate::infrastructure::active_detection::detectors::VulnDetector;
+use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
-use crate::domain::active_vuln::*;
-use crate::domain::repositories::{ActiveScanRepository, ActiveFindingRepository};
-use crate::infrastructure::active_detection::detectors::VulnDetector;
 
 pub struct PerformActiveScan<'a, S: ActiveScanRepository, F: ActiveFindingRepository> {
     pub scan_repo: &'a S,
     pub finding_repo: &'a F,
     pub detectors: Arc<Vec<Box<dyn VulnDetector>>>,
-    pub payload_selector: Arc<crate::infrastructure::active_detection::payload_selector::PayloadSelector>,
+    pub payload_selector:
+        Arc<crate::infrastructure::active_detection::payload_selector::PayloadSelector>,
 }
 
 impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<'a, S, F> {
     pub async fn execute(&self, config: ActiveScanConfig) -> Result<Uuid, String> {
         let scan_id = Uuid::new_v4();
-        
+
         let initial_scan = ActiveScanResult {
             scan_id,
             target_url: config.target_url.clone(),
@@ -29,10 +30,19 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
         };
 
         self.scan_repo.create_scan(initial_scan.clone()).await?;
-        self.scan_repo.update_status(scan_id, ActiveScanStatus::Running).await?;
+        self.scan_repo
+            .update_status(scan_id, ActiveScanStatus::Running)
+            .await?;
 
         let test_parameters = config.custom_parameters.unwrap_or_else(|| {
-            vec!["id".into(), "page".into(), "q".into(), "url".into(), "file".into(), "token".into()]
+            vec![
+                "id".into(),
+                "page".into(),
+                "q".into(),
+                "url".into(),
+                "file".into(),
+                "token".into(),
+            ]
         });
 
         // Safety Framework setup
@@ -53,33 +63,56 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
 
         for param in &test_parameters {
             // Baseline Reflection Check
-            let canary = format!("limma_canary_{}", Uuid::new_v4().to_string().replace("-", "")[..8].to_string());
-            let is_reflected = if let Ok(resp) = client.get(&config.target_url).query(&[(param, &canary)]).send().await {
+            let canary_id = Uuid::new_v4().to_string().replace("-", "")[..8].to_string();
+            let canary = format!("limma_canary_{}", canary_id);
+            let is_reflected = if let Ok(resp) = client
+                .get(&config.target_url)
+                .query(&[(param, &canary)])
+                .send()
+                .await
+            {
                 if let Ok(body) = resp.text().await {
                     body.contains(&canary)
-                } else { false }
-            } else { false };
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
 
             // Differential Analysis Baseline
             let mut baseline = None;
-            if let Ok(profile) = crate::infrastructure::active_detection::differential::build_baseline(&client, &config.target_url, param, "limma_safe_base").await {
+            if let Ok(profile) =
+                crate::infrastructure::active_detection::differential::build_baseline(
+                    &client,
+                    &config.target_url,
+                    param,
+                    "limma_safe_base",
+                )
+                .await
+            {
                 baseline = Some(profile);
             }
 
             // Context-Aware Heuristics
-            let mut prioritized_types = crate::infrastructure::active_detection::heuristics::prioritize_vuln_types(param);
-            
+            let mut prioritized_types =
+                crate::infrastructure::active_detection::heuristics::prioritize_vuln_types(param);
+
             // Filter noise: If no reflection, skip XSS and SSTI
             if !is_reflected {
-                prioritized_types.retain(|t| *t != ActiveVulnType::ReflectedXss && *t != ActiveVulnType::ServerSideTemplateInjection);
+                prioritized_types.retain(|t| {
+                    *t != ActiveVulnType::ReflectedXss
+                        && *t != ActiveVulnType::ServerSideTemplateInjection
+                });
             }
 
             // Create concurrent tasks for prioritized detectors
             for detector in self.detectors.iter() {
                 let supported = detector.supported_types();
-                
+
                 // Intersection: Must be supported by detector, requested by user, AND prioritized by heuristics
-                let should_run: Vec<_> = supported.into_iter()
+                let should_run: Vec<_> = supported
+                    .into_iter()
                     .filter(|t| config.vuln_types.contains(t) && prioritized_types.contains(t))
                     .collect();
 
@@ -93,13 +126,25 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
                 let wm = waf_monitor.clone();
                 let baseline_clone = baseline.clone();
                 let payload_selector_clone = self.payload_selector.clone();
-                
+
                 tasks.push(async move {
                     if wm.is_circuit_open(&target_url) {
-                        return Err("Circuit Breaker Open: WAF blocked too many requests. Aborting scan.".to_string());
+                        return Err(
+                            "Circuit Breaker Open: WAF blocked too many requests. Aborting scan."
+                                .to_string(),
+                        );
                     }
 
-                    detector_ref.detect(&target_url, &param_clone, scan_id, payload_selector_clone.as_ref(), rate_limit_ms, wm, baseline_clone.as_ref())
+                    detector_ref
+                        .detect(
+                            &target_url,
+                            &param_clone,
+                            scan_id,
+                            payload_selector_clone.as_ref(),
+                            rate_limit_ms,
+                            wm,
+                            baseline_clone.as_ref(),
+                        )
                         .await
                         .map_err(|e| format!("Detector error for parameter {}: {}", param_clone, e))
                 });
@@ -134,7 +179,7 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
         for finding in &all_findings {
             let type_str = serde_json::to_string(&finding.vuln_type).unwrap_or("unknown".into());
             *summary.vuln_type_breakdown.entry(type_str).or_insert(0) += 1;
-            
+
             use crate::domain::entities::SeverityLevel;
             match finding.severity {
                 SeverityLevel::Critical => summary.critical_count += 1,
@@ -144,7 +189,7 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
                 SeverityLevel::Informational => summary.info_count += 1,
             }
         }
-        
+
         summary.waf_detected = waf_monitor.is_waf_detected(&config.target_url);
         summary.waf_blocked_requests = waf_monitor.get_blocked_count(&config.target_url);
 
@@ -163,10 +208,11 @@ impl<'a, S: ActiveScanRepository, F: ActiveFindingRepository> PerformActiveScan<
 
         // For simplicity, we just rely on updating status and stats could be an explicit update_scan.
         // If your repo needs a full update: (here we just mark completed for now)
-        self.scan_repo.update_status(scan_id, ActiveScanStatus::Completed).await?;
+        self.scan_repo
+            .update_status(scan_id, ActiveScanStatus::Completed)
+            .await?;
         // Optional: Update scan with summary and end_time (needs repo method update, skipping for brevity)
 
         Ok(scan_id)
     }
 }
-

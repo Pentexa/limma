@@ -13,7 +13,8 @@ pub enum FuzzingIntensity {
 pub struct EngineConfig {
     // Shared Rate Limiter configuration
     pub rate_limit_rps: u32,
-    pub rate_limiter: std::sync::Arc<crate::infrastructure::safety::rate_limiter::SharedRateLimiter>,
+    pub rate_limiter:
+        std::sync::Arc<crate::infrastructure::safety::rate_limiter::SharedRateLimiter>,
     pub timeout_ms: u64,
     pub use_proxy: bool,
     pub proxy_url: Option<String>,
@@ -46,7 +47,9 @@ impl EngineConfig {
             10 // Safe default
         };
 
-        let rate_limiter = std::sync::Arc::new(crate::infrastructure::safety::rate_limiter::SharedRateLimiter::new(rate_limit_rps));
+        let rate_limiter = std::sync::Arc::new(
+            crate::infrastructure::safety::rate_limiter::SharedRateLimiter::new(rate_limit_rps),
+        );
 
         // 2. Timeout
         let timeout_ms = if profile.global.timeout_ms > 0 {
@@ -59,41 +62,78 @@ impl EngineConfig {
         let mut wordlist = Vec::new();
         let max_wordlist_items = match profile.scanner.wordlist_size.as_str() {
             "small" => {
-                wordlist = vec!["admin", "login", "api", "test", ".git"].into_iter().map(String::from).collect();
+                wordlist = vec!["admin", "login", "api", "test", ".git"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect();
                 5
-            },
+            }
             "medium" => {
-                wordlist = vec!["admin", "login", "api", "test", ".git", "backup", "config", "staging", "v1", "v2", "swagger"].into_iter().map(String::from).collect();
+                wordlist = vec![
+                    "admin", "login", "api", "test", ".git", "backup", "config", "staging", "v1",
+                    "v2", "swagger",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect();
                 20
-            },
+            }
             "large" | "massive" => {
                 wordlist = vec![
-                    "admin", "login", "api", "test", ".git", "backup", "config", "staging", "v1", "v2", 
-                    "swagger", "phpmyadmin", "graphql", "metrics", "health", ".env", "actuator"
-                ].into_iter().map(String::from).collect();
+                    "admin",
+                    "login",
+                    "api",
+                    "test",
+                    ".git",
+                    "backup",
+                    "config",
+                    "staging",
+                    "v1",
+                    "v2",
+                    "swagger",
+                    "phpmyadmin",
+                    "graphql",
+                    "metrics",
+                    "health",
+                    ".env",
+                    "actuator",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect();
                 50
-            },
+            }
             _ => 0,
         };
 
         // 4. Port Scan Range Parser
         let mut target_ports = HashSet::new();
         let range_str = profile.services.port_scan_range.to_lowercase();
-        
+
         if range_str == "top-100" || range_str == "common" {
-            target_ports.extend(vec![21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306, 3389, 5432, 6379, 8080, 8443]);
+            target_ports.extend(vec![
+                21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306,
+                3389, 5432, 6379, 8080, 8443,
+            ]);
         } else if range_str == "top-1000" {
             // A realistic sample of top 1000 for this exercise, we can extend it later
-            target_ports.extend(vec![21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080]); 
+            target_ports.extend(vec![
+                21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306,
+                3389, 5900, 8080,
+            ]);
         } else {
             // parse comma separated and dash separated
             for part in range_str.split(',') {
                 let part = part.trim();
-                if part.is_empty() { continue; }
+                if part.is_empty() {
+                    continue;
+                }
                 if part.contains('-') {
                     let bounds: Vec<&str> = part.split('-').collect();
                     if bounds.len() == 2 {
-                        if let (Ok(start), Ok(end)) = (bounds[0].parse::<u16>(), bounds[1].parse::<u16>()) {
+                        if let (Ok(start), Ok(end)) =
+                            (bounds[0].parse::<u16>(), bounds[1].parse::<u16>())
+                        {
                             let s = std::cmp::min(start, end);
                             let e = std::cmp::max(start, end);
                             for p in s..=e {
@@ -106,7 +146,7 @@ impl EngineConfig {
                 }
             }
         }
-        
+
         // If empty, safe fallback
         if target_ports.is_empty() {
             target_ports.extend(vec![80, 443]);
@@ -125,8 +165,9 @@ impl EngineConfig {
         };
 
         // 6. Aggressive mode checks
-        let is_aggressive = fuzzing_intensity == FuzzingIntensity::High || fuzzing_intensity == FuzzingIntensity::Aggressive;
-        
+        let is_aggressive = fuzzing_intensity == FuzzingIntensity::High
+            || fuzzing_intensity == FuzzingIntensity::Aggressive;
+
         // Port range restriction: if not aggressive, cap at 1000 ports
         if !is_aggressive && target_ports_vec.len() > 1000 {
             target_ports_vec.truncate(1000);

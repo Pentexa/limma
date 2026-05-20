@@ -1,4 +1,4 @@
-use crate::domain::active_vuln::{PayloadDefinition, ExpectedIndicator};
+use crate::domain::active_vuln::{ExpectedIndicator, PayloadDefinition};
 use crate::domain::entities::SeverityLevel;
 
 pub fn get_lfi_payloads() -> Vec<PayloadDefinition> {
@@ -81,7 +81,10 @@ pub fn get_traversal_payloads() -> Vec<PayloadDefinition> {
             id: "traversal_01".into(),
             payload: "../".into(),
             description: "Simple one-level directory traversal".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "directory_listing".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "directory_listing".into(),
+            },
             severity: SeverityLevel::Medium,
             safe_for_production: true,
         },
@@ -89,7 +92,10 @@ pub fn get_traversal_payloads() -> Vec<PayloadDefinition> {
             id: "traversal_02".into(),
             payload: "..%00/".into(),
             description: "Null byte path traversal".into(),
-            expected_indicator: ExpectedIndicator::ResponseDiff { baseline_hash: String::new(), indicator: "null_byte_bypass".into() },
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "null_byte_bypass".into(),
+            },
             severity: SeverityLevel::High,
             safe_for_production: true,
         },

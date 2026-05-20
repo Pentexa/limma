@@ -22,7 +22,7 @@ impl HttpInvestigator {
             .pool_max_idle_per_host(10)
             .pool_idle_timeout(std::time::Duration::from_secs(30))
             .tcp_keepalive(std::time::Duration::from_secs(15));
-            
+
         if profile.use_proxy {
             if let Some(proxy_url) = &profile.proxy_url {
                 if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
@@ -31,7 +31,9 @@ impl HttpInvestigator {
             }
         }
 
-        builder.build().expect("Failed to build profile-specific HTTP client")
+        builder
+            .build()
+            .expect("Failed to build profile-specific HTTP client")
     }
 }
 
@@ -43,7 +45,8 @@ impl ServerInvestigator for HttpInvestigator {
         profile: &crate::domain::engine_config::EngineConfig,
     ) -> Result<ServerInfo, String> {
         let client = self.build_client(profile);
-        self.investigate_multi_inner(url_str, &client, profile, &mut None).await
+        self.investigate_multi_inner(url_str, &client, profile, &mut None)
+            .await
     }
 
     async fn investigate_stream(
@@ -54,7 +57,9 @@ impl ServerInvestigator for HttpInvestigator {
     ) -> Result<ServerInfo, String> {
         let mut tx_opt = Some(tx.clone());
         let client = self.build_client(profile);
-        let res = self.investigate_multi_inner(url_str, &client, profile, &mut tx_opt).await;
+        let res = self
+            .investigate_multi_inner(url_str, &client, profile, &mut tx_opt)
+            .await;
         if let Ok(ref info) = res {
             let event = crate::domain::entities::InvestigationEvent {
                 timestamp: std::time::SystemTime::now()
@@ -96,7 +101,9 @@ impl HttpInvestigator {
         }
 
         // clone sender for analyze_route to avoid borrowing issues inside futures or loops
-        let mut primary_info = self.analyze_route(url_str, client, profile, tx.clone()).await?;
+        let mut primary_info = self
+            .analyze_route(url_str, client, profile, tx.clone())
+            .await?;
 
         let base_url = if let Ok(parsed) = reqwest::Url::parse(&primary_info.resolved_url) {
             let port_str = if let Some(p) = parsed.port_or_known_default() {
@@ -124,7 +131,10 @@ impl HttpInvestigator {
         let mut responses = Vec::new();
 
         for target in targets {
-            if let Ok(info) = self.analyze_route(&target, client, profile, tx.clone()).await {
+            if let Ok(info) = self
+                .analyze_route(&target, client, profile, tx.clone())
+                .await
+            {
                 routes_checked.push(info.resolved_url.clone());
                 responses.push(info);
             }

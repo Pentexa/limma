@@ -25,7 +25,10 @@ impl HttpApiDiscoverer {
         Self {}
     }
 
-    fn build_fetcher(&self, profile: &crate::domain::engine_config::EngineConfig) -> CrawlerFetcher {
+    fn build_fetcher(
+        &self,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> CrawlerFetcher {
         let mut builder = reqwest::ClientBuilder::new()
             .user_agent(&profile.user_agent)
             .timeout(std::time::Duration::from_millis(profile.timeout_ms))
@@ -89,7 +92,7 @@ impl ApiDiscoverer for HttpApiDiscoverer {
         profile: &crate::domain::engine_config::EngineConfig,
     ) -> Result<ApiDiscoveryResult, String> {
         let base_url = Url::parse(url_str).map_err(|e| format!("Invalid Base URL: {}", e))?;
-        
+
         let fetcher = self.build_fetcher(profile);
 
         // 1. Fetcher layer
@@ -173,9 +176,7 @@ impl ApiDiscoverer for HttpApiDiscoverer {
 
                         for chunk in metadata.potential_chunks.into_iter().take(5) {
                             if let Ok(chunk_url) = actual_base_url.join(&chunk) {
-                                if let Ok(chunk_code) =
-                                    fetcher.fetch_js(chunk_url.as_str()).await
-                                {
+                                if let Ok(chunk_code) = fetcher.fetch_js(chunk_url.as_str()).await {
                                     js_sources_to_eval
                                         .push((chunk_code, "External JS (Dynamic Import)"));
                                 }

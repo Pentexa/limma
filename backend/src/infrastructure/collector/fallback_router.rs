@@ -77,7 +77,14 @@ pub async fn probe_with_fallback(
     let mut http_summary: Option<HttpSummary> = None;
 
     // === Phase 1: Connect ===
-    let connect_result = try_connect_with_retry(&addr, &mut retry_count, &mut timeline, port, connect_timeout).await;
+    let connect_result = try_connect_with_retry(
+        &addr,
+        &mut retry_count,
+        &mut timeline,
+        port,
+        connect_timeout,
+    )
+    .await;
 
     let stream = match connect_result {
         Some(s) => s,

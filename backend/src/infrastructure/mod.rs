@@ -16,4 +16,3 @@ pub mod repositories;
 pub mod rule_engine;
 pub mod safety;
 pub mod scanner;
-

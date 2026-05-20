@@ -17,8 +17,7 @@ impl PgBlindFindingRepository {
 #[async_trait]
 impl BlindFindingRepository for PgBlindFindingRepository {
     async fn save(&self, finding: &BlindFinding) -> Result<(), String> {
-        let evidence_json =
-            serde_json::to_value(&finding.evidence).map_err(|e| e.to_string())?;
+        let evidence_json = serde_json::to_value(&finding.evidence).map_err(|e| e.to_string())?;
         let vuln_type_str = format!("{:?}", finding.vulnerability_type);
         let detection_method_str = format!("{:?}", finding.detection_method);
 
@@ -101,9 +100,11 @@ struct BlindFindingRow {
 
 impl BlindFindingRow {
     fn into_entity(self) -> Result<BlindFinding, String> {
-        let vulnerability_type: BlindVulnType =
-            serde_json::from_str(&format!("\"{}\"", self.vulnerability_type.to_lowercase().replace("::", "_")))
-                .unwrap_or(BlindVulnType::BlindSqliTimeBased);
+        let vulnerability_type: BlindVulnType = serde_json::from_str(&format!(
+            "\"{}\"",
+            self.vulnerability_type.to_lowercase().replace("::", "_")
+        ))
+        .unwrap_or(BlindVulnType::BlindSqliTimeBased);
 
         let detection_method: BlindDetectionMethod =
             serde_json::from_value(serde_json::json!({"differential_analysis": {}}))

@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use crate::domain::active_vuln::{ActiveVulnType, PayloadDefinition};
 use crate::domain::engine_config::{EngineConfig, FuzzingIntensity};
 use crate::infrastructure::active_detection::payloads::PayloadDatabase;
+use std::sync::Arc;
 
 /// `PayloadSelector` is a centralized, intensity-aware wrapper around `PayloadDatabase`.
 ///
@@ -62,13 +62,19 @@ impl PayloadSelector {
 
     /// Returns whether WAF bypass transformations should be applied.
     fn should_apply_waf_bypass(&self) -> bool {
-        self.enable_waf_bypass && matches!(self.intensity, FuzzingIntensity::High | FuzzingIntensity::Aggressive)
+        self.enable_waf_bypass
+            && matches!(
+                self.intensity,
+                FuzzingIntensity::High | FuzzingIntensity::Aggressive
+            )
     }
 
     /// Returns whether non-production-safe payloads are allowed.
     fn allows_unsafe_payloads(&self) -> bool {
         // Aggressive mode with exploit enabled AND sandbox constraints satisfied
-        !self.safe_mode && self.active_exploit_enabled && self.intensity == FuzzingIntensity::Aggressive
+        !self.safe_mode
+            && self.active_exploit_enabled
+            && self.intensity == FuzzingIntensity::Aggressive
     }
 
     /// Returns filtered payloads for a specific vulnerability type.
@@ -82,7 +88,8 @@ impl PayloadSelector {
         };
 
         let mut payloads = if self.should_apply_waf_bypass() {
-            self.payload_db.get_payloads_with_bypass(vuln_type, effective_safe_mode)
+            self.payload_db
+                .get_payloads_with_bypass(vuln_type, effective_safe_mode)
         } else {
             self.payload_db.get_payloads(vuln_type, effective_safe_mode)
         };
@@ -97,7 +104,10 @@ impl PayloadSelector {
     }
 
     /// Returns filtered payloads for multiple vulnerability types at once.
-    pub fn select_multi(&self, vuln_types: &[ActiveVulnType]) -> Vec<(ActiveVulnType, PayloadDefinition)> {
+    pub fn select_multi(
+        &self,
+        vuln_types: &[ActiveVulnType],
+    ) -> Vec<(ActiveVulnType, PayloadDefinition)> {
         let mut result = Vec::new();
         for vt in vuln_types {
             for payload in self.select(*vt) {
