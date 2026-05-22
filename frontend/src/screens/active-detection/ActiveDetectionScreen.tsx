@@ -12,6 +12,7 @@ import { FindingDetailPanel } from "./components/FindingDetailPanel";
 import {
   Loader2, Zap, CheckCircle, Eye, AlertTriangle, ChevronRight, Shield
 } from "lucide-react";
+import { WafBadge } from "@/shared/ui/WafBadge";
 
 const ALL_SEVERITIES = new Set<Severity>(["critical", "high", "medium", "low", "info"]);
 
@@ -164,7 +165,15 @@ export function ActiveDetectionScreen() {
                       </div>
                       <p className={cn("text-[12px] font-medium truncate transition-colors",
                         isSelected ? "text-primary" : "text-foreground/90 group-hover:text-foreground"
-                      )}>{f.title}</p>
+                      )}>
+                        {f.title.startsWith("WAF Detected: ") ? (
+                           <span className="flex items-center gap-2">
+                             <WafBadge wafName={f.title.replace("WAF Detected: ", "")} />
+                           </span>
+                        ) : (
+                          f.title
+                        )}
+                      </p>
                       <div className="flex items-center gap-2 text-[9px] text-muted-foreground/50 font-mono">
                         <span className="truncate max-w-[300px]">{f.url} → {f.parameter}</span>
                         <span>·</span>

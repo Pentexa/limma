@@ -2,13 +2,11 @@ use async_trait::async_trait;
 use chrono::Utc;
 use regex::Regex;
 use reqwest::Client;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
 use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
-use crate::infrastructure::active_detection::payloads::PayloadDatabase;
 
 struct SqlErrorPattern {
     db_type: &'static str,
@@ -17,13 +15,13 @@ struct SqlErrorPattern {
 
 pub struct SqliDetector {
     client: Client,
-    #[allow(dead_code)]
-    payload_db: Arc<PayloadDatabase>,
+    
+    
     error_patterns: Vec<SqlErrorPattern>,
 }
 
 impl SqliDetector {
-    pub fn new(client: Client, payload_db: Arc<PayloadDatabase>) -> Self {
+    pub fn new(client: Client, ) -> Self {
         let error_patterns = vec![
             SqlErrorPattern {
                 db_type: "MySQL",
@@ -69,7 +67,7 @@ impl SqliDetector {
         ];
         Self {
             client,
-            payload_db,
+            
             error_patterns,
         }
     }

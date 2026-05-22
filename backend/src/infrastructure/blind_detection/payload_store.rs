@@ -5,7 +5,7 @@
 pub struct PayloadStore;
 
 impl PayloadStore {
-    #[allow(dead_code)]
+    
     pub fn new() -> Self {
         Self
     }

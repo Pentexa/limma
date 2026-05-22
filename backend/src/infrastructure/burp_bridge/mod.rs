@@ -513,7 +513,7 @@ impl BurpBridgeManager {
     }
 
     /// Get traffic items for a session.
-    #[allow(dead_code)]
+    
     pub fn get_traffic(&self, session_id: &str) -> Vec<BurpTrafficItem> {
         self.traffic_store
             .read()
@@ -523,7 +523,7 @@ impl BurpBridgeManager {
     }
 
     /// Get traffic count for a session.
-    #[allow(dead_code)]
+    
     pub fn get_traffic_count(&self, session_id: &str) -> usize {
         self.traffic_store
             .read()
@@ -542,7 +542,7 @@ impl BurpBridgeManager {
     }
 
     /// Convert a NormalizedAuditReport's findings into Burp-native format.
-    #[allow(dead_code)]
+    
     pub fn findings_to_burp_native(report: &NormalizedAuditReport) -> Vec<BurpNativeFinding> {
         let (host, port, protocol) = parse_url_parts(&report.target);
 
@@ -559,8 +559,8 @@ impl BurpBridgeManager {
 
                 let confidence = match cf.confidence {
                     ConfidenceLevel::Certain => "Certain".to_string(),
-                    ConfidenceLevel::Firm => "Firm".to_string(),
-                    ConfidenceLevel::Tentative | ConfidenceLevel::Low => "Tentative".to_string(),
+                    ConfidenceLevel::High | ConfidenceLevel::Firm => "Firm".to_string(),
+                    ConfidenceLevel::Medium | ConfidenceLevel::Tentative | ConfidenceLevel::Low => "Tentative".to_string(),
                 };
 
                 let path = cf

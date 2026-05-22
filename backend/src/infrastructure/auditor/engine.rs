@@ -68,10 +68,12 @@ impl RuleEngine {
                 }
                 RuleConditionType::ConfidenceMin => {
                     let finding_conf_val = match finding.confidence {
-                        ConfidenceLevel::Certain => 3,
+                        ConfidenceLevel::Certain => 4,
+                        ConfidenceLevel::High => 3,
                         ConfidenceLevel::Firm => 2,
-                        ConfidenceLevel::Tentative => 1,
-                        ConfidenceLevel::Low => 0,
+                        ConfidenceLevel::Medium => 1,
+                        ConfidenceLevel::Tentative => 0,
+                        ConfidenceLevel::Low => -1,
                     };
                     let exp_conf_val = match condition.expected_value.to_lowercase().as_str() {
                         "certain" => 3,

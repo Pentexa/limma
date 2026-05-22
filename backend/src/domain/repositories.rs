@@ -82,7 +82,7 @@ pub trait FormMapperRepository: Send + Sync {
 // ── Faz F: Blind Detection & Exploitation Repositories ──
 
 #[async_trait]
-#[allow(dead_code)]
+
 pub trait BlindFindingRepository: Send + Sync {
     async fn save(&self, finding: &crate::domain::entities::BlindFinding) -> Result<(), String>;
     async fn find_by_id(
@@ -97,7 +97,7 @@ pub trait BlindFindingRepository: Send + Sync {
 }
 
 #[async_trait]
-#[allow(dead_code)]
+
 pub trait PocRepository: Send + Sync {
     async fn save(&self, poc: &crate::domain::entities::Poc) -> Result<(), String>;
     async fn find_by_id(
@@ -116,7 +116,7 @@ pub trait PocRepository: Send + Sync {
 }
 
 #[async_trait]
-#[allow(dead_code)]
+
 pub trait ExploitResultRepository: Send + Sync {
     async fn save(&self, result: &crate::domain::entities::ExploitResult) -> Result<(), String>;
     async fn find_by_poc(
@@ -165,7 +165,7 @@ pub trait ActiveScanRepository: Send + Sync {
         filters: &crate::domain::active_vuln::ScanQueryParams,
     ) -> Result<Vec<crate::domain::active_vuln::ActiveScanResult>, String>;
     async fn delete_scan(&self, scan_id: uuid::Uuid) -> Result<(), String>;
-    #[allow(dead_code)]
+    
     async fn update_scan(
         &self,
         scan: crate::domain::active_vuln::ActiveScanResult,

@@ -143,7 +143,7 @@ export const httpClient = {
     return request<T>("PATCH", path, body, options);
   },
 
-  delete<T = void>(path: string, options?: RequestOptions): Promise<T> {
-    return request<T>("DELETE", path, undefined, options);
+  delete<T = void>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return request<T>("DELETE", path, body, options);
   },
 };

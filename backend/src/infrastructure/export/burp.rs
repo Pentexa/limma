@@ -226,9 +226,9 @@ fn severity_to_highlight(severity: &SeverityLevel) -> String {
 
 fn confidence_to_signal(confidence: &ConfidenceLevel) -> String {
     match confidence {
-        ConfidenceLevel::Certain => "confirmed".to_string(),
-        ConfidenceLevel::Firm => "likely".to_string(),
-        ConfidenceLevel::Tentative => "unconfirmed".to_string(),
+        ConfidenceLevel::Certain => "certain".to_string(),
+        ConfidenceLevel::High | ConfidenceLevel::Firm => "firm".to_string(),
+        ConfidenceLevel::Medium | ConfidenceLevel::Tentative => "tentative".to_string(),
         ConfidenceLevel::Low => "pattern-only".to_string(),
     }
 }

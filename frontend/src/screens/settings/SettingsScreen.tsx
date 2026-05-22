@@ -8,8 +8,9 @@ import {
   AlertTriangle, Globe, Crosshair, Network, FileText, ShieldAlert 
 } from "lucide-react";
 import type { ApiSettingsProfile } from "@/shared/types/api";
+import { ConsentManagementPanel } from "@/features/manage-consent/ui/ConsentManagementPanel";
 
-type Tab = "general" | "profiles";
+type Tab = "general" | "profiles" | "consent";
 
 function ProfileEditor({ profile, onSave, isSaving }: { profile: ApiSettingsProfile, onSave: (p: ApiSettingsProfile) => void, isSaving: boolean }) {
   const [local, setLocal] = useState<ApiSettingsProfile>(JSON.parse(JSON.stringify(profile)));
@@ -364,6 +365,7 @@ export function SettingsScreen() {
         {[
           { id: "general" as Tab, label: "Settings Profiles", icon: User },
           { id: "profiles" as Tab, label: "Scan Profiles", icon: Radar },
+          { id: "consent" as Tab, label: "Consent Management", icon: ShieldAlert },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -377,12 +379,14 @@ export function SettingsScreen() {
           >
             <tab.icon className="h-3.5 w-3.5" /> 
             {tab.label}
-            <span className={cn(
-              "text-[9px] font-mono px-1.5 py-0.5 rounded-full ml-1",
-              activeTab === tab.id ? "bg-primary/10 text-primary" : "bg-white/[0.05] text-muted-foreground"
-            )}>
-              {tab.id === "general" ? settingsProfiles.length : scanProfiles.length}
-            </span>
+            {tab.id !== "consent" && (
+              <span className={cn(
+                "text-[9px] font-mono px-1.5 py-0.5 rounded-full ml-1",
+                activeTab === tab.id ? "bg-primary/10 text-primary" : "bg-white/[0.05] text-muted-foreground"
+              )}>
+                {tab.id === "general" ? settingsProfiles.length : scanProfiles.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -504,6 +508,11 @@ export function SettingsScreen() {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Consent Management */}
+            {activeTab === "consent" && (
+              <ConsentManagementPanel />
             )}
           </div>
         )}

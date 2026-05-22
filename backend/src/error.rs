@@ -23,11 +23,11 @@ pub enum AppError {
     NotFound(String),
 
     #[error("Safety violation: {0}")]
-    #[allow(dead_code)]
+    
     SafetyViolation(String),
 
     #[error("Domain error: {0}")]
-    #[allow(dead_code)]
+    
     DomainError(String),
 }
 

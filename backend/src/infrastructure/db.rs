@@ -249,6 +249,31 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
+    // ── Phase 5: Safety Framework Consent Tables ──
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS consent_records (
+            id UUID PRIMARY KEY,
+            target_domain VARCHAR(512) NOT NULL,
+            consent_level VARCHAR(20) NOT NULL,
+            granted_by VARCHAR(255) NOT NULL,
+            granted_at TIMESTAMPTZ NOT NULL,
+            expires_at TIMESTAMPTZ,
+            revoked BOOLEAN DEFAULT FALSE,
+            revoked_at TIMESTAMPTZ
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_consent_records_domain ON consent_records(target_domain);",
+    )
+    .execute(&pool)
+    .await?;
+
     // ── Phase 4: Settings Profiles Table ──
 
     sqlx::query(
@@ -415,6 +440,21 @@ pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
             yaml_content TEXT NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id UUID PRIMARY KEY,
+            action VARCHAR(255) NOT NULL,
+            details TEXT,
+            target VARCHAR(512),
+            actor VARCHAR(255),
+            timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         "#,
     )

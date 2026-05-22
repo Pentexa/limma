@@ -12,7 +12,7 @@ use crate::infrastructure::burp_bridge::SharedBurpBridgeManager;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
 use crate::infrastructure::exploitation::poc_generator::CompositePocGenerator;
-use crate::infrastructure::exploitation::sandbox::NoopSandboxProvider;
+
 use crate::infrastructure::investigator::HttpInvestigator;
 use crate::infrastructure::mapper::HttpFormMapper;
 
@@ -38,8 +38,8 @@ pub struct AppState {
     // Faz F: Blind Detection & Exploitation
     pub blind_detection_engine: Arc<HttpBlindDetectionEngine>,
     pub poc_generator: Arc<CompositePocGenerator>,
-    pub sandbox_verifier: Arc<NoopSandboxProvider>,
     pub safety_framework: Arc<SafetyFrameworkImpl>,
+    pub exploit_bridge: Arc<crate::infrastructure::exploitation::exploit_bridge::ExploitBridge>,
     pub blind_finding_repo: Arc<PgBlindFindingRepository>,
     pub poc_repo: Arc<PgPocRepository>,
     pub exploit_result_repo: Arc<PgExploitResultRepository>,
@@ -905,14 +905,24 @@ pub async fn verify_exploit(
     let use_case = crate::application::use_cases::verify_exploit::VerifyExploit {
         poc_repo: &*state.poc_repo,
         exploit_result_repo: &*state.exploit_result_repo,
-        safety: &*state.safety_framework,
-        verifier: &*state.sandbox_verifier,
+        exploit_bridge: &*state.exploit_bridge,
     };
 
+    let payload_clone = payload.clone();
     let result = use_case
         .execute(payload)
         .await
         .map_err(AppError::Internal)?;
+
+    if matches!(payload_clone.execution_level, crate::domain::entities::SafetyLevel::L3ActiveWithConsent) {
+        let _ = state.safety_framework.log_audit(
+            "L3_EXPLOIT_EXECUTED",
+            Some(&format!("PoC ID: {}", payload_clone.poc_id)),
+            Some(&payload_clone.target_url),
+            None,
+        ).await;
+    }
+
     let value = serde_json::to_value(result)?;
     Ok(Json(value))
 }
@@ -1250,9 +1260,15 @@ pub async fn generate_poc_for_finding(
     Ok(Json(serde_json::to_value(poc)?))
 }
 
+#[derive(serde::Deserialize)]
+pub struct VerifyFindingPayload {
+    pub execution_level: Option<crate::domain::entities::SafetyLevel>,
+}
+
 pub async fn verify_finding(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload_data): Json<VerifyFindingPayload>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     use crate::domain::repositories::ActiveFindingRepository;
 
@@ -1266,14 +1282,24 @@ pub async fn verify_finding(
     if let Some(poc_id) = finding.poc_id {
         let payload = crate::application::use_cases::verify_exploit::VerifyExploitRequest {
             poc_id,
-            execution_level: crate::domain::entities::SafetyLevel::L2VerifiedSandbox,
+            execution_level: payload_data.execution_level.unwrap_or(crate::domain::entities::SafetyLevel::L2VerifiedSandbox),
+            target_url: finding.target_url.clone(),
         };
+
+        // Audit log if L3 is selected
+        if matches!(payload.execution_level, crate::domain::entities::SafetyLevel::L3ActiveWithConsent) {
+            let _ = state.safety_framework.log_audit(
+                "L3_EXPLOIT_EXECUTED_VIA_FINDING",
+                Some(&format!("Finding ID: {}, PoC ID: {}", finding.id, poc_id)),
+                Some(&finding.target_url),
+                None,
+            ).await;
+        }
 
         let use_case = crate::application::use_cases::verify_exploit::VerifyExploit {
             poc_repo: &*state.poc_repo,
             exploit_result_repo: &*state.exploit_result_repo,
-            safety: &*state.safety_framework,
-            verifier: &*state.sandbox_verifier,
+            exploit_bridge: &*state.exploit_bridge,
         };
 
         let result = use_case
@@ -1298,4 +1324,83 @@ pub async fn verify_finding(
             id
         )))
     }
+}
+
+// ── Consent Management Handlers ──
+
+#[derive(serde::Deserialize)]
+pub struct GrantConsentPayload {
+    pub target_domain: String,
+    pub requested_by: String,
+    pub scope_level: String,
+    pub expires_in_hours: i64,
+}
+
+pub async fn grant_consent_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<GrantConsentPayload>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let id = state
+        .safety_framework
+        .grant_consent(
+            &payload.target_domain,
+            &payload.requested_by,
+            &payload.scope_level,
+            payload.expires_in_hours,
+        )
+        .await
+        .map_err(AppError::BadRequest)?;
+
+    // Audit log
+    let _ = state.safety_framework.log_audit(
+        "CONSENT_GRANTED",
+        Some(&format!("Level: {}, Expires in {}h", payload.scope_level, payload.expires_in_hours)),
+        Some(&payload.target_domain),
+        Some(&payload.requested_by),
+    ).await;
+
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "consent_id": id
+    })))
+}
+
+#[derive(serde::Deserialize)]
+pub struct RevokeConsentPayload {
+    pub target_domain: String,
+}
+
+pub async fn revoke_consent_handler(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<RevokeConsentPayload>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    state
+        .safety_framework
+        .revoke_consent(id, &payload.target_domain)
+        .await
+        .map_err(AppError::BadRequest)?;
+
+    // Audit log
+    let _ = state.safety_framework.log_audit(
+        "CONSENT_REVOKED",
+        Some(&format!("Revoked consent ID: {}", id)),
+        Some(&payload.target_domain),
+        None,
+    ).await;
+
+    Ok(Json(serde_json::json!({
+        "status": "success"
+    })))
+}
+
+pub async fn get_consents_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<crate::domain::entities::ConsentRecord>>, AppError> {
+    let consents = state
+        .safety_framework
+        .get_consents()
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(consents))
 }

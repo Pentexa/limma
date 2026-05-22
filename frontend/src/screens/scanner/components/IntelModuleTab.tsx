@@ -2,33 +2,41 @@
 
 import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
-import { Loader2, Play, CheckCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Play, CheckCircle, AlertTriangle, Code2, LayoutTemplate } from "lucide-react";
 import { SmartDataViewer } from "@/widgets/smart-data-viewer/SmartDataViewer";
 
-interface IntelModuleTabProps {
+interface IntelModuleTabProps<T> {
   title: string;
   targetUrl: string | null;
-  onExecute: (url: string) => Promise<Record<string, unknown>>;
+  onExecute: (url: string) => Promise<T>;
   isPending: boolean;
-  result: Record<string, unknown> | undefined;
+  result: T | undefined;
   error: Error | null;
+  renderResult?: (data: T) => React.ReactNode;
 }
 
-export function IntelModuleTab({
+export function IntelModuleTab<T>({
   title,
   targetUrl,
   onExecute,
   isPending,
   result,
   error,
-}: IntelModuleTabProps) {
+  renderResult,
+}: IntelModuleTabProps<T>) {
   const [customUrl, setCustomUrl] = useState("");
+  const [viewMode, setViewMode] = useState<"ui" | "raw">("ui");
   const effectiveUrl = customUrl || targetUrl;
 
   function handleRun() {
     if (!effectiveUrl) return;
     onExecute(effectiveUrl);
   }
+
+  const hasCustomUi = !!renderResult;
+
+  // If no custom UI is provided, force raw mode
+  const activeViewMode = hasCustomUi ? viewMode : "raw";
 
   return (
     <div className="space-y-6">
@@ -69,8 +77,14 @@ export function IntelModuleTab({
 
       {/* Result */}
       {result && (
-        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl shadow-lg overflow-hidden transition-all duration-300">
-          <div className="p-4 flex items-center justify-between gap-3 border-b border-white/[0.04] bg-white/[0.01]">
+        <div className={cn(
+          "transition-all duration-300 flex flex-col",
+          activeViewMode === "raw" ? "bg-white/[0.02] border border-white/[0.06] rounded-xl shadow-lg overflow-hidden" : ""
+        )}>
+          <div className={cn(
+            "flex items-center justify-between gap-3",
+            activeViewMode === "raw" ? "p-4 border-b border-white/[0.04] bg-white/[0.01]" : "mb-6"
+          )}>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center h-6 w-6 rounded-md bg-emerald-500/10">
                 <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
@@ -80,9 +94,44 @@ export function IntelModuleTab({
                 {Object.keys(result).length} records found
               </span>
             </div>
+
+            {/* View Mode Toggle */}
+            {hasCustomUi && (
+              <div className="flex items-center bg-black/40 border border-white/[0.06] rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode("ui")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors",
+                    activeViewMode === "ui"
+                      ? "bg-white/[0.08] text-foreground shadow-sm"
+                      : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-white/[0.02]"
+                  )}
+                >
+                  <LayoutTemplate className="h-3.5 w-3.5" />
+                  UI View
+                </button>
+                <button
+                  onClick={() => setViewMode("raw")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors",
+                    activeViewMode === "raw"
+                      ? "bg-white/[0.08] text-foreground shadow-sm"
+                      : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-white/[0.02]"
+                  )}
+                >
+                  <Code2 className="h-3.5 w-3.5" />
+                  Raw Data
+                </button>
+              </div>
+            )}
           </div>
+          
           <div className="bg-transparent">
-            <SmartDataViewer data={result} />
+            {activeViewMode === "ui" && renderResult ? (
+              renderResult(result)
+            ) : (
+              <SmartDataViewer data={result} />
+            )}
           </div>
         </div>
       )}

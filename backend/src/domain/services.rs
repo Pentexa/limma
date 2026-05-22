@@ -4,7 +4,7 @@ use crate::domain::entities::*;
 
 /// Safety-related domain errors (pure business logic, no framework deps)
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+
 pub enum SafetyError {
     OutOfScope,
     InsufficientConsent,
@@ -80,7 +80,7 @@ impl ExploitSafetyService {
 
     /// Calculate CVSS score with exploitability context.
     /// Business rule: Verified exploit gets +20% to base score (capped at 10.0).
-    #[allow(dead_code)]
+    
     pub fn calculate_cvss(
         base_score: f32,
         poc_verified: bool,

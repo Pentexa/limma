@@ -192,7 +192,7 @@ impl PayloadDatabase {
         result
     }
 
-    #[allow(dead_code)]
+    
     pub fn total_payload_count(&self) -> usize {
         self.payloads.values().map(|v| v.len()).sum()
     }

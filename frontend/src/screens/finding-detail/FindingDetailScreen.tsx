@@ -2,7 +2,7 @@
 
 import { useGlobalFindings } from "@/entities/finding/model/use-findings";
 import { useFinding } from "@/entities/finding/model/use-findings";
-import { useVerifyFinding, useUpdateFindingStatus } from "@/entities/finding/model/use-verify-finding";
+import { useAutoExploitFinding, useUpdateFindingStatus } from "@/entities/finding/model/use-verify-finding";
 import { DETECTOR_META } from "@/entities/finding/model/types";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ExecutionLevelDialog } from "@/features/verify-finding/ui/ExecutionLevelDialog";
+import type { SafetyLevel } from "@/features/blind-scan/api/blind-scan-api";
 
 interface FindingDetailScreenProps {
   findingId: string;
@@ -42,8 +44,9 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
   const finding = apiFinding ?? cachedFinding;
   const isLoading = !finding && (apiLoading || globalLoading);
 
-  const verifyMutation = useVerifyFinding();
+  const verifyMutation = useAutoExploitFinding();
   const updateStatusMutation = useUpdateFindingStatus();
+  const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -118,7 +121,7 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
                       : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
                   )}
                   disabled={finding.verification === "verified" || verifyMutation.isPending}
-                  onClick={() => verifyMutation.mutate(finding.id)}
+                  onClick={() => setIsVerifyDialogOpen(true)}
                 >
                   {verifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                   {finding.verification === "verified" ? "Verified" : "Verify"}
@@ -257,6 +260,16 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
           </div>
         </div>
       </div>
+
+      <ExecutionLevelDialog 
+        isOpen={isVerifyDialogOpen}
+        onOpenChange={setIsVerifyDialogOpen}
+        isPending={verifyMutation.isPending}
+        onConfirm={(level, targetUrl) => {
+          verifyMutation.mutate({ findingId: finding.id, execution_level: level });
+          setIsVerifyDialogOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -1,23 +1,21 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::Client;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
 use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
-use crate::infrastructure::active_detection::payloads::PayloadDatabase;
 
 pub struct XssDetector {
     client: Client,
-    #[allow(dead_code)]
-    payload_db: Arc<PayloadDatabase>,
+    
+    
 }
 
 impl XssDetector {
-    pub fn new(client: Client, payload_db: Arc<PayloadDatabase>) -> Self {
-        Self { client, payload_db }
+    pub fn new(client: Client, ) -> Self {
+        Self { client,  }
     }
 
     fn check_xss_reflection(&self, body: &str, payload: &str) -> bool {

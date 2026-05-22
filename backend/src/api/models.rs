@@ -43,14 +43,14 @@ pub struct BlindScanApiRequest {
     pub scan_id: Option<uuid::Uuid>,
     pub target_id: Option<uuid::Uuid>,
     pub max_duration_seconds: Option<u32>,
-    #[allow(dead_code)]
+    
     pub profile_id: Option<String>,
 }
 
 // ── Active Vulnerability Detection Models ──
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
+
 pub struct ActiveScanApiRequest {
     pub target_url: String,
     pub vuln_types: Vec<crate::domain::active_vuln::ActiveVulnType>,

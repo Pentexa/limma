@@ -89,8 +89,8 @@ struct BlindFindingRow {
     scan_id: Uuid,
     target_id: Uuid,
     vulnerability_type: String,
-    #[allow(dead_code)]
-    detection_method: String,
+    
+    
     confidence: f32,
     evidence: serde_json::Value,
     payload_used: String,
@@ -117,6 +117,8 @@ impl BlindFindingRow {
             id: self.id,
             scan_id: self.scan_id,
             target_id: self.target_id,
+            target_url: "".to_string(),
+            vulnerable_parameter: None,
             vulnerability_type,
             detection_method,
             confidence: self.confidence,

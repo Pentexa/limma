@@ -6,7 +6,7 @@ pub struct BaselineProfile {
     pub status_code: u16,
     pub content_length: usize,
     pub response_body: String,
-    #[allow(dead_code)]
+    
     pub response_time_ms: u64,
 }
 

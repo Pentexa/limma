@@ -229,10 +229,12 @@ impl CanonicalFindingEngine {
 
     fn confidence_val(&self, c: &ConfidenceLevel) -> i32 {
         match c {
-            ConfidenceLevel::Certain => 3,
+            ConfidenceLevel::Certain => 4,
+            ConfidenceLevel::High => 3,
             ConfidenceLevel::Firm => 2,
-            ConfidenceLevel::Tentative => 1,
-            ConfidenceLevel::Low => 0,
+            ConfidenceLevel::Medium => 1,
+            ConfidenceLevel::Tentative => 0,
+            ConfidenceLevel::Low => -1,
         }
     }
 }

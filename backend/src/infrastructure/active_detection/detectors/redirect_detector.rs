@@ -1,24 +1,19 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::Client;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
 use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
-use crate::infrastructure::active_detection::payloads::PayloadDatabase;
 
 pub struct RedirectDetector {
-    #[allow(dead_code)]
-    client: Client,
-    #[allow(dead_code)]
-    payload_db: Arc<PayloadDatabase>,
+    _client: Client,
 }
 
 impl RedirectDetector {
-    pub fn new(client: Client, payload_db: Arc<PayloadDatabase>) -> Self {
-        Self { client, payload_db }
+    pub fn new(client: Client) -> Self {
+        Self { _client: client }
     }
 }
 

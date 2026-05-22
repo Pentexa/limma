@@ -251,6 +251,18 @@ pub struct RuntimeVerification {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentRecord {
+    pub id: uuid::Uuid,
+    pub target_domain: String,
+    pub consent_level: String,
+    pub granted_by: String,
+    pub granted_at: chrono::DateTime<chrono::Utc>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub revoked: bool,
+    pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EndpointDetail {
     pub path: String,
     pub method_prediction: String,
@@ -699,7 +711,9 @@ pub enum SeverityLevel {
 #[serde(rename_all = "snake_case")]
 pub enum ConfidenceLevel {
     Certain,
+    High,
     Firm,
+    Medium,
     #[default]
     Tentative,
     Low,
@@ -830,7 +844,7 @@ pub enum FeedbackAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
+
 pub struct FeedbackEvent {
     pub action: FeedbackAction,
     pub timestamp_sec: u64,
@@ -838,7 +852,7 @@ pub struct FeedbackEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[allow(dead_code)]
+
 pub struct PatternReliabilityHistory {
     pub total_feedback_events: u32,
     pub fp_weight: f32,
@@ -847,7 +861,7 @@ pub struct PatternReliabilityHistory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[allow(dead_code)]
+
 pub struct PatternCalibrationMetrics {
     pub total_observations: u32,
     pub successful_verifications: u32,
@@ -1091,7 +1105,7 @@ pub struct CorrelationLink {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
+
 pub struct CorrelationGroup {
     pub id: String,
     pub core_target: String,
@@ -1355,6 +1369,8 @@ pub struct BlindFinding {
     pub id: Uuid,
     pub scan_id: Uuid,
     pub target_id: Uuid,
+    pub target_url: String,
+    pub vulnerable_parameter: Option<String>,
     pub vulnerability_type: BlindVulnType,
     pub detection_method: BlindDetectionMethod,
     pub confidence: f32,
@@ -1375,6 +1391,7 @@ pub enum PocType {
     XmlExternalEntity,
     InsecureDeserialization,
     CrossSiteScripting,
+    HttpExploit,
 }
 
 /// Language used for PoC code
@@ -1386,6 +1403,8 @@ pub enum PocLanguage {
     JavaScript,
     Bash,
     Rust,
+    Html,
+    HttpRaw,
 }
 
 /// Safety level for exploit execution — ordered by risk (PartialOrd)
@@ -1446,7 +1465,7 @@ pub struct SafetyScope {
 
 impl SafetyScope {
     /// Create a default read-only safety scope
-    #[allow(dead_code)]
+    
     pub fn default_readonly() -> Self {
         Self {
             target_domains: Vec::new(),
@@ -1461,7 +1480,7 @@ impl SafetyScope {
 /// Exploit complexity level
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
+
 pub enum ExploitComplexity {
     Low,
     Medium,
@@ -1476,8 +1495,8 @@ pub struct RawBlindFinding {
     pub raw_confidence: f32,
     pub payload_used: String,
     pub evidence: BlindEvidence,
-    #[allow(dead_code)]
     pub target_url: String,
+    pub parameter: Option<String>,
 }
 
 impl RawBlindFinding {
@@ -1487,6 +1506,8 @@ impl RawBlindFinding {
             id: Uuid::new_v4(),
             scan_id,
             target_id,
+            target_url: self.target_url.clone(),
+            vulnerable_parameter: self.parameter.clone(),
             vulnerability_type: self.vulnerability_type.clone(),
             detection_method: self.detection_method.clone(),
             confidence,

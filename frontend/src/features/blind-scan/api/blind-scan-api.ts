@@ -14,9 +14,12 @@ export interface PocGenerateRequest {
   preferred_language?: string;
 }
 
+export type SafetyLevel = 'L1SafeReadOnly' | 'L2VerifiedSandbox' | 'L3ActiveWithConsent';
+
 export interface ExploitVerifyRequest {
   poc_id: string;
-  execution_level?: string;
+  execution_level?: SafetyLevel;
+  target_url: string;
 }
 
 /** POST /api/blind-scan — Execute blind vulnerability detection */

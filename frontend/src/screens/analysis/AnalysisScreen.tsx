@@ -9,6 +9,7 @@ import { TrendChart } from "./components/TrendChart";
 import { SecurityHeadersTable } from "./components/SecurityHeadersTable";
 import { RiskCorrelationPanel } from "./components/RiskCorrelationPanel";
 import { BarChart3, Loader2, TrendingUp, Shield } from "lucide-react";
+import { WafBadge } from "@/shared/ui/WafBadge";
 
 export function AnalysisScreen() {
   const { data: scans = [] } = useScans();
@@ -20,6 +21,10 @@ export function AnalysisScreen() {
 
   const isLoading = trendsLoading || reportLoading;
 
+  // Find if WAF is detected
+  const wafFinding = report?.analysis?.risk_insights?.find((f: any) => f.title?.startsWith("WAF Detected:"));
+  const wafName = wafFinding ? wafFinding.title.replace("WAF Detected: ", "") : null;
+
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden">
       {/* Top bar */}
@@ -28,6 +33,7 @@ export function AnalysisScreen() {
           <BarChart3 className="h-4 w-4 text-primary" />
           <h2 className="text-[13px] font-bold tracking-tight">Analysis</h2>
           {targetUrl && <span className="text-[10px] font-mono text-muted-foreground ml-2">{targetUrl}</span>}
+          {wafName && <WafBadge wafName={wafName} className="ml-2" />}
         </div>
         {isLoading && (
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground animate-pulse">

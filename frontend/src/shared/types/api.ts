@@ -270,6 +270,49 @@ export interface ApiFormMapping {
 
 // ── Master Report ──
 
+export type ApiExploitabilityLevel = "actionable" | "theoretical" | "inert";
+
+export interface ApiVerificationData {
+  status: string;
+  reasoning: string;
+}
+
+export interface ApiPriorityAssessment {
+  priority_score: number;
+  priority_level: string;
+  reasoning: string[];
+}
+
+export interface ApiAttackPath {
+  id: string;
+  attack_path_score: number;
+  narrative: string;
+  involved_canonical_slugs: string[];
+  shared_context: string[];
+  overall_risk_level: ApiExploitabilityLevel;
+  required_conditions: string[];
+  active_verification?: ApiVerificationData;
+  priority_assessment?: ApiPriorityAssessment;
+}
+
+export interface ApiCanonicalFinding {
+  id: string;
+  canonical_slug: string;
+  title: string;
+  risk_family: string;
+  severity: string;
+  confidence: string;
+  affected_routes: string[];
+}
+
+export interface ApiNormalizedAuditReport {
+  target: string;
+  timestamp: string;
+  total_findings: number;
+  attack_paths: ApiAttackPath[];
+  canonical_findings: ApiCanonicalFinding[];
+}
+
 export interface ApiMasterReport {
   url: string;
   analysis?: ApiWebScanResult;
@@ -277,6 +320,7 @@ export interface ApiMasterReport {
   api_discovery?: ApiDiscoveryResult;
   service_collector?: ApiCollectorSnapshot;
   security_audit?: ApiSecurityReport;
+  normalized_audit?: ApiNormalizedAuditReport;
   form_mapping?: ApiFormMapping;
   overall_health_score: number;
   module_errors?: string[];

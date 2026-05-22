@@ -1,10 +1,10 @@
-mod api;
-mod application;
-mod domain;
-mod error;
-mod infrastructure;
 
-use crate::api::handlers::{
+
+
+
+
+
+use limma::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
     burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
     create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis,
@@ -14,20 +14,20 @@ use crate::api::handlers::{
     get_settings_profiles, investigate_server, investigate_server_stream, list_active_findings,
     list_active_findings_filtered, list_active_scans, list_scans, map_forms, proxy_request,
     start_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
-    update_settings_profile, verify_exploit, verify_finding, verify_port, AppState,
+    update_settings_profile, verify_exploit, verify_finding, verify_port, grant_consent_handler, revoke_consent_handler, get_consents_handler, AppState,
 };
-use crate::infrastructure::auditor::HttpSecurityAuditor;
-use crate::infrastructure::burp_bridge::BurpBridgeManager;
-use crate::infrastructure::collector::HttpServiceCollector;
-use crate::infrastructure::db::init_db;
-use crate::infrastructure::delta_engine::DeltaEngine;
-use crate::infrastructure::discoverer::HttpApiDiscoverer;
-use crate::infrastructure::investigator::HttpInvestigator;
-use crate::infrastructure::mapper::HttpFormMapper;
+use limma::infrastructure::auditor::HttpSecurityAuditor;
+use limma::infrastructure::burp_bridge::BurpBridgeManager;
+use limma::infrastructure::collector::HttpServiceCollector;
+use limma::infrastructure::db::init_db;
+use limma::infrastructure::delta_engine::DeltaEngine;
+use limma::infrastructure::discoverer::HttpApiDiscoverer;
+use limma::infrastructure::investigator::HttpInvestigator;
+use limma::infrastructure::mapper::HttpFormMapper;
 
-use crate::infrastructure::repositories::pg_settings::PgSettingsRepository;
-use crate::infrastructure::rule_engine::{resolve_rules_dir, DynamicRuleEngine};
-use crate::infrastructure::scanner::HttpWebsiteScanner;
+use limma::infrastructure::repositories::pg_settings::PgSettingsRepository;
+use limma::infrastructure::rule_engine::{resolve_rules_dir, DynamicRuleEngine};
+use limma::infrastructure::scanner::HttpWebsiteScanner;
 use anyhow::Context;
 use axum::{routing::post, Router};
 use std::sync::Arc;
@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
 
         let mut loaded = 0usize;
         for (_id, _name, yaml_content) in &rows {
-            match serde_yaml::from_str::<crate::infrastructure::rule_engine::models::RuleDefinition>(
+            match serde_yaml::from_str::<limma::infrastructure::rule_engine::models::RuleDefinition>(
                 yaml_content,
             ) {
                 Ok(rule_def) => {
@@ -110,33 +110,48 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Faz F: Blind Detection & Exploitation ──
     let blind_detection_engine =
-        Arc::new(crate::infrastructure::blind_detection::HttpBlindDetectionEngine::new());
+        Arc::new(limma::infrastructure::blind_detection::HttpBlindDetectionEngine::new());
     let poc_generator =
-        Arc::new(crate::infrastructure::exploitation::poc_generator::CompositePocGenerator::new());
-    let sandbox_verifier =
-        Arc::new(crate::infrastructure::exploitation::sandbox::NoopSandboxProvider::new());
-    let safety_framework = Arc::new(crate::infrastructure::safety::SafetyFrameworkImpl::new(
+        Arc::new(limma::infrastructure::exploitation::poc_generator::CompositePocGenerator::new());
+    let sandbox_verifier: Arc<dyn limma::infrastructure::exploitation::sandbox::SandboxVerifier> =
+        match limma::infrastructure::exploitation::sandbox::docker_sandbox::DockerSandbox::new(30) {
+            Ok(sandbox) => {
+                tracing::info!("[Faz F] Sandbox: DockerSandbox initialized successfully");
+                Arc::new(sandbox)
+            }
+            Err(e) => {
+                tracing::warn!("[Faz F] Failed to init DockerSandbox: {}. Falling back to NoopSandboxProvider.", e);
+                Arc::new(limma::infrastructure::exploitation::sandbox::NoopSandboxProvider::new())
+            }
+        };
+
+    let safety_framework = Arc::new(limma::infrastructure::safety::SafetyFrameworkImpl::new(
+        pool.clone(),
         vec![], // Open scope: all domains allowed
         60,     // 60 requests per minute rate limit
     ));
+
+    let exploit_bridge = Arc::new(limma::infrastructure::exploitation::exploit_bridge::ExploitBridge::new(
+        safety_framework.clone(),
+        sandbox_verifier.clone(),
+    ));
     let blind_finding_repo = Arc::new(
-        crate::infrastructure::repositories::blind_finding_repo::PgBlindFindingRepository::new(
+        limma::infrastructure::repositories::blind_finding_repo::PgBlindFindingRepository::new(
             pool.clone(),
         ),
     );
     let poc_repo =
-        Arc::new(crate::infrastructure::repositories::poc_repo::PgPocRepository::new(pool.clone()));
+        Arc::new(limma::infrastructure::repositories::poc_repo::PgPocRepository::new(pool.clone()));
     let exploit_result_repo = Arc::new(
-        crate::infrastructure::repositories::exploit_result_repo::PgExploitResultRepository::new(
+        limma::infrastructure::repositories::exploit_result_repo::PgExploitResultRepository::new(
             pool.clone(),
         ),
     );
-    tracing::info!("[Faz F] Blind detection engine, PoC generator, safety framework initialized");
-    tracing::info!("[Faz F] Sandbox: NoopSandboxProvider (Docker disabled)");
+    tracing::info!("[Faz F] Blind detection engine, PoC generator, safety framework, and exploit bridge initialized");
 
     // ── Faz 4: System Settings PostgreSQL Store ──
     let settings_repo = Arc::new(PgSettingsRepository::new(pool.clone()));
-    use crate::domain::repositories::SettingsRepository;
+    use limma::domain::repositories::SettingsRepository;
     settings_repo
         .init_defaults()
         .await
@@ -145,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Faz 1: Active Vulnerability Engine ──
     let payload_db =
-        Arc::new(crate::infrastructure::active_detection::payloads::PayloadDatabase::new());
+        Arc::new(limma::infrastructure::active_detection::payloads::PayloadDatabase::new());
 
     // We create a generic client for detectors. In a real app, this might be per-profile
     let req_client = reqwest::Client::builder()
@@ -153,27 +168,27 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .context("Failed to build reqwest client for detectors")?;
 
-    let active_detectors: Arc<Vec<Box<dyn crate::infrastructure::active_detection::detectors::VulnDetector>>> = Arc::new(vec![
-        Box::new(crate::infrastructure::active_detection::detectors::xss_detector::XssDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::sqli_detector::SqliDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::cmdi_detector::CmdiDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::lfi_detector::LfiDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::ssrf_detector::SsrfDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::xxe_detector::XxeDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::redirect_detector::RedirectDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::jwt_detector::JwtDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::deser_detector::DeserDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::idor_detector::IdorDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::nosql_detector::NosqlDetector::new(req_client.clone(), payload_db.clone())),
-        Box::new(crate::infrastructure::active_detection::detectors::ssti_detector::SstiDetector::new(req_client.clone(), payload_db.clone())),
+    let active_detectors: Arc<Vec<Box<dyn limma::infrastructure::active_detection::detectors::VulnDetector>>> = Arc::new(vec![
+        Box::new(limma::infrastructure::active_detection::detectors::xss_detector::XssDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::sqli_detector::SqliDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::cmdi_detector::CmdiDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::lfi_detector::LfiDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::ssrf_detector::SsrfDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::xxe_detector::XxeDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::redirect_detector::RedirectDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::jwt_detector::JwtDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::deser_detector::DeserDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::idor_detector::IdorDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::nosql_detector::NosqlDetector::new(req_client.clone())),
+        Box::new(limma::infrastructure::active_detection::detectors::ssti_detector::SstiDetector::new(req_client.clone())),
     ]);
     let active_scan_repo = Arc::new(
-        crate::infrastructure::repositories::active_scan_repo::PgActiveScanRepository::new(
+        limma::infrastructure::repositories::active_scan_repo::PgActiveScanRepository::new(
             pool.clone(),
         ),
     );
     let active_finding_repo = Arc::new(
-        crate::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository::new(
+        limma::infrastructure::repositories::active_finding_repo::PgActiveFindingRepository::new(
             pool.clone(),
         ),
     );
@@ -194,9 +209,9 @@ async fn main() -> anyhow::Result<()> {
         delta_engine,
         blind_detection_engine,
         poc_generator,
-        sandbox_verifier,
-        safety_framework,
-        blind_finding_repo,
+        safety_framework: safety_framework.clone(),
+        exploit_bridge: exploit_bridge.clone(),
+        blind_finding_repo: blind_finding_repo.clone(),
         poc_repo,
         exploit_result_repo,
         settings_repo,
@@ -246,6 +261,8 @@ async fn main() -> anyhow::Result<()> {
         // Custom Rules CRUD
         .route("/api/rules", post(create_custom_rule))
         .route("/api/rules/:id", axum::routing::delete(delete_custom_rule))
+        .route("/api/settings/consent", post(grant_consent_handler).get(get_consents_handler))
+        .route("/api/settings/consent/:id", axum::routing::delete(revoke_consent_handler))
         .route("/api/export/burp", post(export_to_burp))
         .route("/api/export/nuclei", post(export_to_nuclei))
         .route("/api/burp/handshake", post(burp_handshake))

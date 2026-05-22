@@ -14,12 +14,14 @@ use std::time::Instant;
 
 pub struct HttpWebsiteScanner {
     fingerprinter: fingerprint::FingerprintEngine,
+    waf_monitor: crate::infrastructure::safety::waf_monitor::WafMonitor,
 }
 
 impl HttpWebsiteScanner {
     pub fn new() -> Self {
         Self {
             fingerprinter: fingerprint::FingerprintEngine::new(),
+            waf_monitor: crate::infrastructure::safety::waf_monitor::WafMonitor::new(),
         }
     }
 
@@ -103,6 +105,16 @@ impl WebsiteScanner for HttpWebsiteScanner {
             detected_technologies = mp.detected_technologies;
             security_headers = mp.security_headers.clone();
             risk_insights = mp.risk_insights.clone();
+            let waf = self.waf_monitor.fingerprint_waf(url, &mp.headers, "");
+            if let Some(w) = waf {
+                risk_insights.push(crate::domain::entities::RiskInsight {
+                    title: format!("WAF Detected: {}", w),
+                    severity: crate::domain::entities::RiskSeverity::Medium,
+                    explanation: "WAF may block some scanning actions.".to_string(),
+                    evidence: w.clone(),
+                });
+            }
+            
             security_score = security::calculate_security_score(&security_headers, &risk_insights);
             has_page_data = true;
         }
@@ -210,6 +222,16 @@ impl WebsiteScanner for HttpWebsiteScanner {
             detected_technologies = mp.detected_technologies;
             security_headers = mp.security_headers.clone();
             risk_insights = mp.risk_insights.clone();
+            let waf = self.waf_monitor.fingerprint_waf(url, &mp.headers, "");
+            if let Some(w) = waf {
+                risk_insights.push(crate::domain::entities::RiskInsight {
+                    title: format!("WAF Detected: {}", w),
+                    severity: crate::domain::entities::RiskSeverity::Medium,
+                    explanation: "WAF may block some scanning actions.".to_string(),
+                    evidence: w.clone(),
+                });
+            }
+            
             security_score = security::calculate_security_score(&security_headers, &risk_insights);
             has_page_data = true;
         }

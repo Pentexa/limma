@@ -1,34 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@/shared/lib/utils";
-import { useActiveMasterReport } from "@/entities/discovery/model/use-master-report";
-import { EndpointTable } from "./components/EndpointTable";
-import { ServiceGrid } from "./components/ServiceGrid";
-import { ServerInfoPanel } from "./components/ServerInfoPanel";
-import { TechStackPanel } from "./components/TechStackPanel";
-import { Search, Loader2, AlertTriangle, Globe, Server, Cpu, Network } from "lucide-react";
-
-type Tab = "endpoints" | "services" | "server" | "technologies";
-
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "endpoints", label: "Endpoints", icon: Network },
-  { id: "services", label: "Services", icon: Server },
-  { id: "server", label: "Server Info", icon: Globe },
-  { id: "technologies", label: "Technologies", icon: Cpu },
-];
+import { Search, Compass, MapPin, Globe, Cloud, Key, FileWarning, MoveRight, ArrowRight } from "lucide-react";
 
 export function DiscoveryScreen() {
-  const [activeTab, setActiveTab] = useState<Tab>("endpoints");
-  const { data: report, isLoading, error, targetUrl, isScanning } = useActiveMasterReport();
+  const futureModules = [
+    { name: "Subdomain Discovery", description: "Automatically enumerate and validate subdomains.", icon: Globe },
+    { name: "Cloud Asset Discovery", description: "Map out AWS, GCP, and Azure storage buckets and instances.", icon: Cloud },
+    { name: "Leak Discovery", description: "Search for exposed source code and sensitive documents.", icon: Key },
+    { name: "Certificate Discovery", description: "Scan CT logs to discover related domains.", icon: FileWarning },
+    { name: "External Exposure Map", description: "Visualize full internet-facing attack surface.", icon: MapPin },
+    { name: "Attack Surface Expansion", description: "Recursive analysis to find adjacent targets.", icon: Compass },
+  ];
 
-  /* Compute counts for tab badges */
-  const counts: Record<Tab, number> = {
-    endpoints: report?.api_discovery?.detected_endpoints?.length ?? 0,
-    services: report?.service_collector?.port_results?.length ?? 0,
-    server: (report?.server_info?.fingerprints?.length ?? 0) + (report?.server_info?.security_insights?.length ?? 0),
-    technologies: report?.analysis?.detected_technologies?.length ?? 0,
-  };
+  const movedModules = [
+    "API Discovery",
+    "Service Collection",
+    "Server Information",
+    "Technology Stack",
+  ];
 
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden bg-[#0a0a0c]">
@@ -36,81 +25,78 @@ export function DiscoveryScreen() {
       <div className="shrink-0 flex items-center justify-between gap-4 px-5 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10 border border-primary/20">
-            <Search className="h-3.5 w-3.5 text-primary" />
+            <Compass className="h-3.5 w-3.5 text-primary" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Discovery</h2>
-            {targetUrl && (
-              <p className="text-[11px] font-mono text-muted-foreground/60 truncate max-w-[300px]">
-                {targetUrl}
-              </p>
-            )}
+            <h2 className="text-sm font-semibold text-foreground">Discovery Roadmap</h2>
+            <p className="text-[11px] font-mono text-muted-foreground/60">
+              Future intelligence gathering modules
+            </p>
           </div>
         </div>
-        {(isLoading || isScanning) && (
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-primary animate-pulse">
-            <Loader2 className="h-4 w-4 animate-spin" /> {isScanning ? "Scanning target…" : "Loading data…"}
-          </div>
-        )}
       </div>
 
-      {/* Tab bar */}
-      <div className="shrink-0 flex items-center gap-2 border-b border-white/[0.06] px-5 py-2.5 overflow-x-auto">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap",
-              activeTab === tab.id
-                ? "bg-primary/[0.08] text-primary"
-                : "bg-transparent text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.02]"
-            )}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <tab.icon className={cn("h-4 w-4 shrink-0 opacity-80")} />
-            {tab.label}
-            {counts[tab.id] > 0 && (
-              <span className={cn("text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md",
-                activeTab === tab.id ? "bg-primary/20 text-primary" : "bg-white/[0.04] text-muted-foreground/50"
-              )}>{counts[tab.id]}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">The Future of Discovery</h1>
+            <p className="text-muted-foreground/70 max-w-xl mx-auto text-sm">
+              Active discovery modules have been consolidated into the unified Scanner dashboard. 
+              This space will host our upcoming passive footprinting and deep-dive discovery engines.
+            </p>
+          </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {error && !report ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30 px-6 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4 text-red-400">
-              <AlertTriangle className="h-7 w-7 opacity-70" />
+          {/* Moved Note */}
+          <div className="bg-primary/[0.02] border border-primary/20 rounded-xl p-6 shadow-inner relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-primary/50" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <h3 className="text-[14px] font-bold text-primary flex items-center gap-2">
+                  <MoveRight className="h-4 w-4" /> Consolidated Features
+                </h3>
+                <p className="text-[12px] text-muted-foreground/80">
+                  The following active discovery modules have been moved to the <strong className="text-foreground">Scanner</strong> module for a more unified workflow:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {movedModules.map(mod => (
+                    <span key={mod} className="text-[11px] font-mono bg-black/40 border border-white/[0.05] px-2.5 py-1 rounded-md text-muted-foreground">
+                      {mod}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button className="shrink-0 flex items-center gap-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors">
+                Go to Scanner <ArrowRight className="h-3 w-3" />
+              </button>
             </div>
-            <span className="text-[14px] font-medium text-muted-foreground/50">Failed to load discovery data</span>
-            <span className="text-[12px] mt-1 text-muted-foreground/30 font-mono">{error.message}</span>
           </div>
-        ) : !targetUrl ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30 px-6 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
-              <Search className="h-7 w-7 opacity-50" />
+
+          {/* Roadmap Grid */}
+          <div className="space-y-4">
+            <h3 className="text-[13px] font-bold uppercase tracking-wider text-foreground/80 flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Planned Modules
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {futureModules.map((mod, i) => (
+                <div key={i} className="bg-white/[0.01] border border-white/[0.04] p-5 rounded-xl hover:border-white/[0.08] transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-lg bg-black/40 border border-white/[0.03] flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <mod.icon className="h-5 w-5 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                    </div>
+                    <div>
+                      <h4 className="text-[14px] font-bold text-foreground/90">{mod.name}</h4>
+                      <p className="text-[12px] text-muted-foreground/60 mt-0.5">{mod.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <span className="text-[14px] font-medium text-muted-foreground/50">No active scan target</span>
-            <span className="text-[12px] mt-1 text-muted-foreground/30">Start a scan from the top bar to begin.</span>
           </div>
-        ) : isLoading && !report ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-2 text-primary animate-pulse">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-[13px] font-medium">Running discovery analysis…</span>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto h-full">
-            {activeTab === "endpoints" && <EndpointTable discovery={report?.api_discovery} />}
-            {activeTab === "services" && <ServiceGrid collector={report?.service_collector} />}
-            {activeTab === "server" && <ServerInfoPanel serverInfo={report?.server_info} />}
-            {activeTab === "technologies" && <TechStackPanel technologies={report?.analysis?.detected_technologies} />}
-          </div>
-        )}
+
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,6 @@
 # Rust
+/target/
+/Cargo.lock
 /backend/target/
 /backend/Cargo.lock
 /backend/*.txt

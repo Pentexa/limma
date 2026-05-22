@@ -177,9 +177,9 @@ fn severity_to_nuclei(severity: &SeverityLevel) -> String {
 
 fn confidence_to_string(confidence: &ConfidenceLevel) -> String {
     match confidence {
-        ConfidenceLevel::Certain => "certain".to_string(),
-        ConfidenceLevel::Firm => "firm".to_string(),
-        ConfidenceLevel::Tentative => "tentative".to_string(),
+        ConfidenceLevel::Certain => "high".to_string(),
+        ConfidenceLevel::High | ConfidenceLevel::Firm => "medium".to_string(),
+        ConfidenceLevel::Medium | ConfidenceLevel::Tentative => "low".to_string(),
         ConfidenceLevel::Low => "low".to_string(),
     }
 }

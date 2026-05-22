@@ -67,7 +67,7 @@ fn interpret_banner(banner: &str) -> String {
 }
 
 /// Extracts a service name hint from a banner evidence interpretation.
-#[allow(dead_code)]
+
 pub fn service_hint_from_banner(evidence: &ProbeEvidence) -> Option<&'static str> {
     let interp = &evidence.interpretation;
     if interp.contains("SSH") {

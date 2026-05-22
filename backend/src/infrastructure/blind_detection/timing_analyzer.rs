@@ -100,6 +100,7 @@ impl TimingAnalyzer {
                         payload_hash: format!("{:x}", md5_hash(payload)),
                     },
                     target_url: target_url.to_string(),
+                    parameter: None,
                 });
             }
         }
@@ -158,6 +159,7 @@ impl TimingAnalyzer {
                         payload_hash: format!("{:x}", md5_hash(true_payload)),
                     },
                     target_url: target_url.to_string(),
+                    parameter: None,
                 });
             }
         }

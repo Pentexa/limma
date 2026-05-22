@@ -8,13 +8,15 @@ import type { FindingId } from "@/shared/types/common";
 import type { Finding } from "./types";
 import { toast } from "sonner";
 
+import type { SafetyLevel } from "@/features/blind-scan/api/blind-scan-api";
+
 /** Trigger automated exploit-based verification for a finding (PoC Lab) */
 export function useAutoExploitFinding() {
   const queryClient = useQueryClient();
 
-  return useMutation<ApiExploitResult, Error, FindingId>({
-    mutationFn: (findingId: FindingId) => verifyFinding(findingId),
-    onSuccess: (data, findingId) => {
+  return useMutation<ApiExploitResult, Error, { findingId: FindingId; execution_level?: SafetyLevel }>({
+    mutationFn: ({ findingId, execution_level }) => verifyFinding(findingId, execution_level),
+    onSuccess: (data, { findingId }) => {
       // If exploit succeeds, optionally mark it verified locally
       if (data.success) {
         queryClient.setQueryData<Finding | undefined>(findingKeys.detail(findingId), (old: Finding | undefined) => {
@@ -35,6 +37,9 @@ export function useAutoExploitFinding() {
 export function useVerifyFinding() {
   const queryClient = useQueryClient();
 
+  // Note: we update this to just update status directly if it's manual, OR if it triggers automated exploit via verifyFinding
+  // In FindingDetailScreen it uses useVerifyFinding to just mark it verified. Wait! The user clicks "Verify" and it hits `updateFindingStatus(..., {verified: true})`.
+  // If we want it to actually run the exploit, we should probably call `verifyFinding(findingId, level)`.
   return useMutation<void, Error, FindingId>({
     mutationFn: (findingId: FindingId) => updateFindingStatus(findingId, { verified: true, false_positive: false }),
     onSuccess: (_, findingId) => {

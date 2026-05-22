@@ -101,7 +101,7 @@ pub fn evaluate_rule(rule: &RuleDefinition, ctx: &RuleContext) -> Option<Dynamic
 
 /// Evaluates all rules against the given context.
 /// Returns a list of findings for every rule that matched.
-#[allow(dead_code)]
+
 pub fn evaluate_all(rules: &[RuleDefinition], ctx: &RuleContext) -> Vec<DynamicRuleFinding> {
     rules
         .iter()

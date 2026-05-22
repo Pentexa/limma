@@ -45,7 +45,7 @@ pub fn build_context_from_headers(
 }
 
 /// Builds a RuleContext from multi-value headers (ServerInfo format).
-#[allow(dead_code)]
+
 pub fn build_context_from_multi_headers(
     url: &str,
     status_code: u16,

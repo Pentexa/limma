@@ -12,16 +12,25 @@ import {
   useCollectServices,
   useAuditSecurity,
   useMapForms,
+  useGenerateMasterReport
 } from "@/entities/intelligence/model/use-intelligence";
 import { IntelModuleTab } from "./components/IntelModuleTab";
 import { startScanStream, getCurrentStreamTarget } from "@/features/stream-scan-events/model/scan-stream-manager";
+import { ServerInfoPanel } from "./components/ServerInfoPanel";
+import { EndpointTable } from "./components/EndpointTable";
+import { ServiceGrid } from "./components/ServiceGrid";
+import { TechStackPanel } from "./components/TechStackPanel";
+import { AnalyzePanel } from "./components/AnalyzePanel";
+import { SecurityAuditPanel } from "./components/SecurityAuditPanel";
+import { FormMappingPanel } from "./components/FormMappingPanel";
+import { AttackChainsPanel } from "./components/AttackChainsPanel";
 import {
   Radar, Search, Fingerprint, Network, Server, ShieldCheck, FileInput,
-  Loader2,
+  Loader2, BrainCircuit
 } from "lucide-react";
 import { EMPTY_SCAN } from "@/entities/scan/model/constants";
 
-type Tab = "analyze" | "investigate" | "discover" | "services" | "audit" | "forms";
+type Tab = "analyze" | "investigate" | "discover" | "services" | "audit" | "forms" | "intelligence";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "analyze", label: "Analyze", icon: Search },
@@ -30,6 +39,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "services", label: "Services", icon: Server },
   { id: "audit", label: "Security Audit", icon: ShieldCheck },
   { id: "forms", label: "Form Map", icon: FileInput },
+  { id: "intelligence", label: "Attack Intelligence", icon: BrainCircuit },
 ];
 
 
@@ -64,6 +74,7 @@ export function ScannerScreen() {
   const servicesMut = useCollectServices();
   const auditMut = useAuditSecurity();
   const formsMut = useMapForms();
+  const masterReportMut = useGenerateMasterReport();
 
   /* Compute counts for tab badges */
   const counts: Record<Tab, number> = {
@@ -73,6 +84,7 @@ export function ScannerScreen() {
     services: 0,
     audit: 0,
     forms: 0,
+    intelligence: 0,
   };
 
   // Update counts based on mutation results
@@ -82,6 +94,7 @@ export function ScannerScreen() {
   if (servicesMut.data) counts.services = Object.keys(servicesMut.data).length;
   if (auditMut.data) counts.audit = Object.keys(auditMut.data).length;
   if (formsMut.data) counts.forms = Object.keys(formsMut.data).length;
+  if (masterReportMut.data?.normalized_audit?.attack_paths) counts.intelligence = masterReportMut.data.normalized_audit.attack_paths.length;
 
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden bg-[#0a0a0c]">
@@ -150,6 +163,7 @@ export function ScannerScreen() {
           </div>
         ) : (
           <div className="max-w-6xl mx-auto">
+
             {/* Analyze */}
             {activeTab === "analyze" && (
               <IntelModuleTab
@@ -159,6 +173,7 @@ export function ScannerScreen() {
                 isPending={analyzeMut.isPending}
                 result={analyzeMut.data}
                 error={analyzeMut.error}
+                renderResult={(data) => <AnalyzePanel data={data} />}
               />
             )}
 
@@ -171,6 +186,7 @@ export function ScannerScreen() {
                 isPending={investigateMut.isPending}
                 result={investigateMut.data}
                 error={investigateMut.error}
+                renderResult={(data) => <ServerInfoPanel serverInfo={data} />}
               />
             )}
 
@@ -183,6 +199,7 @@ export function ScannerScreen() {
                 isPending={discoverMut.isPending}
                 result={discoverMut.data}
                 error={discoverMut.error}
+                renderResult={(data) => <EndpointTable discovery={data} />}
               />
             )}
 
@@ -195,6 +212,7 @@ export function ScannerScreen() {
                 isPending={servicesMut.isPending}
                 result={servicesMut.data}
                 error={servicesMut.error}
+                renderResult={(data) => <ServiceGrid collector={data} />}
               />
             )}
 
@@ -207,6 +225,7 @@ export function ScannerScreen() {
                 isPending={auditMut.isPending}
                 result={auditMut.data}
                 error={auditMut.error}
+                renderResult={(data) => <SecurityAuditPanel data={data} />}
               />
             )}
 
@@ -219,6 +238,29 @@ export function ScannerScreen() {
                 isPending={formsMut.isPending}
                 result={formsMut.data}
                 error={formsMut.error}
+                renderResult={(data) => <FormMappingPanel data={data} />}
+              />
+            )}
+
+            {/* Attack Intelligence */}
+            {activeTab === "intelligence" && (
+              <IntelModuleTab
+                title="Attack Intelligence & Correlation"
+                targetUrl={targetUrl}
+                onExecute={(url) => masterReportMut.mutateAsync({ url })}
+                isPending={masterReportMut.isPending}
+                result={masterReportMut.data}
+                error={masterReportMut.error}
+                renderResult={(data) => {
+                  if (!data.normalized_audit) {
+                    return (
+                      <div className="p-8 text-center text-muted-foreground/60">
+                        No attack intelligence generated. Correlation modules might not have produced data.
+                      </div>
+                    );
+                  }
+                  return <AttackChainsPanel data={data.normalized_audit} />;
+                }}
               />
             )}
           </div>

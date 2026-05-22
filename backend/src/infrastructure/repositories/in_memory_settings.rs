@@ -9,12 +9,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[allow(dead_code)]
+
 pub struct InMemorySettingsRepository {
     store: Arc<RwLock<HashMap<String, SettingsProfile>>>,
 }
 
-#[allow(dead_code)]
+
 impl InMemorySettingsRepository {
     pub fn new() -> Self {
         Self {

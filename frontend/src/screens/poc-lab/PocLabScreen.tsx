@@ -13,6 +13,7 @@ import {
   FlaskConical, Loader2, Play, AlertTriangle, Code, Download, Cpu,
   CheckCircle, XCircle, ChevronRight, Copy, Shield,
 } from "lucide-react";
+import { ExecutionLevelDialog } from "@/features/verify-finding/ui/ExecutionLevelDialog";
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -37,6 +38,7 @@ export function PocLabScreen() {
   const [exploitLoading, setExploitLoading] = useState(false);
   const [exploitResult, setExploitResult] = useState<Record<string, unknown> | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
 
   async function handleGeneratePoc(findingId: import("@/shared/types/common").FindingId) {
     setPocLoading(true);
@@ -62,7 +64,8 @@ export function PocLabScreen() {
   async function handleVerifyExploit(pocId: string) {
     setExploitLoading(true);
     try {
-      const result = await verifyExploit({ poc_id: pocId });
+      if (!selectedFinding?.url) throw new Error("No target URL for finding");
+      const result = await verifyExploit({ poc_id: pocId, target_url: selectedFinding.url });
       setExploitResult(result);
     } catch (err) {
       setExploitResult({ error: err instanceof Error ? err.message : "Exploit verification failed" } as Record<string, unknown>);
@@ -252,7 +255,7 @@ export function PocLabScreen() {
                     "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
                   )}
                   disabled={autoExploitMutation.isPending}
-                  onClick={() => autoExploitMutation.mutate(selectedFinding.id)}
+                  onClick={() => setIsVerifyDialogOpen(true)}
                 >
                   {autoExploitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   Auto-Exploit
@@ -359,6 +362,18 @@ export function PocLabScreen() {
           )}
         </div>
       </div>
+      
+      {selectedFinding && (
+        <ExecutionLevelDialog 
+          isOpen={isVerifyDialogOpen}
+          onOpenChange={setIsVerifyDialogOpen}
+          isPending={autoExploitMutation.isPending}
+          onConfirm={(level, targetUrl) => {
+            autoExploitMutation.mutate({ findingId: selectedFinding.id, execution_level: level });
+            setIsVerifyDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

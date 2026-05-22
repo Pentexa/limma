@@ -29,10 +29,12 @@ impl RiskScorer {
 
         // ── 2. Confidence Multiplier ──
         let conf_multiplier = match finding.confidence {
-            ConfidenceLevel::Certain => 1.5,
-            ConfidenceLevel::Firm => 1.25,
-            ConfidenceLevel::Tentative => 1.0,
-            ConfidenceLevel::Low => 0.8,
+            ConfidenceLevel::Certain => 1.0,
+            ConfidenceLevel::High => 0.95,
+            ConfidenceLevel::Firm => 0.9,
+            ConfidenceLevel::Medium => 0.85,
+            ConfidenceLevel::Tentative => 0.8,
+            ConfidenceLevel::Low => 0.7,
         };
 
         let scaled_base = (base as f32 * conf_multiplier) as i32;

@@ -59,6 +59,35 @@ impl WafMonitor {
         detected_entry.load(Ordering::SeqCst)
     }
 
+    /// Fingerprints the WAF based on response headers or body.
+    /// Updates the monitor state if a WAF is positively identified.
+    pub fn fingerprint_waf(&self, target_url: &str, headers: &std::collections::HashMap<String, String>, _body: &str) -> Option<String> {
+        let domain = extract_domain(target_url);
+        let mut identified_waf = None;
+
+        // Check common WAF headers
+        if headers.contains_key("cf-ray") || headers.get("server").map_or(false, |v| v.to_lowercase().contains("cloudflare")) {
+            identified_waf = Some("Cloudflare".to_string());
+        } else if headers.contains_key("x-amzn-requestid") || headers.get("server").map_or(false, |v| v.to_lowercase().contains("awselb")) {
+            identified_waf = Some("AWS WAF".to_string());
+        } else if headers.get("server").map_or(false, |v| v.to_lowercase().contains("akamai")) {
+            identified_waf = Some("Akamai".to_string());
+        } else if headers.contains_key("x-sucuri-id") {
+            identified_waf = Some("Sucuri".to_string());
+        }
+
+        if let Some(waf_name) = &identified_waf {
+            tracing::debug!("[WafMonitor] Fingerprinted WAF: {} for domain {}", waf_name, domain);
+            let detected_entry = self
+                .waf_detected
+                .entry(domain)
+                .or_insert_with(|| AtomicBool::new(false));
+            detected_entry.store(true, Ordering::SeqCst);
+        }
+
+        identified_waf
+    }
+
     /// Check if WAF is currently detected for a given URL
     pub fn is_waf_detected(&self, target_url: &str) -> bool {
         let domain = extract_domain(target_url);
