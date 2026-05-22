@@ -4,6 +4,12 @@ use uuid::Uuid;
 
 pub struct CanonicalFindingEngine;
 
+impl Default for CanonicalFindingEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CanonicalFindingEngine {
     pub fn new() -> Self {
         Self

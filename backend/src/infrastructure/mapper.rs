@@ -6,6 +6,12 @@ use scraper::{Html, Selector};
 
 pub struct HttpFormMapper {}
 
+impl Default for HttpFormMapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpFormMapper {
     pub fn new() -> Self {
         Self {}

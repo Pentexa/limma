@@ -2,6 +2,12 @@ use crate::domain::entities::*;
 
 pub struct ThreatPrioritizationEngine;
 
+impl Default for ThreatPrioritizationEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ThreatPrioritizationEngine {
     pub fn new() -> Self {
         Self

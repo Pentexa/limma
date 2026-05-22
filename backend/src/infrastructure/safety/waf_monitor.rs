@@ -14,6 +14,12 @@ pub struct WafMonitor {
     circuit_open: Arc<DashMap<String, AtomicBool>>,
 }
 
+impl Default for WafMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WafMonitor {
     pub fn new() -> Self {
         Self {
@@ -74,18 +80,18 @@ impl WafMonitor {
         if headers.contains_key("cf-ray")
             || headers
                 .get("server")
-                .map_or(false, |v| v.to_lowercase().contains("cloudflare"))
+                .is_some_and(|v| v.to_lowercase().contains("cloudflare"))
         {
             identified_waf = Some("Cloudflare".to_string());
         } else if headers.contains_key("x-amzn-requestid")
             || headers
                 .get("server")
-                .map_or(false, |v| v.to_lowercase().contains("awselb"))
+                .is_some_and(|v| v.to_lowercase().contains("awselb"))
         {
             identified_waf = Some("AWS WAF".to_string());
         } else if headers
             .get("server")
-            .map_or(false, |v| v.to_lowercase().contains("akamai"))
+            .is_some_and(|v| v.to_lowercase().contains("akamai"))
         {
             identified_waf = Some("Akamai".to_string());
         } else if headers.contains_key("x-sucuri-id") {

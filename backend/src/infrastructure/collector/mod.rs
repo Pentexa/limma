@@ -24,6 +24,12 @@ use url::Url;
 
 pub struct HttpServiceCollector;
 
+impl Default for HttpServiceCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpServiceCollector {
     pub fn new() -> Self {
         Self

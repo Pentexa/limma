@@ -81,6 +81,12 @@ pub struct FingerprintEngine {
     db: Vec<TechRule>,
 }
 
+impl Default for FingerprintEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FingerprintEngine {
     pub fn new() -> Self {
         // Pre-configure the rule database. Easily modular for Phase 3 DB integration.

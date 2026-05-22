@@ -8,6 +8,12 @@ pub struct OobCallbackEngine {
     client: Client,
 }
 
+impl Default for OobCallbackEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OobCallbackEngine {
     pub fn new() -> Self {
         Self {

@@ -4,6 +4,12 @@ use uuid::Uuid;
 
 pub struct AttackPathEngine;
 
+impl Default for AttackPathEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AttackPathEngine {
     pub fn new() -> Self {
         Self

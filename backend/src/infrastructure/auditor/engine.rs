@@ -4,6 +4,12 @@ pub struct RuleEngine {
     pub rules: Vec<AuditRule>,
 }
 
+impl Default for RuleEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuleEngine {
     pub fn new() -> Self {
         Self {

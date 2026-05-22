@@ -13,6 +13,12 @@ pub struct TimingAnalyzer {
     iterations: u32,
 }
 
+impl Default for TimingAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimingAnalyzer {
     pub fn new() -> Self {
         Self {

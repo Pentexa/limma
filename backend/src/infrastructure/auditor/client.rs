@@ -11,6 +11,12 @@ pub struct HttpSecurityAuditor {
     pub pool: Option<sqlx::PgPool>,
 }
 
+impl Default for HttpSecurityAuditor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpSecurityAuditor {
     pub fn new() -> Self {
         Self { pool: None }

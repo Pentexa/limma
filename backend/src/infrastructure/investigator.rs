@@ -10,6 +10,12 @@ use std::time::Instant;
 
 pub struct HttpInvestigator {}
 
+impl Default for HttpInvestigator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpInvestigator {
     pub fn new() -> Self {
         Self {}

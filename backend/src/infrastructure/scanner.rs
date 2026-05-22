@@ -17,6 +17,12 @@ pub struct HttpWebsiteScanner {
     waf_monitor: crate::infrastructure::safety::waf_monitor::WafMonitor,
 }
 
+impl Default for HttpWebsiteScanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpWebsiteScanner {
     pub fn new() -> Self {
         Self {

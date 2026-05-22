@@ -23,6 +23,12 @@ pub struct HttpBlindDetectionEngine {
     timing_analyzer: timing_analyzer::TimingAnalyzer,
 }
 
+impl Default for HttpBlindDetectionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpBlindDetectionEngine {
     pub fn new() -> Self {
         Self {

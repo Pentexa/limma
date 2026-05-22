@@ -5,6 +5,12 @@ use headless_chrome::{Browser, LaunchOptions};
 /// Uses headless_chrome to navigate to the target URL and monitor for JS execution or alerts.
 pub struct DomExecutorImpl;
 
+impl Default for DomExecutorImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DomExecutorImpl {
     pub fn new() -> Self {
         Self

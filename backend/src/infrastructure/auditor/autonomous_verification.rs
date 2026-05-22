@@ -6,6 +6,12 @@ pub struct AutonomousVerificationEngine {
     client: Client,
 }
 
+impl Default for AutonomousVerificationEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AutonomousVerificationEngine {
     pub fn new() -> Self {
         let client = Client::builder()

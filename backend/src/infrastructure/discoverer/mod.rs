@@ -20,6 +20,12 @@ use normalizer::PathNormalizer;
 
 pub struct HttpApiDiscoverer {}
 
+impl Default for HttpApiDiscoverer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpApiDiscoverer {
     pub fn new() -> Self {
         Self {}

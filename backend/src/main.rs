@@ -1,3 +1,8 @@
+#![allow(clippy::new_without_default)]
+#![allow(clippy::unnecessary_map_or)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::empty_line_after_outer_attr)]
+
 use limma::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
     burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,

@@ -44,6 +44,12 @@ pub struct RuleFeedbackEngine {
     entries: RwLock<Vec<RuleFeedbackEntry>>,
 }
 
+impl Default for RuleFeedbackEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuleFeedbackEngine {
     pub fn new() -> Self {
         Self {

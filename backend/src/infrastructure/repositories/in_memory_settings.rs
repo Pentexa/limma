@@ -13,6 +13,12 @@ pub struct InMemorySettingsRepository {
     store: Arc<RwLock<HashMap<String, SettingsProfile>>>,
 }
 
+impl Default for InMemorySettingsRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InMemorySettingsRepository {
     pub fn new() -> Self {
         Self {

@@ -23,6 +23,12 @@ pub struct PayloadDatabase {
     transformers: Vec<Box<dyn PayloadTransformer>>,
 }
 
+impl Default for PayloadDatabase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PayloadDatabase {
     pub fn new() -> Self {
         let mut db = Self {

@@ -2,6 +2,12 @@ use crate::domain::entities::*;
 
 pub struct RiskScorer;
 
+impl Default for RiskScorer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RiskScorer {
     pub fn new() -> Self {
         Self

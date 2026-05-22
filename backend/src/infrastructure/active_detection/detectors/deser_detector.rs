@@ -41,8 +41,8 @@ impl VulnDetector for DeserDetector {
 
         let mut payloads = Vec::new();
         for t in self.supported_types() {
-            for p in payload_selector.select(t.clone()) {
-                payloads.push((t.clone(), p));
+            for p in payload_selector.select(t) {
+                payloads.push((t, p));
             }
         }
 

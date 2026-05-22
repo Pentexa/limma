@@ -2,6 +2,12 @@ use crate::domain::entities::*;
 
 pub struct ContextEvaluator;
 
+impl Default for ContextEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextEvaluator {
     pub fn new() -> Self {
         Self

@@ -905,7 +905,7 @@ pub async fn verify_exploit(
     let use_case = crate::application::use_cases::verify_exploit::VerifyExploit {
         poc_repo: &*state.poc_repo,
         exploit_result_repo: &*state.exploit_result_repo,
-        exploit_bridge: &*state.exploit_bridge,
+        exploit_bridge: &state.exploit_bridge,
     };
 
     let payload_clone = payload.clone();
@@ -1313,7 +1313,7 @@ pub async fn verify_finding(
         let use_case = crate::application::use_cases::verify_exploit::VerifyExploit {
             poc_repo: &*state.poc_repo,
             exploit_result_repo: &*state.exploit_result_repo,
-            exploit_bridge: &*state.exploit_bridge,
+            exploit_bridge: &state.exploit_bridge,
         };
 
         let result = use_case
