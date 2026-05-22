@@ -43,7 +43,7 @@ pub struct BlindScanApiRequest {
     pub scan_id: Option<uuid::Uuid>,
     pub target_id: Option<uuid::Uuid>,
     pub max_duration_seconds: Option<u32>,
-    
+
     pub profile_id: Option<String>,
 }
 

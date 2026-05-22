@@ -9,13 +9,11 @@ use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
 pub struct XssDetector {
     client: Client,
-    
-    
 }
 
 impl XssDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
     fn check_xss_reflection(&self, body: &str, payload: &str) -> bool {

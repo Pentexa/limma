@@ -49,15 +49,24 @@ impl SafetyFrameworkImpl {
         expires_in_hours: i64,
     ) -> Result<uuid::Uuid, String> {
         self.consent_validator
-            .grant_consent(target_domain, requested_by, scope_level, Some(expires_in_hours))
+            .grant_consent(
+                target_domain,
+                requested_by,
+                scope_level,
+                Some(expires_in_hours),
+            )
             .await
     }
 
     pub async fn revoke_consent(&self, id: uuid::Uuid, target_domain: &str) -> Result<(), String> {
-        self.consent_validator.revoke_consent(id, target_domain).await
+        self.consent_validator
+            .revoke_consent(id, target_domain)
+            .await
     }
 
-    pub async fn get_consents(&self) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
+    pub async fn get_consents(
+        &self,
+    ) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
         self.consent_validator.get_consents().await
     }
 
@@ -68,7 +77,9 @@ impl SafetyFrameworkImpl {
         target: Option<&str>,
         actor: Option<&str>,
     ) -> Result<(), String> {
-        self.consent_validator.log_audit(action, details, target, actor).await
+        self.consent_validator
+            .log_audit(action, details, target, actor)
+            .await
     }
 }
 
@@ -81,18 +92,17 @@ impl SafetyFramework for SafetyFrameworkImpl {
     }
 
     async fn verify_explicit_consent(&self, poc: &Poc) -> Result<(), String> {
-        let result = sqlx::query(
-            "SELECT url FROM active_findings WHERE id = $1"
-        )
-        .bind(poc.finding_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| format!("DB error: {}", e))?;
+        let result = sqlx::query("SELECT url FROM active_findings WHERE id = $1")
+            .bind(poc.finding_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| format!("DB error: {}", e))?;
 
         let url_str = result
             .map(|r| {
                 use sqlx::Row;
-                r.try_get::<String, _>("url").unwrap_or_else(|_| "unknown".to_string())
+                r.try_get::<String, _>("url")
+                    .unwrap_or_else(|_| "unknown".to_string())
             })
             .unwrap_or_else(|| "unknown".to_string());
 

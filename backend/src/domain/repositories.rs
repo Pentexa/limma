@@ -165,7 +165,7 @@ pub trait ActiveScanRepository: Send + Sync {
         filters: &crate::domain::active_vuln::ScanQueryParams,
     ) -> Result<Vec<crate::domain::active_vuln::ActiveScanResult>, String>;
     async fn delete_scan(&self, scan_id: uuid::Uuid) -> Result<(), String>;
-    
+
     async fn update_scan(
         &self,
         scan: crate::domain::active_vuln::ActiveScanResult,

@@ -9,13 +9,11 @@ use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
 pub struct LfiDetector {
     client: Client,
-    
-    
 }
 
 impl LfiDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
     fn check_file_content(body: &str) -> Option<&'static str> {

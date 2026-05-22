@@ -1,20 +1,15 @@
-
-
-
-
-
-
 use limma::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
     burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
     create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis,
     download_poc, export_to_burp, export_to_nuclei, generate_master_report, generate_poc,
-    generate_poc_for_finding, get_active_finding, get_active_scan, get_feedback_stats,
-    get_history_delta, get_history_trends, get_rule_engine_status, get_scan_by_id,
-    get_settings_profiles, investigate_server, investigate_server_stream, list_active_findings,
-    list_active_findings_filtered, list_active_scans, list_scans, map_forms, proxy_request,
+    generate_poc_for_finding, get_active_finding, get_active_scan, get_consents_handler,
+    get_feedback_stats, get_history_delta, get_history_trends, get_rule_engine_status,
+    get_scan_by_id, get_settings_profiles, grant_consent_handler, investigate_server,
+    investigate_server_stream, list_active_findings, list_active_findings_filtered,
+    list_active_scans, list_scans, map_forms, proxy_request, revoke_consent_handler,
     start_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
-    update_settings_profile, verify_exploit, verify_finding, verify_port, grant_consent_handler, revoke_consent_handler, get_consents_handler, AppState,
+    update_settings_profile, verify_exploit, verify_finding, verify_port, AppState,
 };
 use limma::infrastructure::auditor::HttpSecurityAuditor;
 use limma::infrastructure::burp_bridge::BurpBridgeManager;
@@ -25,11 +20,11 @@ use limma::infrastructure::discoverer::HttpApiDiscoverer;
 use limma::infrastructure::investigator::HttpInvestigator;
 use limma::infrastructure::mapper::HttpFormMapper;
 
+use anyhow::Context;
+use axum::{routing::post, Router};
 use limma::infrastructure::repositories::pg_settings::PgSettingsRepository;
 use limma::infrastructure::rule_engine::{resolve_rules_dir, DynamicRuleEngine};
 use limma::infrastructure::scanner::HttpWebsiteScanner;
-use anyhow::Context;
-use axum::{routing::post, Router};
 use std::sync::Arc;
 use std::time::Duration;
 // Rate limiter disabled for development
@@ -131,10 +126,12 @@ async fn main() -> anyhow::Result<()> {
         60,     // 60 requests per minute rate limit
     ));
 
-    let exploit_bridge = Arc::new(limma::infrastructure::exploitation::exploit_bridge::ExploitBridge::new(
-        safety_framework.clone(),
-        sandbox_verifier.clone(),
-    ));
+    let exploit_bridge = Arc::new(
+        limma::infrastructure::exploitation::exploit_bridge::ExploitBridge::new(
+            safety_framework.clone(),
+            sandbox_verifier.clone(),
+        ),
+    );
     let blind_finding_repo = Arc::new(
         limma::infrastructure::repositories::blind_finding_repo::PgBlindFindingRepository::new(
             pool.clone(),
@@ -261,8 +258,14 @@ async fn main() -> anyhow::Result<()> {
         // Custom Rules CRUD
         .route("/api/rules", post(create_custom_rule))
         .route("/api/rules/:id", axum::routing::delete(delete_custom_rule))
-        .route("/api/settings/consent", post(grant_consent_handler).get(get_consents_handler))
-        .route("/api/settings/consent/:id", axum::routing::delete(revoke_consent_handler))
+        .route(
+            "/api/settings/consent",
+            post(grant_consent_handler).get(get_consents_handler),
+        )
+        .route(
+            "/api/settings/consent/:id",
+            axum::routing::delete(revoke_consent_handler),
+        )
         .route("/api/export/burp", post(export_to_burp))
         .route("/api/export/nuclei", post(export_to_nuclei))
         .route("/api/burp/handshake", post(burp_handshake))

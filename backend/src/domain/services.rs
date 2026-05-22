@@ -80,7 +80,7 @@ impl ExploitSafetyService {
 
     /// Calculate CVSS score with exploitability context.
     /// Business rule: Verified exploit gets +20% to base score (capped at 10.0).
-    
+
     pub fn calculate_cvss(
         base_score: f32,
         poc_verified: bool,

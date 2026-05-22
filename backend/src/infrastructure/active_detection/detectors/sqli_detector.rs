@@ -15,13 +15,12 @@ struct SqlErrorPattern {
 
 pub struct SqliDetector {
     client: Client,
-    
-    
+
     error_patterns: Vec<SqlErrorPattern>,
 }
 
 impl SqliDetector {
-    pub fn new(client: Client, ) -> Self {
+    pub fn new(client: Client) -> Self {
         let error_patterns = vec![
             SqlErrorPattern {
                 db_type: "MySQL",
@@ -67,7 +66,7 @@ impl SqliDetector {
         ];
         Self {
             client,
-            
+
             error_patterns,
         }
     }

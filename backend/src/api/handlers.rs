@@ -914,13 +914,19 @@ pub async fn verify_exploit(
         .await
         .map_err(AppError::Internal)?;
 
-    if matches!(payload_clone.execution_level, crate::domain::entities::SafetyLevel::L3ActiveWithConsent) {
-        let _ = state.safety_framework.log_audit(
-            "L3_EXPLOIT_EXECUTED",
-            Some(&format!("PoC ID: {}", payload_clone.poc_id)),
-            Some(&payload_clone.target_url),
-            None,
-        ).await;
+    if matches!(
+        payload_clone.execution_level,
+        crate::domain::entities::SafetyLevel::L3ActiveWithConsent
+    ) {
+        let _ = state
+            .safety_framework
+            .log_audit(
+                "L3_EXPLOIT_EXECUTED",
+                Some(&format!("PoC ID: {}", payload_clone.poc_id)),
+                Some(&payload_clone.target_url),
+                None,
+            )
+            .await;
     }
 
     let value = serde_json::to_value(result)?;
@@ -1282,18 +1288,26 @@ pub async fn verify_finding(
     if let Some(poc_id) = finding.poc_id {
         let payload = crate::application::use_cases::verify_exploit::VerifyExploitRequest {
             poc_id,
-            execution_level: payload_data.execution_level.unwrap_or(crate::domain::entities::SafetyLevel::L2VerifiedSandbox),
+            execution_level: payload_data
+                .execution_level
+                .unwrap_or(crate::domain::entities::SafetyLevel::L2VerifiedSandbox),
             target_url: finding.target_url.clone(),
         };
 
         // Audit log if L3 is selected
-        if matches!(payload.execution_level, crate::domain::entities::SafetyLevel::L3ActiveWithConsent) {
-            let _ = state.safety_framework.log_audit(
-                "L3_EXPLOIT_EXECUTED_VIA_FINDING",
-                Some(&format!("Finding ID: {}, PoC ID: {}", finding.id, poc_id)),
-                Some(&finding.target_url),
-                None,
-            ).await;
+        if matches!(
+            payload.execution_level,
+            crate::domain::entities::SafetyLevel::L3ActiveWithConsent
+        ) {
+            let _ = state
+                .safety_framework
+                .log_audit(
+                    "L3_EXPLOIT_EXECUTED_VIA_FINDING",
+                    Some(&format!("Finding ID: {}, PoC ID: {}", finding.id, poc_id)),
+                    Some(&finding.target_url),
+                    None,
+                )
+                .await;
         }
 
         let use_case = crate::application::use_cases::verify_exploit::VerifyExploit {
@@ -1352,12 +1366,18 @@ pub async fn grant_consent_handler(
         .map_err(AppError::BadRequest)?;
 
     // Audit log
-    let _ = state.safety_framework.log_audit(
-        "CONSENT_GRANTED",
-        Some(&format!("Level: {}, Expires in {}h", payload.scope_level, payload.expires_in_hours)),
-        Some(&payload.target_domain),
-        Some(&payload.requested_by),
-    ).await;
+    let _ = state
+        .safety_framework
+        .log_audit(
+            "CONSENT_GRANTED",
+            Some(&format!(
+                "Level: {}, Expires in {}h",
+                payload.scope_level, payload.expires_in_hours
+            )),
+            Some(&payload.target_domain),
+            Some(&payload.requested_by),
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "status": "success",
@@ -1382,12 +1402,15 @@ pub async fn revoke_consent_handler(
         .map_err(AppError::BadRequest)?;
 
     // Audit log
-    let _ = state.safety_framework.log_audit(
-        "CONSENT_REVOKED",
-        Some(&format!("Revoked consent ID: {}", id)),
-        Some(&payload.target_domain),
-        None,
-    ).await;
+    let _ = state
+        .safety_framework
+        .log_audit(
+            "CONSENT_REVOKED",
+            Some(&format!("Revoked consent ID: {}", id)),
+            Some(&payload.target_domain),
+            None,
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "status": "success"

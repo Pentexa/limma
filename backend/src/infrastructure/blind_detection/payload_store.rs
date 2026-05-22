@@ -5,7 +5,6 @@
 pub struct PayloadStore;
 
 impl PayloadStore {
-    
     pub fn new() -> Self {
         Self
     }

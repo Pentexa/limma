@@ -9,13 +9,11 @@ use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
 pub struct CmdiDetector {
     client: Client,
-    
-    
 }
 
 impl CmdiDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
     fn check_cmd_output(body: &str) -> bool {

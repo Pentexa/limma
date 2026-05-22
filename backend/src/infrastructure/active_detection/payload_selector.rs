@@ -19,7 +19,6 @@ pub struct PayloadSelector {
     active_exploit_enabled: bool,
 }
 
-
 impl PayloadSelector {
     /// Creates a new `PayloadSelector` from an `EngineConfig` and shared `PayloadDatabase`.
     pub fn from_config(config: &EngineConfig, payload_db: Arc<PayloadDatabase>) -> Self {

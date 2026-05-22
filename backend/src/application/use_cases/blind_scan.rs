@@ -13,7 +13,7 @@ pub struct BlindScanRequest {
     pub target_url: String,
     pub target_id: Uuid,
     pub detection_types: Vec<BlindVulnType>,
-    
+
     pub max_duration_seconds: u32,
 }
 

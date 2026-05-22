@@ -10,13 +10,11 @@ use crate::domain::entities::ConfidenceLevel;
 
 pub struct NosqlDetector {
     client: Client,
-    
-    
 }
 
 impl NosqlDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 

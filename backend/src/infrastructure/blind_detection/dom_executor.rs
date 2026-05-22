@@ -36,7 +36,7 @@ impl DomExecutorImpl {
 
             tracing::debug!("[DomExecutor] Navigating to {}", test_url);
             tab.navigate_to(&test_url).map_err(|e| format!("Failed to navigate: {}", e))?;
-            
+
             // Wait for page load
             let _ = tab.wait_until_navigated();
 

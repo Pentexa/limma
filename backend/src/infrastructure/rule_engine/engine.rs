@@ -70,7 +70,7 @@ impl DynamicRuleEngine {
     }
 
     /// Creates an engine with no rules (for testing or fallback).
-    
+
     pub fn empty() -> Self {
         Self {
             rules: RwLock::new(Vec::new()),
@@ -120,7 +120,7 @@ impl DynamicRuleEngine {
     }
 
     /// Toggle Rule Pack
-    
+
     pub fn toggle_pack(&self, pack: &str, enable: bool) {
         let mut gov = self.governance.write().expect("governance RwLock poisoned");
         if enable {
@@ -131,7 +131,7 @@ impl DynamicRuleEngine {
     }
 
     /// Toggle Individual Rule
-    
+
     pub fn toggle_rule(&self, rule_id: &str, enable: bool) {
         let mut gov = self.governance.write().expect("governance RwLock poisoned");
         if enable {

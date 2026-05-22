@@ -114,7 +114,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
                     evidence: w.clone(),
                 });
             }
-            
+
             security_score = security::calculate_security_score(&security_headers, &risk_insights);
             has_page_data = true;
         }
@@ -231,7 +231,7 @@ impl WebsiteScanner for HttpWebsiteScanner {
                     evidence: w.clone(),
                 });
             }
-            
+
             security_score = security::calculate_security_score(&security_headers, &risk_insights);
             has_page_data = true;
         }

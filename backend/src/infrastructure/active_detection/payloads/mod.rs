@@ -192,7 +192,6 @@ impl PayloadDatabase {
         result
     }
 
-    
     pub fn total_payload_count(&self) -> usize {
         self.payloads.values().map(|v| v.len()).sum()
     }

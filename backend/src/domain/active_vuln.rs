@@ -68,7 +68,7 @@ pub enum ActiveVulnType {
 
 impl ActiveVulnType {
     /// Returns the default severity for this vulnerability type.
-    
+
     pub fn default_severity(&self) -> crate::domain::entities::SeverityLevel {
         use ActiveVulnType::*;
         match self {

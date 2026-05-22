@@ -9,13 +9,11 @@ use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
 pub struct XxeDetector {
     client: Client,
-    
-    
 }
 
 impl XxeDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 

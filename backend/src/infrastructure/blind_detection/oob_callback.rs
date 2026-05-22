@@ -21,21 +21,27 @@ impl OobCallbackEngine {
     /// Detect SSRF or XXE using an Out-Of-Band callback approach
     pub async fn detect_ssrf(&self, target_url: &str) -> Result<Vec<RawBlindFinding>, String> {
         let mut findings = Vec::new();
-        tracing::debug!("[OobCallbackEngine] Starting OOB analysis for {}", target_url);
+        tracing::debug!(
+            "[OobCallbackEngine] Starting OOB analysis for {}",
+            target_url
+        );
 
         // In a real implementation, we would:
         // 1. Register a unique payload domain from interact.sh API (e.g., xyz123.interact.sh)
         // 2. Inject it into the target URL parameters or headers
         // 3. Wait for X seconds
         // 4. Poll interact.sh API to see if the DNS or HTTP request hit the server
-        
+
         // Mocking the behavior for the current implementation:
         // Assume we registered a domain and sent it.
         let mock_payload = "http://limma-oob-test.interact.sh";
-        
+
         // Simulate sending payload
         let test_url = if target_url.contains('?') {
-            format!("{}&url={}&webhook={}", target_url, mock_payload, mock_payload)
+            format!(
+                "{}&url={}&webhook={}",
+                target_url, mock_payload, mock_payload
+            )
         } else {
             format!("{}?url={}", target_url, mock_payload)
         };
@@ -47,10 +53,15 @@ impl OobCallbackEngine {
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         // For demonstration, we probabilistically "find" SSRF if the URL has 'api' or 'proxy'
-        if target_url.contains("api") || target_url.contains("proxy") || target_url.contains("fetch") {
+        if target_url.contains("api")
+            || target_url.contains("proxy")
+            || target_url.contains("fetch")
+        {
             findings.push(RawBlindFinding {
                 vulnerability_type: BlindVulnType::BlindSsrfHttp,
-                detection_method: BlindDetectionMethod::OobCallback { callback_id: mock_payload.to_string() },
+                detection_method: BlindDetectionMethod::OobCallback {
+                    callback_id: mock_payload.to_string(),
+                },
                 target_url: target_url.to_string(),
                 parameter: Some("url/webhook".to_string()),
                 payload_used: mock_payload.to_string(),

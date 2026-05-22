@@ -23,11 +23,9 @@ pub enum AppError {
     NotFound(String),
 
     #[error("Safety violation: {0}")]
-    
     SafetyViolation(String),
 
     #[error("Domain error: {0}")]
-    
     DomainError(String),
 }
 

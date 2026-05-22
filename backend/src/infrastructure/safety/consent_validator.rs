@@ -36,7 +36,12 @@ impl ConsentValidatorImpl {
         )
         .bind(target_domain)
         .bind(now)
-        .map(|row: sqlx::postgres::PgRow| (row.get::<Uuid, _>("id"), row.get::<String, _>("consent_level")))
+        .map(|row: sqlx::postgres::PgRow| {
+            (
+                row.get::<Uuid, _>("id"),
+                row.get::<String, _>("consent_level"),
+            )
+        })
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| format!("Database error while checking consent: {}", e))?;
@@ -141,7 +146,9 @@ impl ConsentValidatorImpl {
             Err("Consent record not found or already revoked".to_string())
         }
     }
-    pub async fn get_consents(&self) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
+    pub async fn get_consents(
+        &self,
+    ) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
         sqlx::query(
             r#"
             SELECT id, target_domain, consent_level, granted_by, granted_at, expires_at, revoked, revoked_at

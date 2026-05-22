@@ -10,13 +10,11 @@ use crate::domain::entities::ConfidenceLevel;
 
 pub struct SstiDetector {
     client: Client,
-    
-    
 }
 
 impl SstiDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 

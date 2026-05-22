@@ -89,8 +89,7 @@ struct BlindFindingRow {
     scan_id: Uuid,
     target_id: Uuid,
     vulnerability_type: String,
-    
-    
+
     confidence: f32,
     evidence: serde_json::Value,
     payload_used: String,

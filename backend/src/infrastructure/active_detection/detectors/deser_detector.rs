@@ -9,12 +9,11 @@ use crate::domain::entities::ConfidenceLevel;
 
 pub struct DeserDetector {
     client: Client,
-    
 }
 
 impl DeserDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 

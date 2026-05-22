@@ -1465,7 +1465,7 @@ pub struct SafetyScope {
 
 impl SafetyScope {
     /// Create a default read-only safety scope
-    
+
     pub fn default_readonly() -> Self {
         Self {
             target_domains: Vec::new(),

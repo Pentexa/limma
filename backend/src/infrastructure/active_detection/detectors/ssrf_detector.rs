@@ -9,13 +9,11 @@ use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
 pub struct SsrfDetector {
     client: Client,
-    
-    
 }
 
 impl SsrfDetector {
-    pub fn new(client: Client, ) -> Self {
-        Self { client,  }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
     fn check_cloud_metadata(body: &str) -> Option<&'static str> {
