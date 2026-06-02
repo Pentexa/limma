@@ -43,6 +43,7 @@ export function TopBar() {
     mode: "onChange"
   });
   
+  // eslint-disable-next-line react-hooks/incompatible-library
   const targetUrl = watch("targetUrl");
   const { data: scans = [] } = useScans();
   // isFetching = true during ANY fetch (initial + refetch after invalidation).

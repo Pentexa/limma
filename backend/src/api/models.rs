@@ -60,3 +60,9 @@ pub struct ActiveScanApiRequest {
     pub profile_id: Option<String>,
     pub custom_parameters: Option<Vec<String>>,
 }
+
+#[derive(Deserialize)]
+pub struct SubdomainDiscoveryRequest {
+    pub domain: String,
+    pub profile_id: Option<String>,
+}

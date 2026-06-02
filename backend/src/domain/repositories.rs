@@ -200,3 +200,12 @@ pub trait ActiveFindingRepository: Send + Sync {
     ) -> Result<(), String>;
     async fn delete_by_scan_id(&self, scan_id: uuid::Uuid) -> Result<u64, String>;
 }
+
+#[async_trait]
+pub trait SubdomainDiscoverer: Send + Sync {
+    async fn discover_subdomains(
+        &self,
+        domain: &str,
+        profile: &crate::domain::engine_config::EngineConfig,
+    ) -> Result<crate::domain::entities::SubdomainDiscoveryResult, String>;
+}

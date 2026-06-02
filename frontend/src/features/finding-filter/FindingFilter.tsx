@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 
@@ -40,10 +40,6 @@ export function FindingFilter({ onFilterChange, className }: FindingFilterProps)
           </button>
         )}
       </div>
-      <button className="flex items-center gap-1.5 px-3 h-8 bg-muted/30 border border-border rounded text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        Filters
-      </button>
     </div>
   );
 }

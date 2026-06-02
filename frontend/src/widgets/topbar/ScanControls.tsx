@@ -8,6 +8,13 @@ import { useStreamStore } from "@/features/stream-scan-events/model/stream-store
 import { useSettingsProfiles } from "@/features/update-settings/model/use-settings";
 import { useState } from "react";
 import { Settings2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
 
 interface ScanControlsProps {
   targetUrl: string;
@@ -34,21 +41,20 @@ export function ScanControls({ targetUrl, scanId, scanStatus }: ScanControlsProp
       {!isRunning && (
         <div className="flex items-center gap-2">
           {/* Profile Selector */}
-          <div className="flex items-center gap-1.5 px-2.5 h-[28px] bg-background/50 border border-border/80 rounded shadow-inner transition-colors hover:border-primary/40 focus-within:border-primary/50">
-            <Settings2 className="w-3.5 h-3.5 text-muted-foreground/80" />
-            <select
-              value={selectedProfileId}
-              onChange={(e) => setSelectedProfileId(e.target.value)}
-              className="bg-transparent text-foreground border-none focus:outline-none focus:ring-0 text-[11px] font-medium cursor-pointer w-[110px]"
-            >
-              <option value="default" className="bg-background text-foreground">Default Profile</option>
+          <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+            <SelectTrigger className="h-[28px] w-[140px] px-2.5 text-[11px] font-medium bg-background/50 border-border/80 shadow-inner hover:border-primary/40 focus:ring-0 focus-visible:ring-0 transition-colors justify-start gap-1.5 [&>span]:min-w-0 [&>svg:last-child]:ml-auto">
+              <Settings2 className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
+              <SelectValue placeholder="Select profile" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default" className="text-[11px]">Default Profile</SelectItem>
               {profiles.filter(p => p.id !== "default").map((p) => (
-                <option key={p.id} value={p.id} className="bg-background text-foreground">
+                <SelectItem key={p.id} value={p.id} className="text-[11px]">
                   {p.name}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </div>
+            </SelectContent>
+          </Select>
 
           <StartScanButton targetUrl={targetUrl} profileId={selectedProfileId} />
         </div>

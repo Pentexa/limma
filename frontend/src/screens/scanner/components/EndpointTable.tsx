@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 import type { ApiDiscoveryResult } from "@/shared/types/api";
-import { CheckCircle, XCircle, Shield, ChevronDown, Crosshair } from "lucide-react";
+import { CheckCircle, XCircle, Shield, ChevronDown } from "lucide-react";
 
 interface EndpointTableProps {
   discovery: ApiDiscoveryResult | undefined;

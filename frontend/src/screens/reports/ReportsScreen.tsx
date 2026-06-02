@@ -5,10 +5,11 @@ import { useReports, reportKeys } from "@/entities/report/model/use-reports";
 import { saveLocalReport } from "@/entities/report/api/report-api";
 import { useScans } from "@/entities/scan/model/use-scans";
 import { httpClient } from "@/shared/api/http-client";
-import { FileText, Loader2, Download, FileCode, Bug, CheckCircle, AlertTriangle } from "lucide-react";
+import { FileText, Loader2, Download, FileCode, Bug } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Report } from "@/entities/report/model/types";
+import type { ApiMasterReport } from "@/shared/types/api";
 
 export function ReportsScreen() {
   const { data: reports = [], isLoading } = useReports();
@@ -22,7 +23,7 @@ export function ReportsScreen() {
     setExporting(format);
     try {
       // 1. Fetch MasterReport payload expected by backend
-      const masterReport = await httpClient.post<any>("/master-report", { url: activeScan.targetUrl });
+      const masterReport = await httpClient.post<ApiMasterReport>("/master-report", { url: activeScan.targetUrl });
       
       // 2. Post to the respective export endpoint
       const endpoint = format === "nuclei" ? "/api/export/nuclei" : "/api/export/burp";
@@ -45,7 +46,7 @@ export function ReportsScreen() {
 
       // 4. Save report to local history
       const reportId = crypto.randomUUID();
-      let findings = [];
+      let findings: { severity?: string }[] = [];
       if (masterReport?.normalized_audit?.canonical_findings) {
         findings = masterReport.normalized_audit.canonical_findings;
       } else if (masterReport?.analysis?.risk_insights) {
@@ -60,8 +61,8 @@ export function ReportsScreen() {
         status: "completed",
         fileUrl: null, // Local blob URLs expire, so we leave it null for history items
         findingCount: findings.length || 0,
-        criticalCount: findings.filter((f: any) => f.severity === "critical").length || 0,
-        highCount: findings.filter((f: any) => f.severity === "high").length || 0,
+        criticalCount: findings.filter((f) => f.severity === "critical").length || 0,
+        highCount: findings.filter((f) => f.severity === "high").length || 0,
         createdAt: new Date().toISOString()
       };
       saveLocalReport(newReport);
@@ -170,7 +171,7 @@ export function ReportsScreen() {
                 {/* Vertical timeline */}
                 <div className="absolute top-3 bottom-3 left-2.5 w-[2px] bg-gradient-to-b from-primary via-primary/40 to-transparent" />
 
-                {reports.map((r, i) => {
+                {reports.map((r) => {
                   const formatStyle = FORMAT_BADGE[r.format]?.cls ?? "bg-muted/10 text-muted-foreground border-border/20";
                   
                   return (

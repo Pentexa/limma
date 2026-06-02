@@ -2,6 +2,7 @@ pub mod active_scan;
 pub mod blind_scan;
 pub mod generate_poc;
 pub mod verify_exploit;
+pub mod subdomain_discovery;
 
 // ── Re-exported original use cases (migrated from use_cases.rs) ──
 

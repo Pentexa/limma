@@ -1,7 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
-import { cn } from "@/shared/lib/utils";
 import { useScans } from "@/entities/scan/model/use-scans";
 import { useScanTrends } from "@/entities/scan/model/use-scan-trends";
 import { useActiveMasterReport } from "@/entities/discovery/model/use-master-report";
@@ -22,7 +20,7 @@ export function AnalysisScreen() {
   const isLoading = trendsLoading || reportLoading;
 
   // Find if WAF is detected
-  const wafFinding = report?.analysis?.risk_insights?.find((f: any) => f.title?.startsWith("WAF Detected:"));
+  const wafFinding = report?.analysis?.risk_insights?.find((f) => f.title?.startsWith("WAF Detected:"));
   const wafName = wafFinding ? wafFinding.title.replace("WAF Detected: ", "") : null;
 
   return (

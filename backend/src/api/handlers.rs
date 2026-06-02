@@ -11,6 +11,7 @@ use crate::infrastructure::blind_detection::HttpBlindDetectionEngine;
 use crate::infrastructure::burp_bridge::SharedBurpBridgeManager;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
+use crate::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
 use crate::infrastructure::exploitation::poc_generator::CompositePocGenerator;
 
 use crate::infrastructure::investigator::HttpInvestigator;
@@ -28,6 +29,7 @@ use std::sync::Arc;
 pub struct AppState {
     pub website_scanner: Arc<HttpWebsiteScanner>,
     pub server_investigator: Arc<HttpInvestigator>,
+    pub subdomain_discoverer: Arc<HttpSubdomainDiscoverer>,
     pub api_discoverer: Arc<HttpApiDiscoverer>,
     pub service_collector: Arc<HttpServiceCollector>,
     pub security_auditor: Arc<HttpSecurityAuditor>,
@@ -86,6 +88,26 @@ pub async fn analyze_website(
         .map_err(AppError::Internal)?;
     let value = serde_json::to_value(analysis)?;
     Ok(Json(value))
+}
+
+pub async fn get_health(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Check DB
+    let db_ok = sqlx::query("SELECT 1").execute(&state.db_pool).await.is_ok();
+    
+    // Check Docker
+    let docker_ok = match bollard::Docker::connect_with_local_defaults() {
+        Ok(docker) => docker.ping().await.is_ok(),
+        Err(_) => false,
+    };
+
+    Ok(Json(serde_json::json!({
+        "status": if db_ok && docker_ok { "ok" } else { "degraded" },
+        "database": if db_ok { "connected" } else { "error" },
+        "docker_daemon": if docker_ok { "running" } else { "unavailable" },
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    })))
 }
 
 use axum::extract::Query;
@@ -201,6 +223,23 @@ pub async fn discover_apis(
 
     let res = use_case
         .execute(payload.url, &profile)
+        .await
+        .map_err(AppError::Internal)?;
+    let value = serde_json::to_value(res)?;
+    Ok(Json(value))
+}
+
+pub async fn discover_subdomains(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<crate::api::models::SubdomainDiscoveryRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let use_case = crate::application::use_cases::subdomain_discovery::DiscoverSubdomains {
+        discoverer: &*state.subdomain_discoverer,
+    };
+
+    let res = use_case
+        .execute(payload.domain, &profile)
         .await
         .map_err(AppError::Internal)?;
     let value = serde_json::to_value(res)?;

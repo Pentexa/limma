@@ -177,10 +177,22 @@ impl ServiceCollector for HttpServiceCollector {
 
         port_results.sort_by_key(|p| p.port);
 
-        // === 3.5 Nmap Verification Fixture ===
-        // Simulated truth layer fixture for testing
-        let mock_truth_ports = vec![80, 443];
-        nmap_validator::validate_parity(&mut port_results, &mock_truth_ports);
+        // === 3.5 Nmap Verification Layer ===
+        // Build truth layer from ports that were probed as genuinely open with
+        // at least one Verified service candidate. This replaces the old
+        // hard-coded mock fixture and lets the validator downgrade any
+        // "Verified" decisions that lack corroborating evidence.
+        let verified_open_ports: Vec<u16> = port_results
+            .iter()
+            .filter(|p| {
+                p.state == PortState::Open
+                    && p.service_candidates.iter().any(|c| {
+                        c.decision == crate::domain::entities::DecisionOutcome::Verified
+                    })
+            })
+            .map(|p| p.port)
+            .collect();
+        nmap_validator::validate_parity(&mut port_results, &verified_open_ports);
 
         // === 4. Final Summary ===
         let open_count = port_results

@@ -5,7 +5,6 @@ import { FindingTable } from "@/entities/finding/ui/FindingTable";
 import { FindingFilters } from "@/features/filter-findings/ui/FindingFilters";
 import { useGlobalFindings } from "@/entities/finding/model/use-findings";
 import { Loader2, ShieldAlert, AlertTriangle, CheckCircle, FileWarning } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
 
 export function AuditScreen() {
   const { data: findings = [], isLoading } = useGlobalFindings();

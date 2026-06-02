@@ -3,7 +3,8 @@
 import { useScans } from "@/entities/scan/model/use-scans";
 import { useGlobalFindings } from "@/entities/finding/model/use-findings";
 import { SCAN_PHASES, PHASE_LABELS, type ScanPhase } from "@/shared/config/constants";
-import { DETECTOR_META, type DetectorType } from "@/entities/finding/model/types";
+import { DETECTOR_META, type DetectorType, type Confidence, type VerificationStatus } from "@/entities/finding/model/types";
+import type { Severity } from "@/shared/types/common";
 import { cn } from "@/shared/lib/utils";
 import { Shield, AlertTriangle, CheckCircle, Clock, Eye, Layers, Target } from "lucide-react";
 import { compareBySeverity } from "@/shared/config/priority";
@@ -49,7 +50,7 @@ export function DashboardScreen() {
   const activeScan = scans.find((s) => s.status === "running") ?? scans[0] ?? EMPTY_SCAN;
 
   // Fetch combined global findings (Active + Master)
-  const { data: findings = [], isLoading: findingsLoading, masterLoading, activeScanFindings, masterFindings } = useGlobalFindings();
+  const { data: findings = [] } = useGlobalFindings();
 
   // Memoize all expensive calculations derived from findings
   const {
@@ -72,9 +73,9 @@ export function DashboardScreen() {
     // Normalize severity/confidence to lowercase (defensive)
     const normalized = findings.map(f => ({
       ...f,
-      severity: (f.severity?.toLowerCase() ?? "info") as any,
-      confidence: (f.confidence?.toLowerCase() ?? "tentative") as any,
-      verification: (f.verification?.toLowerCase() ?? "unverified") as any,
+      severity: (f.severity?.toLowerCase() ?? "info") as Severity,
+      confidence: (f.confidence?.toLowerCase() ?? "tentative") as Confidence,
+      verification: (f.verification?.toLowerCase() ?? "unverified") as VerificationStatus,
     }));
 
     const critical = normalized.filter(f => f.severity === "critical");
@@ -376,8 +377,8 @@ export function DashboardScreen() {
       <div className="grid grid-cols-12 grid-rows-[1fr] gap-2" style={{ maxHeight: '520px' }}>
 
         {/* Priority Findings */}
-        <div className="col-span-12 xl:col-span-8 bg-[#050505] border border-border/40 border-t-2 border-t-primary/50 rounded-md shadow-lg overflow-hidden flex flex-col min-h-0">
-          <div className="flex flex-col items-stretch gap-3 px-4 py-3 border-b border-border/30 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+        <div className="col-span-12 xl:col-span-8 bg-[#050505] border border-border/40 border-t-2 border-t-primary/50 rounded-md shadow-lg flex flex-col min-h-0 relative z-10">
+          <div className="flex flex-col items-stretch gap-3 px-4 py-3 border-b border-border/30 bg-gradient-to-r from-primary/10 to-transparent shrink-0 rounded-t-md">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-[13px] font-bold tracking-wide text-foreground">Priority Findings — Evidence Review</span>
@@ -611,9 +612,10 @@ export function DashboardScreen() {
           >
             {events.length > 0 ? (
               events.slice(0, 100).map((event, idx) => {
-                const data = event.data as any;
-                let level = (data?.level ?? event.type ?? "info").toLowerCase();
-                const message = data?.message ?? (typeof data === "string" ? data : JSON.stringify(data)) ?? "Event";
+                const data = event.data as Record<string, unknown> | string | null;
+                const dataObj = typeof data === "object" && data !== null ? data : null;
+                let level = ((dataObj?.level as string) ?? event.type ?? "info").toLowerCase();
+                const message = (dataObj?.message as string) ?? (typeof data === "string" ? data : JSON.stringify(data)) ?? "Event";
 
                 // Enhanced Content-Based Color Parsing
                 const msgLower = message.toLowerCase();

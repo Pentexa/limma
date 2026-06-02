@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 import { useSettingsProfiles, useScanProfiles, useUpdateProfile } from "@/features/update-settings/model/use-settings";
 import { 
@@ -16,10 +16,7 @@ function ProfileEditor({ profile, onSave, isSaving }: { profile: ApiSettingsProf
   const [local, setLocal] = useState<ApiSettingsProfile>(JSON.parse(JSON.stringify(profile)));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLocal(JSON.parse(JSON.stringify(profile)));
-    setError(null);
-  }, [profile]);
+  // State reset is handled by the parent via key={profile.id} — no useEffect needed.
 
   const isDirty = JSON.stringify(local) !== JSON.stringify(profile);
 
@@ -43,37 +40,36 @@ function ProfileEditor({ profile, onSave, isSaving }: { profile: ApiSettingsProf
     setError(null);
   };
 
-  const updateGlobal = (key: keyof ApiSettingsProfile["global"], value: any) => 
+  const updateGlobal = (key: keyof ApiSettingsProfile["global"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, global: { ...p.global, [key]: value } }));
     
-  const updateScanner = (key: keyof ApiSettingsProfile["scanner"], value: any) => 
+  const updateScanner = (key: keyof ApiSettingsProfile["scanner"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, scanner: { ...p.scanner, [key]: value } }));
     
-  const updateInvestigator = (key: keyof ApiSettingsProfile["investigator"], value: any) => 
+  const updateInvestigator = (key: keyof ApiSettingsProfile["investigator"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, investigator: { ...p.investigator, [key]: value } }));
     
-  const updateApi = (key: keyof ApiSettingsProfile["api_discovery"], value: any) => 
+  const updateApi = (key: keyof ApiSettingsProfile["api_discovery"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, api_discovery: { ...p.api_discovery, [key]: value } }));
     
-  const updateServices = (key: keyof ApiSettingsProfile["services"], value: any) => 
+  const updateServices = (key: keyof ApiSettingsProfile["services"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, services: { ...p.services, [key]: value } }));
     
-  const updateForms = (key: keyof ApiSettingsProfile["forms"], value: any) => 
+  const updateForms = (key: keyof ApiSettingsProfile["forms"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, forms: { ...p.forms, [key]: value } }));
     
-  const updateAudit = (key: keyof ApiSettingsProfile["audit"], value: any) => 
+  const updateAudit = (key: keyof ApiSettingsProfile["audit"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, audit: { ...p.audit, [key]: value } }));
     
-  const updateRules = (key: keyof ApiSettingsProfile["rules"], value: any) => 
+  const updateRules = (key: keyof ApiSettingsProfile["rules"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, rules: { ...p.rules, [key]: value } }));
     
-  const updateExploit = (key: keyof ApiSettingsProfile["exploit"], value: any) => 
+  const updateExploit = (key: keyof ApiSettingsProfile["exploit"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, exploit: { ...p.exploit, [key]: value } }));
 
-  const updateProxy = (key: keyof ApiSettingsProfile["proxy"], value: any) => 
-    setLocal(p => ({ ...p, proxy: { ...p.proxy, [key]: value } }));
 
-  const updateSessions = (key: keyof ApiSettingsProfile["sessions"], value: any) => 
+
+  const updateSessions = (key: keyof ApiSettingsProfile["sessions"], value: string | number | boolean) => 
     setLocal(p => ({ ...p, sessions: { ...p.sessions, [key]: value } }));
 
   // Common UI styles
@@ -449,6 +445,7 @@ export function SettingsScreen() {
                           </div>
                         )}
                         <ProfileEditor 
+                          key={profile.id}
                           profile={profile} 
                           onSave={(p) => handleSaveProfile(profile.id, p)} 
                           isSaving={updateMutation.isPending} 

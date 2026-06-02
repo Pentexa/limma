@@ -1,6 +1,5 @@
 "use client";
 
-import { Input } from "@/shared/ui/input";
 import { useFilterStore } from "../model/filter-store";
 import { Search } from "lucide-react";
 

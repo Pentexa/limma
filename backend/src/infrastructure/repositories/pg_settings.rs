@@ -82,6 +82,7 @@ impl PgSettingsRepository {
                 auto_delete_days: 30,
                 archive_artifacts: true,
             },
+            subdomain: SubdomainDiscoverySettings::default(),
         };
 
         let mut profiles = vec![base.clone()];

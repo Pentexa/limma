@@ -36,6 +36,13 @@ pub struct EngineConfig {
 
     // Exploit
     pub active_exploit_enabled: bool,
+
+    // Subdomain Discovery
+    pub subdomain_wordlist_size: String,
+    pub subdomain_enable_crtsh: bool,
+    pub subdomain_enable_dns_bruteforce: bool,
+    pub subdomain_http_probe: bool,
+    pub subdomain_max_concurrent_dns: usize,
 }
 
 impl EngineConfig {
@@ -202,6 +209,11 @@ impl EngineConfig {
             fuzzing_intensity,
             avoid_waf: profile.forms.avoid_waf,
             active_exploit_enabled,
+            subdomain_wordlist_size: profile.subdomain.wordlist_size.clone(),
+            subdomain_enable_crtsh: profile.subdomain.enable_crtsh,
+            subdomain_enable_dns_bruteforce: profile.subdomain.enable_dns_bruteforce,
+            subdomain_http_probe: profile.subdomain.http_probe_enabled,
+            subdomain_max_concurrent_dns: profile.subdomain.max_concurrent_dns,
         }
     }
 }

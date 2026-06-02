@@ -41,3 +41,4 @@ rand = "0.10.1"
 base64 = "0.22.1"
 headless_chrome = "1.0"
 bollard = "0.16.1"
+hickory-resolver = { version = "0.24", features = ["tokio-runtime"] }

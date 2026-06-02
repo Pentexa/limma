@@ -23,7 +23,7 @@ export async function fetchReports(): Promise<Report[]> {
   try {
     const apiReports = await httpClient.get<Report[]>("/api/reports");
     return [...getLocalReports(), ...(Array.isArray(apiReports) ? apiReports : [])];
-  } catch (err) {
+  } catch {
     return getLocalReports();
   }
 }

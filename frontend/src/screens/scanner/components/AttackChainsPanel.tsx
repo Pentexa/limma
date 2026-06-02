@@ -1,5 +1,5 @@
 import { cn } from "@/shared/lib/utils";
-import type { ApiNormalizedAuditReport, ApiAttackPath, ApiCanonicalFinding } from "@/shared/types/api";
+import type { ApiNormalizedAuditReport, ApiCanonicalFinding } from "@/shared/types/api";
 import { Link2, ShieldAlert, Target, ShieldQuestion, BrainCircuit, Info, Zap, AlertTriangle, ShieldCheck } from "lucide-react";
 
 // --- VIEW MODEL ---

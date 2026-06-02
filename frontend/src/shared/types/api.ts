@@ -462,6 +462,13 @@ export interface ApiSettingsProfile {
     auto_delete_days: number; 
     archive_artifacts: boolean; 
   };
+  subdomain: {
+    wordlist_size: WordlistSize;
+    enable_crtsh: boolean;
+    enable_dns_bruteforce: boolean;
+    http_probe_enabled: boolean;
+    max_concurrent_dns: number;
+  };
 }
 
 // ── Rule Engine ──
@@ -525,6 +532,88 @@ export interface ApiBurpFinding {
   severity: string;
   url: string;
   detail: string;
+}
+
+// ── Subdomain Discovery ──
+
+export type ApiSubdomainSource = "crt_sh" | "dns_wordlist" | "crawler_links";
+
+export type ApiSubdomainStatus =
+  | "validated"
+  | "unresolved"
+  | "wildcard_filtered"
+  | "http_alive"
+  | "http_dead";
+
+export interface ApiDnsRecord {
+  record_type: string;
+  values: string[];
+}
+
+export interface ApiRedirectChainEntry {
+  url: string;
+  status_code: number;
+}
+
+export interface ApiHttpProbeResult {
+  url: string;
+  status_code: number;
+  title?: string;
+  server?: string;
+  content_type?: string;
+  technologies: string[];
+  tls_issuer?: string;
+  tls_subject?: string;
+  redirect_chain: ApiRedirectChainEntry[];
+  response_time_ms: number;
+}
+
+export interface ApiSubdomainAsset {
+  asset: string;
+  asset_type: string;
+  sources: ApiSubdomainSource[];
+  resolved_ips: string[];
+  dns_records: ApiDnsRecord[];
+  http_probe?: ApiHttpProbeResult;
+  http_status?: number;
+  technologies: string[];
+  confidence: number;
+  status: ApiSubdomainStatus;
+  risk_tags: string[];
+  last_seen: string;
+  certainty?: string;
+}
+
+export interface ApiWildcardDnsInfo {
+  is_wildcard: boolean;
+  test_subdomain: string;
+  resolved_ips: string[];
+}
+
+export interface ApiSubdomainDiscoveryMetrics {
+  total_candidates: number;
+  validated_count: number;
+  wildcard_filtered_count: number;
+  duplicate_removed_count: number;
+  http_alive_count: number;
+  passive_source_count: number;
+  active_source_count: number;
+  precision: number;
+  scan_duration_ms: number;
+}
+
+export interface ApiSubdomainDiscoveryResult {
+  domain: string;
+  wildcard_dns: ApiWildcardDnsInfo;
+  assets: ApiSubdomainAsset[];
+  metrics: ApiSubdomainDiscoveryMetrics;
+  discovery_certainty?: ApiCertaintyNote;
+  scan_timestamp: string;
+}
+
+export interface ApiSubdomainDiscoveryRequest {
+  domain: string;
+  profile_id?: string;
 }
 
 // ── Port Verification ──

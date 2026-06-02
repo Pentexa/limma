@@ -6,7 +6,9 @@ import type {
   ApiCollectorSnapshot, 
   ApiSecurityReport, 
   ApiFormMapping,
-  ApiMasterReport
+  ApiMasterReport,
+  ApiSubdomainDiscoveryResult,
+  ApiSubdomainDiscoveryRequest,
 } from "@/shared/types/api";
 
 export interface IntelRequest {
@@ -47,4 +49,9 @@ export function mapForms(data: IntelRequest) {
 /** POST /master-report — Full reconnaissance and correlation */
 export function generateMasterReport(data: IntelRequest) {
   return httpClient.post<ApiMasterReport>("/master-report", data);
+}
+
+/** POST /discover-subdomains — Subdomain enumeration & validation */
+export function discoverSubdomains(data: ApiSubdomainDiscoveryRequest) {
+  return httpClient.post<ApiSubdomainDiscoveryResult>("/discover-subdomains", data);
 }

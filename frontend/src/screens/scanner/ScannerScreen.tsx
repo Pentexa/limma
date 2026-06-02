@@ -19,7 +19,6 @@ import { startScanStream, getCurrentStreamTarget } from "@/features/stream-scan-
 import { ServerInfoPanel } from "./components/ServerInfoPanel";
 import { EndpointTable } from "./components/EndpointTable";
 import { ServiceGrid } from "./components/ServiceGrid";
-import { TechStackPanel } from "./components/TechStackPanel";
 import { AnalyzePanel } from "./components/AnalyzePanel";
 import { SecurityAuditPanel } from "./components/SecurityAuditPanel";
 import { FormMappingPanel } from "./components/FormMappingPanel";

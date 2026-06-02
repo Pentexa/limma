@@ -34,3 +34,30 @@ impl ScopeEnforcer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_open_scope_allows_all() {
+        let enforcer = ScopeEnforcer::new(vec![]);
+        assert!(enforcer.validate("https://google.com").is_ok());
+        assert!(enforcer.validate("http://evil.com/malware").is_ok());
+    }
+
+    #[test]
+    fn test_strict_scope_allows_valid_domains() {
+        let enforcer = ScopeEnforcer::new(vec!["example.com".to_string()]);
+        assert!(enforcer.validate("https://api.example.com/v1").is_ok());
+        assert!(enforcer.validate("http://example.com/").is_ok());
+    }
+
+    #[test]
+    fn test_strict_scope_rejects_invalid_domains() {
+        let enforcer = ScopeEnforcer::new(vec!["example.com".to_string()]);
+        let res = enforcer.validate("https://evil.com/");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("out of scope"));
+    }
+}

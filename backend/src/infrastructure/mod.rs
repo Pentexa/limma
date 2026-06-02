@@ -11,6 +11,7 @@ pub mod exploitation;
 pub mod export;
 pub mod investigator;
 pub mod mapper;
+pub mod subdomain_discovery;
 
 pub mod repositories;
 pub mod rule_engine;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 import type { ApiCollectorSnapshot, ApiVerifyPortResponse } from "@/shared/types/api";
 import { httpClient } from "@/shared/api/http-client";
-import { Server, Clock, AlertTriangle, RefreshCw, CheckCircle, XCircle, ChevronDown, Activity } from "lucide-react";
+import { Clock, AlertTriangle, RefreshCw, CheckCircle, XCircle, ChevronDown, Activity } from "lucide-react";
 
 interface ServiceGridProps {
   collector: ApiCollectorSnapshot | undefined;

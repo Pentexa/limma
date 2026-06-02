@@ -20,12 +20,17 @@ export function LiveStream({ className }: { className?: string }) {
   const startY = useRef(0);
   const startHeight = useRef(0);
   const isExpandedRef = useRef(expanded);
-  isExpandedRef.current = expanded;
+  const [isDraggingState, setIsDraggingState] = useState(false);
+
+  useEffect(() => {
+    isExpandedRef.current = expanded;
+  }, [expanded]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return; // Only left click
     
     isDragging.current = true;
+    setIsDraggingState(true);
     hasDragged.current = false;
     startY.current = e.clientY;
     startHeight.current = isExpandedRef.current ? height : 0;
@@ -59,6 +64,7 @@ export function LiveStream({ className }: { className?: string }) {
 
     const cleanup = () => {
       isDragging.current = false;
+      setIsDraggingState(false);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       document.removeEventListener("pointermove", handlePointerMove);
@@ -80,7 +86,7 @@ export function LiveStream({ className }: { className?: string }) {
   };
 
   return (
-    <div className={cn("bg-[#050505] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] flex flex-col transition-all duration-200", expanded ? "border-t-2 border-t-primary/50" : "border-t border-white/[0.06]", className)} style={{ transitionProperty: isDragging.current ? 'none' : 'all' }}>
+    <div className={cn("bg-[#050505] shadow-[0_-4px_20px_rgba(0,0,0,0.5)] flex flex-col transition-all duration-200", expanded ? "border-t-2 border-t-primary/50" : "border-t border-white/[0.06]", className)} style={{ transitionProperty: isDraggingState ? 'none' : 'all' }}>
       <button
         className="flex items-center justify-between px-4 py-1.5 bg-gradient-to-r from-primary/10 to-transparent hover:from-primary/20 border-b border-border/30 cursor-ns-resize"
         onPointerDown={handlePointerDown}

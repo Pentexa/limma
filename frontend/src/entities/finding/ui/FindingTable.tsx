@@ -82,6 +82,7 @@ export function FindingTable({ findings, onSelect, className }: FindingTableProp
   ]);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: findings,
     columns,

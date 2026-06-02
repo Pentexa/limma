@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useConsents, useGrantConsent, useRevokeConsent } from "../model/use-consents";
+import type { ConsentRecord } from "../api/consent-api";
 import { ShieldAlert, Shield, CheckCircle, XCircle, Loader2, Trash2, Globe, Clock, User } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
 
 export function ConsentManagementPanel() {
   const { data: consents = [], isLoading } = useConsents();
@@ -11,10 +11,10 @@ export function ConsentManagementPanel() {
   const [domain, setDomain] = useState("");
   const [level, setLevel] = useState("L3ActiveWithConsent");
   const [hours, setHours] = useState<number>(24);
-  const [requestedBy, setRequestedBy] = useState("admin"); // Ideally from auth
+  const [requestedBy] = useState("admin"); // Ideally from auth
 
-  const activeConsents = consents.filter((c: any) => !c.revoked && (!c.expires_at || new Date(c.expires_at) > new Date()));
-  const pastConsents = consents.filter((c: any) => c.revoked || (c.expires_at && new Date(c.expires_at) <= new Date()));
+  const activeConsents = consents.filter((c: ConsentRecord) => !c.revoked && (!c.expires_at || new Date(c.expires_at) > new Date()));
+  const pastConsents = consents.filter((c: ConsentRecord) => c.revoked || (c.expires_at && new Date(c.expires_at) <= new Date()));
 
   const handleGrant = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +23,7 @@ export function ConsentManagementPanel() {
       target_domain: domain,
       requested_by: requestedBy,
       scope_level: level,
-      expires_in_hours: hours
+      expires_in_hours: Number.isNaN(hours) || hours <= 0 ? 24 : hours
     }, {
       onSuccess: () => {
         setDomain("");
@@ -67,8 +67,16 @@ export function ConsentManagementPanel() {
               type="number"
               min="1"
               max="720"
-              value={hours}
-              onChange={e => setHours(parseInt(e.target.value))}
+              value={Number.isNaN(hours) ? "" : hours}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === "") {
+                  setHours(NaN);
+                } else {
+                  const parsed = parseInt(val, 10);
+                  setHours(Number.isNaN(parsed) ? 0 : parsed);
+                }
+              }}
               className="w-full bg-background border border-border rounded px-3 py-1.5 text-[11px] font-mono focus:border-primary outline-none"
             />
           </div>
@@ -105,7 +113,7 @@ export function ConsentManagementPanel() {
           <div className="text-[11px] text-muted-foreground italic">No active consents found.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {activeConsents.map((c: any) => (
+            {activeConsents.map((c: ConsentRecord) => (
               <div key={c.id} className="bg-background/50 border border-emerald-500/30 rounded-lg p-3 flex justify-between items-start">
                 <div className="space-y-2 min-w-0">
                   <div className="flex items-center gap-2">
@@ -142,7 +150,7 @@ export function ConsentManagementPanel() {
             Revoked / Expired Consents
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {pastConsents.map((c: any) => (
+            {pastConsents.map((c: ConsentRecord) => (
               <div key={c.id} className="bg-background/30 border border-border/30 rounded-lg p-3">
                 <div className="text-[11px] font-mono text-muted-foreground line-through decoration-red-500/50 mb-1 truncate">{c.target_domain}</div>
                 <div className="text-[9px] text-muted-foreground/50">

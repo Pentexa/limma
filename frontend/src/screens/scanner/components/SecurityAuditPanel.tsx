@@ -15,11 +15,7 @@ export function SecurityAuditPanel({ data }: SecurityAuditPanelProps) {
     return "text-red-400 bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(248,113,113,0.15)]";
   };
 
-  const getScoreIndicator = (score: number) => {
-    if (score >= 80) return "bg-emerald-400 shadow-[0_0_8px_#34d399]";
-    if (score >= 50) return "bg-yellow-400 shadow-[0_0_8px_#facc15]";
-    return "bg-red-400 shadow-[0_0_8px_#f87171]";
-  };
+
 
   return (
     <div className="space-y-4 w-full">

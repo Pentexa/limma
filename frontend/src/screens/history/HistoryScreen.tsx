@@ -9,15 +9,13 @@ import { deleteScan, deleteHistoryScan } from "@/entities/scan/api/scan-api";
 import { httpClient } from "@/shared/api/http-client";
 import { TrendChart } from "@/screens/analysis/components/TrendChart";
 import type { ApiDeltaResult } from "@/shared/types/api";
-import { History, Loader2, CheckCircle, XCircle, Trash2, GitCompare, Play } from "lucide-react";
+import { History, Loader2, XCircle, Trash2, GitCompare, Play } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { LoadingSpinner } from "@/shared/ui/loading-spinner";
 import { StatusBadge } from "@/shared/ui/badges";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { historyKeys } from "@/entities/scan/model/use-scan-history";
-import { scanKeys } from "@/entities/scan/model/use-scans";
 
 export function HistoryScreen() {
   const { data: historyScans = [], isLoading } = useScanHistory();
@@ -25,7 +23,7 @@ export function HistoryScreen() {
   const targetUrl = activeScans[0]?.targetUrl;
   const { data: trends = [] } = useScanTrends(targetUrl);
   const [delta, setDelta] = useState<ApiDeltaResult | null>(null);
-  const [deltaLoading, setDeltaLoading] = useState(false);
+  const [, setDeltaLoading] = useState(false);
   const [selectedScans, setSelectedScans] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const router = useRouter();
@@ -45,12 +43,12 @@ export function HistoryScreen() {
       // Force delete from both to ensure it's gone regardless of where it lives
       try {
         await deleteHistoryScan(scanId);
-      } catch (e) {
+      } catch {
         // Ignore errors if it wasn't in history
       }
       try {
         await deleteScan(scanId);
-      } catch (e) {
+      } catch {
         // Ignore errors if it wasn't in active scans
       }
       
@@ -85,7 +83,7 @@ export function HistoryScreen() {
       if (successCount > 0) {
         toast.success(`Successfully deleted ${successCount} scans`);
       }
-    } catch (err) {
+    } catch {
       toast.error("Bulk delete encountered an error");
     } finally {
       setIsBulkDeleting(false);

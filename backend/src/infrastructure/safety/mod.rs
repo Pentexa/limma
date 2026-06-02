@@ -33,10 +33,11 @@ pub struct SafetyFrameworkImpl {
 
 impl SafetyFrameworkImpl {
     pub fn new(pool: PgPool, allowed_domains: Vec<String>, max_requests_per_minute: u32) -> Self {
+        let consent_repo = Box::new(consent_validator::PgConsentRepository::new(pool.clone()));
         Self {
             pool: pool.clone(),
             scope_enforcer: scope_enforcer::ScopeEnforcer::new(allowed_domains),
-            consent_validator: consent_validator::ConsentValidatorImpl::new(pool),
+            consent_validator: consent_validator::ConsentValidatorImpl::new(consent_repo),
             rate_limiter: rate_limiter::ExploitRateLimiter::new(max_requests_per_minute),
         }
     }

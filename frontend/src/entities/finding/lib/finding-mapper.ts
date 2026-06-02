@@ -136,31 +136,33 @@ export function mapActiveFindingToFinding(api: ApiActiveScanFinding): Finding {
 export function mapActiveFindingList(apiFindings: ApiActiveScanFinding[]): Finding[] {
   return apiFindings.map(mapActiveFindingToFinding);
 }
-export function mapMasterFindingToFinding(api: any, scanId: string): Finding {
+export function mapMasterFindingToFinding(api: Record<string, unknown>, scanId: string): Finding {
+  const evidence = api.evidence as Array<Record<string, unknown>> | undefined;
+  const riskScore = api.risk_score as Record<string, unknown> | undefined;
   return {
-    id: asFindingId(api.id ?? Math.random().toString(36).substring(7)),
+    id: asFindingId((api.id as string) ?? Math.random().toString(36).substring(7)),
     scanId: asScanId(scanId || "master-scan"),
-    detector: mapDetector(api.category || api.source_module || 'unknown'),
-    title: api.summary || 'Security Insight',
-    description: api.technical_details || api.summary,
-    severity: mapSeverity(api.severity),
-    confidence: mapConfidence(api.confidence),
+    detector: mapDetector((api.category as string) || (api.source_module as string) || 'unknown'),
+    title: (api.summary as string) || 'Security Insight',
+    description: (api.technical_details as string) || (api.summary as string) || '',
+    severity: mapSeverity((api.severity as string) || ''),
+    confidence: mapConfidence((api.confidence as string) || ''),
     verification: api.status === 'verified' ? 'verified' : 'unverified',
-    url: api.target_identifier || '',
-    parameter: api.affected_path_or_endpoint || '',
-    method: api.method || 'GET',
+    url: (api.target_identifier as string) || '',
+    parameter: (api.affected_path_or_endpoint as string) || '',
+    method: (api.method as string) || 'GET',
     payload: '',
     response: '',
-    evidence: Array.isArray(api.evidence) ? api.evidence.map((e: any) => e.raw_data || e.description || '') : [],
+    evidence: Array.isArray(evidence) ? evidence.map((e) => (e.raw_data as string) || (e.description as string) || '') : [],
     cwe: '',
-    cvss: api.risk_score?.total_score ? api.risk_score.total_score / 10 : estimateCvss(api.severity),
+    cvss: riskScore?.total_score ? (riskScore.total_score as number) / 10 : estimateCvss((api.severity as string) || ''),
     references: [],
-    createdAt: api.timestamp || new Date().toISOString(),
-    updatedAt: api.timestamp || new Date().toISOString(),
+    createdAt: (api.timestamp as string) || new Date().toISOString(),
+    updatedAt: (api.timestamp as string) || new Date().toISOString(),
   };
 }
 
-export function mapMasterFindingList(apiFindings: any[], scanId: string): Finding[] {
+export function mapMasterFindingList(apiFindings: Record<string, unknown>[], scanId: string): Finding[] {
   if (!Array.isArray(apiFindings)) return [];
   return apiFindings.map(f => mapMasterFindingToFinding(f, scanId));
 }

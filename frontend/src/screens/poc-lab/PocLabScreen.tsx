@@ -368,7 +368,7 @@ export function PocLabScreen() {
           isOpen={isVerifyDialogOpen}
           onOpenChange={setIsVerifyDialogOpen}
           isPending={autoExploitMutation.isPending}
-          onConfirm={(level, targetUrl) => {
+          onConfirm={(level) => {
             autoExploitMutation.mutate({ findingId: selectedFinding.id, execution_level: level });
             setIsVerifyDialogOpen(false);
           }}

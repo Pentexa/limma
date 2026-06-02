@@ -105,6 +105,7 @@ impl InMemorySettingsRepository {
             exploit: base_exploit.clone(),
             proxy: base_proxy.clone(),
             sessions: base_sessions.clone(),
+            subdomain: crate::domain::entities::SubdomainDiscoverySettings::default(),
         });
 
         // 2. Fast Profile

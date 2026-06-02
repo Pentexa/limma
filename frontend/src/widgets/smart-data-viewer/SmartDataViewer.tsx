@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { CheckCircle2, XCircle, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
 
 // Helpers
 function formatKey(key: string) {
@@ -118,7 +118,7 @@ function ArrayTableViewer({ data }: { data: Record<string, unknown>[] }) {
                   {isPrimitive(row[col]) ? (
                     <PrimitiveViewer value={row[col] as string | number | boolean | null} fieldKey={col} />
                   ) : Array.isArray(row[col]) ? (
-                    <span className="text-muted-foreground">[{(row[col] as any[]).length} items]</span>
+                    <span className="text-muted-foreground">[{(row[col] as unknown[]).length} items]</span>
                   ) : typeof row[col] === "object" && row[col] !== null ? (
                     <span className="text-muted-foreground">{"{...}"}</span>
                   ) : (

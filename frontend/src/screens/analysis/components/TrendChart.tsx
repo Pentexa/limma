@@ -31,6 +31,43 @@ function smoothLine(points: [number, number][]): string {
 export function TrendChart({ points, className }: TrendChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
+  // Memoize heavy calculations — must be called before any early returns (React Rules of Hooks)
+  const { sorted, W, H, PAD, xScale, yScore, yFindings, scoreAreaPath, scorePath, findingsPath } = useMemo(() => {
+    if (points.length <= 1) {
+      const defaultPAD = { top: 30, right: 30, bottom: 40, left: 50 };
+      return {
+        sorted: [] as ApiTrendPoint[], W: 800, H: 280, PAD: defaultPAD,
+        plotW: 0, plotH: 0,
+        xScale: () => 0, yScore: () => 0, yFindings: () => 0,
+        scoreAreaPath: "", scorePath: "", findingsPath: "",
+      };
+    }
+
+    const sorted = [...points].sort((a, b) => a.timestamp_sec - b.timestamp_sec);
+    const maxScore = 100;
+    const maxFindings = Math.max(...sorted.map(p => p.total_findings), 10);
+  
+    const W = 800;
+    const H = 280;
+    const PAD = { top: 30, right: 30, bottom: 40, left: 50 };
+    const plotW = W - PAD.left - PAD.right;
+    const plotH = H - PAD.top - PAD.bottom;
+  
+    const xScale = (i: number) => PAD.left + (i / (sorted.length - 1)) * plotW;
+    const yScore = (v: number) => PAD.top + plotH - (v / maxScore) * plotH;
+    const yFindings = (v: number) => PAD.top + plotH - (v / maxFindings) * plotH;
+  
+    const scoreCoords: [number, number][] = sorted.map((p, i) => [xScale(i), yScore(p.score)]);
+    const findingsCoords: [number, number][] = sorted.map((p, i) => [xScale(i), yFindings(p.total_findings)]);
+    
+    const scorePath = smoothLine(scoreCoords);
+    const findingsPath = smoothLine(findingsCoords);
+    
+    const scoreAreaPath = `${scorePath} L${xScale(sorted.length - 1)},${H - PAD.bottom} L${PAD.left},${H - PAD.bottom} Z`;
+
+    return { sorted, W, H, PAD, plotW, plotH, xScale, yScore, yFindings, scoreAreaPath, scorePath, findingsPath };
+  }, [points]);
+
   if (points.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-[#080808] border border-white/[0.05] rounded-xl text-muted-foreground/50">
@@ -70,33 +107,6 @@ export function TrendChart({ points, className }: TrendChartProps) {
       </div>
     );
   }
-
-  // Memoize heavy calculations
-  const { sorted, W, H, PAD, plotW, plotH, xScale, yScore, yFindings, scoreAreaPath, scorePath, findingsPath } = useMemo(() => {
-    const sorted = [...points].sort((a, b) => a.timestamp_sec - b.timestamp_sec);
-    const maxScore = 100;
-    const maxFindings = Math.max(...sorted.map(p => p.total_findings), 10);
-  
-    const W = 800;
-    const H = 280;
-    const PAD = { top: 30, right: 30, bottom: 40, left: 50 };
-    const plotW = W - PAD.left - PAD.right;
-    const plotH = H - PAD.top - PAD.bottom;
-  
-    const xScale = (i: number) => PAD.left + (i / (sorted.length - 1)) * plotW;
-    const yScore = (v: number) => PAD.top + plotH - (v / maxScore) * plotH;
-    const yFindings = (v: number) => PAD.top + plotH - (v / maxFindings) * plotH;
-  
-    const scoreCoords: [number, number][] = sorted.map((p, i) => [xScale(i), yScore(p.score)]);
-    const findingsCoords: [number, number][] = sorted.map((p, i) => [xScale(i), yFindings(p.total_findings)]);
-    
-    const scorePath = smoothLine(scoreCoords);
-    const findingsPath = smoothLine(findingsCoords);
-    
-    const scoreAreaPath = `${scorePath} L${xScale(sorted.length - 1)},${H - PAD.bottom} L${PAD.left},${H - PAD.bottom} Z`;
-
-    return { sorted, W, H, PAD, plotW, plotH, xScale, yScore, yFindings, scoreAreaPath, scorePath, findingsPath };
-  }, [points]);
 
   // Handle interactive hover
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {

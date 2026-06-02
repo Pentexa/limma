@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, RefreshCcw, Home } from "lucide-react";
+import Link from "next/link";
 
 /**
  * Next.js root error boundary page.
@@ -41,13 +42,13 @@ export default function GlobalError({
             <RefreshCcw className="h-3.5 w-3.5" />
             Try Again
           </button>
-          <a
+          <Link
             href="/"
             className="flex items-center gap-2 px-4 py-2.5 bg-muted/50 hover:bg-muted text-foreground rounded-lg text-[12px] font-semibold transition-colors border border-border"
           >
             <Home className="h-3.5 w-3.5" />
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     </div>

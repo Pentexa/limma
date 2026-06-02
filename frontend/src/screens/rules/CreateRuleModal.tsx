@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { X, Save, AlertCircle, RefreshCw } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
 
 interface CreateRuleModalProps {
   isOpen: boolean;
@@ -13,7 +12,7 @@ export function CreateRuleModal({ isOpen, onClose, onSubmit, isSubmitting }: Cre
   const [name, setName] = useState("");
   const [category, setCategory] = useState("injection");
   const [severity, setSeverity] = useState("high");
-  const [confidence, setConfidence] = useState("tentative");
+  const [confidence] = useState("tentative");
   const [conditionType, setConditionType] = useState("body_contains");
   const [conditionValue, setConditionValue] = useState("");
   

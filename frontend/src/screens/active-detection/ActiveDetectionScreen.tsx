@@ -4,13 +4,13 @@ import { useState, useMemo } from "react";
 import { cn } from "@/shared/lib/utils";
 import { useGlobalFindings } from "@/entities/finding/model/use-findings";
 import { DETECTOR_META } from "@/entities/finding/model/types";
-import type { Finding, VerificationStatus } from "@/entities/finding/model/types";
+import type { VerificationStatus } from "@/entities/finding/model/types";
 import type { Severity } from "@/shared/types/common";
 import { compareBySeverity } from "@/shared/config/priority";
 import { SeverityFilterBar } from "./components/SeverityFilterBar";
 import { FindingDetailPanel } from "./components/FindingDetailPanel";
 import {
-  Loader2, Zap, CheckCircle, Eye, AlertTriangle, ChevronRight, Shield
+  Loader2, Zap, CheckCircle, Eye, AlertTriangle, ChevronRight
 } from "lucide-react";
 import { WafBadge } from "@/shared/ui/WafBadge";
 
@@ -163,7 +163,7 @@ export function ActiveDetectionScreen() {
                           </span>
                         )}
                       </div>
-                      <p className={cn("text-[12px] font-medium truncate transition-colors",
+                      <div className={cn("text-[12px] font-medium truncate transition-colors",
                         isSelected ? "text-primary" : "text-foreground/90 group-hover:text-foreground"
                       )}>
                         {f.title.startsWith("WAF Detected: ") ? (
@@ -173,7 +173,7 @@ export function ActiveDetectionScreen() {
                         ) : (
                           f.title
                         )}
-                      </p>
+                      </div>
                       <div className="flex items-center gap-2 text-[9px] text-muted-foreground/50 font-mono">
                         <span className="truncate max-w-[300px]">{f.url} → {f.parameter}</span>
                         <span>·</span>

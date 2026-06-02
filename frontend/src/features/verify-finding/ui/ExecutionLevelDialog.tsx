@@ -13,12 +13,12 @@ interface ExecutionLevelDialogProps {
 }
 
 export function ExecutionLevelDialog({ isOpen, onOpenChange, onConfirm, isPending }: ExecutionLevelDialogProps) {
-  const [level, setLevel] = useState<SafetyLevel>("L1SafeReadOnly");
+  const [level, setLevel] = useState<SafetyLevel>("l1_safe_read_only");
   const [targetUrl, setTargetUrl] = useState("");
   const [consentChecked, setConsentChecked] = useState(false);
 
   // Validate L3
-  const isL3 = level === "L3ActiveWithConsent";
+  const isL3 = level === "l3_active_with_consent";
   const canConfirm = !isL3 || (consentChecked && targetUrl.trim().length > 3);
 
   const handleConfirm = () => {
@@ -44,8 +44,8 @@ export function ExecutionLevelDialog({ isOpen, onOpenChange, onConfirm, isPendin
           {/* Level Selection */}
           <div className="grid gap-3">
             <div 
-              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "L1SafeReadOnly" ? "border-green-500 bg-green-500/10" : "border-slate-800 hover:border-slate-700"}`}
-              onClick={() => setLevel("L1SafeReadOnly")}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "l1_safe_read_only" ? "border-green-500 bg-green-500/10" : "border-slate-800 hover:border-slate-700"}`}
+              onClick={() => setLevel("l1_safe_read_only")}
             >
               <Code className="w-5 h-5 text-green-500 mt-0.5" />
               <div>
@@ -55,8 +55,8 @@ export function ExecutionLevelDialog({ isOpen, onOpenChange, onConfirm, isPendin
             </div>
 
             <div 
-              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "L2VerifiedSandbox" ? "border-blue-500 bg-blue-500/10" : "border-slate-800 hover:border-slate-700"}`}
-              onClick={() => setLevel("L2VerifiedSandbox")}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "l2_verified_sandbox" ? "border-blue-500 bg-blue-500/10" : "border-slate-800 hover:border-slate-700"}`}
+              onClick={() => setLevel("l2_verified_sandbox")}
             >
               <ShieldCheck className="w-5 h-5 text-blue-500 mt-0.5" />
               <div>
@@ -66,8 +66,8 @@ export function ExecutionLevelDialog({ isOpen, onOpenChange, onConfirm, isPendin
             </div>
 
             <div 
-              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "L3ActiveWithConsent" ? "border-red-500 bg-red-500/10" : "border-slate-800 hover:border-slate-700"}`}
-              onClick={() => setLevel("L3ActiveWithConsent")}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${level === "l3_active_with_consent" ? "border-red-500 bg-red-500/10" : "border-slate-800 hover:border-slate-700"}`}
+              onClick={() => setLevel("l3_active_with_consent")}
             >
               <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
               <div>

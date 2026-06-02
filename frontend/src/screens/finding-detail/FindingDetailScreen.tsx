@@ -12,7 +12,6 @@ import {
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ExecutionLevelDialog } from "@/features/verify-finding/ui/ExecutionLevelDialog";
-import type { SafetyLevel } from "@/features/blind-scan/api/blind-scan-api";
 
 interface FindingDetailScreenProps {
   findingId: string;
@@ -265,7 +264,7 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
         isOpen={isVerifyDialogOpen}
         onOpenChange={setIsVerifyDialogOpen}
         isPending={verifyMutation.isPending}
-        onConfirm={(level, targetUrl) => {
+        onConfirm={(level) => {
           verifyMutation.mutate({ findingId: finding.id, execution_level: level });
           setIsVerifyDialogOpen(false);
         }}

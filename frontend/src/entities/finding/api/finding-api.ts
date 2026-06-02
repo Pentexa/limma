@@ -44,14 +44,23 @@ export async function updateFinding(
   );
   return mapActiveFindingToFinding(raw);
 }
+interface MasterReportResponse {
+  normalized_audit?: {
+    findings?: Record<string, unknown>[];
+  };
+  analysis?: {
+    risk_insights?: Record<string, unknown>[];
+  };
+}
+
 /** Fetch findings from the Master Report endpoint */
 export async function fetchMasterReportFindings(url: string, scanId: string): Promise<Finding[]> {
   if (!url) return [];
   try {
-    const raw = await httpClient.post<any>("/master-report", { url });
+    const raw = await httpClient.post<MasterReportResponse>("/master-report", { url });
     
     // Extract normalized_audit.findings or analysis.risk_insights
-    let findingsList = [];
+    let findingsList: Record<string, unknown>[] = [];
     if (raw?.normalized_audit?.findings && Array.isArray(raw.normalized_audit.findings)) {
       findingsList = raw.normalized_audit.findings;
     } else if (raw?.analysis?.risk_insights && Array.isArray(raw.analysis.risk_insights)) {

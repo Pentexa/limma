@@ -1323,6 +1323,11 @@ pub enum BlindVulnType {
     JwtNoneAlg,
     XmlExternalEntity,
     InsecureDeserialization,
+    RemoteFileInclusion,
+    HostHeaderInjection,
+    GraphqlAbuse,
+    WebCacheDeception,
+    HttpRequestSmuggling,
 }
 
 /// How the vulnerability was detected
@@ -1392,6 +1397,14 @@ pub enum PocType {
     InsecureDeserialization,
     CrossSiteScripting,
     HttpExploit,
+    NoSqlInjection,
+    ServerSideTemplateInjection,
+    InsecureDirectObjectReference,
+    RemoteFileInclusion,
+    HostHeaderInjection,
+    GraphqlAbuse,
+    WebCacheDeception,
+    HttpRequestSmuggling,
 }
 
 /// Language used for PoC code
@@ -1650,6 +1663,8 @@ pub struct SettingsProfile {
     pub exploit: ExploitSettings,
     pub proxy: ProxySettings,
     pub sessions: SessionSettings,
+    #[serde(default)]
+    pub subdomain: SubdomainDiscoverySettings,
 }
 
 impl Default for GlobalSettings {
@@ -1783,6 +1798,116 @@ impl Default for SettingsProfile {
             exploit: ExploitSettings::default(),
             proxy: ProxySettings::default(),
             sessions: SessionSettings::default(),
+            subdomain: SubdomainDiscoverySettings::default(),
         }
     }
 }
+
+// ── Subdomain Discovery Entities ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubdomainSource {
+    CrtSh,
+    DnsWordlist,
+    CrawlerLinks,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubdomainStatus {
+    Validated,
+    Unresolved,
+    WildcardFiltered,
+    HttpAlive,
+    HttpDead,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsRecord {
+    pub record_type: String,   // "A", "AAAA", "CNAME", "MX", "TXT"
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpProbeResult {
+    pub url: String,
+    pub status_code: u16,
+    pub title: Option<String>,
+    pub server: Option<String>,
+    pub content_type: Option<String>,
+    pub technologies: Vec<String>,
+    pub tls_issuer: Option<String>,
+    pub tls_subject: Option<String>,
+    pub redirect_chain: Vec<RedirectChainEntry>,
+    pub response_time_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubdomainAsset {
+    pub asset: String,                        // "api.example.com"
+    pub asset_type: String,                   // "subdomain"
+    pub sources: Vec<SubdomainSource>,
+    pub resolved_ips: Vec<String>,
+    pub dns_records: Vec<DnsRecord>,
+    pub http_probe: Option<HttpProbeResult>,
+    pub http_status: Option<u16>,
+    pub technologies: Vec<String>,
+    pub confidence: f32,                      // 0.0 - 1.0
+    pub status: SubdomainStatus,
+    pub risk_tags: Vec<String>,
+    pub last_seen: String,                    // ISO 8601 date
+    pub certainty: Option<CertaintyLevel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WildcardDnsInfo {
+    pub is_wildcard: bool,
+    pub test_subdomain: String,
+    pub resolved_ips: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubdomainDiscoveryMetrics {
+    pub total_candidates: usize,
+    pub validated_count: usize,
+    pub wildcard_filtered_count: usize,
+    pub duplicate_removed_count: usize,
+    pub http_alive_count: usize,
+    pub passive_source_count: usize,
+    pub active_source_count: usize,
+    pub precision: f32,
+    pub scan_duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubdomainDiscoveryResult {
+    pub domain: String,
+    pub wildcard_dns: WildcardDnsInfo,
+    pub assets: Vec<SubdomainAsset>,
+    pub metrics: SubdomainDiscoveryMetrics,
+    pub discovery_certainty: Option<CertaintyNote>,
+    pub scan_timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubdomainDiscoverySettings {
+    pub wordlist_size: String,       // "small" | "medium" | "large"
+    pub enable_crtsh: bool,
+    pub enable_dns_bruteforce: bool,
+    pub http_probe_enabled: bool,
+    pub max_concurrent_dns: usize,
+}
+
+impl Default for SubdomainDiscoverySettings {
+    fn default() -> Self {
+        Self {
+            wordlist_size: "medium".to_string(),
+            enable_crtsh: true,
+            enable_dns_bruteforce: true,
+            http_probe_enabled: true,
+            max_concurrent_dns: 20,
+        }
+    }
+}
+

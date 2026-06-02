@@ -14,7 +14,7 @@ export interface PocGenerateRequest {
   preferred_language?: string;
 }
 
-export type SafetyLevel = 'L1SafeReadOnly' | 'L2VerifiedSandbox' | 'L3ActiveWithConsent';
+export type SafetyLevel = 'l1_safe_read_only' | 'l2_verified_sandbox' | 'l3_active_with_consent';
 
 export interface ExploitVerifyRequest {
   poc_id: string;

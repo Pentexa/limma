@@ -21,9 +21,10 @@ export function StreamViewer() {
           </div>
         ) : (
           events.slice(0, 100).map((event, idx) => {
-            const data = event.data as any;
-            let level = (data?.level ?? event.type ?? "info").toLowerCase();
-            const message = data?.message ?? (typeof data === "string" ? data : JSON.stringify(data)) ?? "Event";
+            const data = event.data as Record<string, unknown> | string | null;
+            const dataObj = typeof data === "object" && data !== null ? data : null;
+            let level = ((dataObj?.level as string) ?? event.type ?? "info").toLowerCase();
+            const message = (dataObj?.message as string) ?? (typeof data === "string" ? data : JSON.stringify(data)) ?? "Event";
 
             // Enhanced Content-Based Color Parsing
             const msgLower = message.toLowerCase();

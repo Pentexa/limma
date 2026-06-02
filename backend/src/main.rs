@@ -6,11 +6,11 @@
 use limma::api::handlers::{
     analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
     burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
-    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis,
+    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis, discover_subdomains,
     download_poc, export_to_burp, export_to_nuclei, generate_master_report, generate_poc,
     generate_poc_for_finding, get_active_finding, get_active_scan, get_consents_handler,
     get_feedback_stats, get_history_delta, get_history_trends, get_rule_engine_status,
-    get_scan_by_id, get_settings_profiles, grant_consent_handler, investigate_server,
+    get_scan_by_id, get_settings_profiles, get_health, grant_consent_handler, investigate_server,
     investigate_server_stream, list_active_findings, list_active_findings_filtered,
     list_active_scans, list_scans, map_forms, proxy_request, revoke_consent_handler,
     start_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
@@ -22,6 +22,7 @@ use limma::infrastructure::collector::HttpServiceCollector;
 use limma::infrastructure::db::init_db;
 use limma::infrastructure::delta_engine::DeltaEngine;
 use limma::infrastructure::discoverer::HttpApiDiscoverer;
+use limma::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
 use limma::infrastructure::investigator::HttpInvestigator;
 use limma::infrastructure::mapper::HttpFormMapper;
 
@@ -61,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
 
     let website_scanner = Arc::new(HttpWebsiteScanner::new());
     let server_investigator = Arc::new(HttpInvestigator::new());
+    let subdomain_discoverer = Arc::new(HttpSubdomainDiscoverer::new());
     let api_discoverer = Arc::new(HttpApiDiscoverer::new());
     let service_collector = Arc::new(HttpServiceCollector::new());
     let security_auditor = Arc::new(HttpSecurityAuditor::new().with_pool(pool.clone()));
@@ -202,6 +204,7 @@ async fn main() -> anyhow::Result<()> {
     let shared_state = Arc::new(AppState {
         website_scanner,
         server_investigator,
+        subdomain_discoverer,
         api_discoverer,
         service_collector,
         security_auditor,
@@ -233,6 +236,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build our application with routes
     let app = Router::new()
+        .route("/api/health", axum::routing::get(get_health))
         .route("/analyze", post(analyze_website))
         .route(
             "/analyze/stream",
@@ -244,6 +248,7 @@ async fn main() -> anyhow::Result<()> {
             axum::routing::get(investigate_server_stream),
         )
         .route("/discover-apis", post(discover_apis))
+        .route("/discover-subdomains", post(discover_subdomains))
         .route("/collect-services", post(collect_services))
         .route("/audit-security", post(audit_security))
         .route("/map-forms", post(map_forms))
