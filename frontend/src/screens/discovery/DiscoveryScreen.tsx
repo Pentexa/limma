@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
-import { useDiscoverSubdomains } from "@/entities/intelligence/model/use-intelligence";
+import { useDiscoverSubdomains, useDiscoverCertificates } from "@/entities/intelligence/model/use-intelligence";
 import { SubdomainDiscoveryPanel } from "./components/SubdomainDiscoveryPanel";
+import { CertificateDiscoveryPanel } from "./components/CertificateDiscoveryPanel";
 import { SmartDataViewer } from "@/widgets/smart-data-viewer/SmartDataViewer";
 import {
   Compass, Globe, Cloud, Key, FileWarning, MapPin,
@@ -17,7 +18,7 @@ const TABS: { id: DiscoveryTab; label: string; icon: React.ElementType; ready: b
   { id: "subdomains",   label: "Subdomains",        icon: Globe,       ready: true },
   { id: "cloud",        label: "Cloud Assets",      icon: Cloud,       ready: false },
   { id: "leaks",        label: "Leak Discovery",    icon: Key,         ready: false },
-  { id: "certificates", label: "Certificates",      icon: FileWarning, ready: false },
+  { id: "certificates", label: "Certificates",      icon: FileWarning, ready: true },
   { id: "exposure",     label: "Exposure Map",      icon: MapPin,      ready: false },
   { id: "expansion",    label: "Attack Surface",    icon: Compass,     ready: false },
 ];
@@ -35,6 +36,7 @@ export function DiscoveryScreen() {
   const [domain, setDomain] = useState("");
   const [viewMode, setViewMode] = useState<"ui" | "raw">("ui");
   const subdomainMut = useDiscoverSubdomains();
+  const certMut = useDiscoverCertificates();
 
   function handleRun() {
     if (!domain.trim()) return;
@@ -45,14 +47,19 @@ export function DiscoveryScreen() {
     } catch {
       // Use as-is if not a valid URL
     }
-    subdomainMut.mutate({ domain: cleanDomain });
+    
+    if (activeTab === "subdomains") {
+      subdomainMut.mutate({ domain: cleanDomain });
+    } else if (activeTab === "certificates") {
+      certMut.mutate({ domain: cleanDomain, validate_assets: true });
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") handleRun();
   }
 
-  const isPending = activeTab === "subdomains" && subdomainMut.isPending;
+  const isPending = (activeTab === "subdomains" && subdomainMut.isPending) || (activeTab === "certificates" && certMut.isPending);
 
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden bg-[#0a0a0c]">
@@ -93,6 +100,11 @@ export function DiscoveryScreen() {
               <span className={cn("text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md",
                 activeTab === tab.id ? "bg-primary/20 text-primary" : "bg-white/[0.04] text-muted-foreground/50"
               )}>{subdomainMut.data.assets.length}</span>
+            )}
+            {tab.id === "certificates" && certMut.data && (
+              <span className={cn("text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md",
+                activeTab === tab.id ? "bg-primary/20 text-primary" : "bg-white/[0.04] text-muted-foreground/50"
+              )}>{certMut.data.assets.length}</span>
             )}
           </button>
         ))}
@@ -220,8 +232,126 @@ export function DiscoveryScreen() {
             </div>
           )}
 
+          {/* ── Certificate Discovery Tab ── */}
+          {activeTab === "certificates" && (
+            <div className="space-y-6">
+              {/* Input + Run */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <FileWarning className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30" />
+                  <input
+                    id="certificates-domain-input"
+                    type="text"
+                    placeholder="Enter target domain (e.g. example.com)"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full h-11 pl-10 pr-4 text-[13px] font-mono bg-white/[0.03] border border-white/[0.06] rounded-lg focus:border-primary/50 focus:ring-1 focus:ring-primary/20 focus:outline-none transition-all text-foreground placeholder:text-muted-foreground/40"
+                  />
+                </div>
+                <button
+                  id="certificates-run-button"
+                  className={cn(
+                    "flex items-center gap-2 px-6 h-11 rounded-lg text-[12px] font-semibold transition-all duration-200 active:scale-[0.98]",
+                    certMut.isPending
+                      ? "bg-primary/10 text-primary border border-primary/20 cursor-wait"
+                      : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20",
+                    (!domain.trim() || certMut.isPending) && "opacity-50"
+                  )}
+                  disabled={!domain.trim() || certMut.isPending}
+                  onClick={handleRun}
+                >
+                  {certMut.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 shrink-0" />
+                  )}
+                  Run Discovery
+                </button>
+              </div>
+
+              {/* Error */}
+              {certMut.error && (
+                <div className="flex items-center gap-3 text-[12px] font-medium text-red-400 bg-red-500/[0.06] border border-red-500/10 rounded-xl px-4 py-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> {certMut.error.message}
+                </div>
+              )}
+
+              {/* Results */}
+              {certMut.data && (
+                <div className={cn(
+                  "transition-all duration-300 flex flex-col",
+                  viewMode === "raw" ? "bg-white/[0.02] border border-white/[0.06] rounded-xl shadow-lg overflow-hidden" : ""
+                )}>
+                  <div className={cn(
+                    "flex items-center justify-between gap-3",
+                    viewMode === "raw" ? "p-4 border-b border-white/[0.04] bg-white/[0.01]" : "mb-4"
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center h-6 w-6 rounded-md bg-emerald-500/10">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                      </div>
+                      <span className="text-[13px] font-semibold text-foreground/90">Discovery Results</span>
+                      <span className="text-[11px] font-mono font-medium text-muted-foreground/60 bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-md">
+                        {certMut.data.assets.length} certificates found
+                      </span>
+                    </div>
+                    <div className="flex items-center bg-black/40 border border-white/[0.06] rounded-lg p-0.5">
+                      <button
+                        onClick={() => setViewMode("ui")}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors",
+                          viewMode === "ui"
+                            ? "bg-white/[0.08] text-foreground shadow-sm"
+                            : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-white/[0.02]"
+                        )}
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5" />
+                        UI View
+                      </button>
+                      <button
+                        onClick={() => setViewMode("raw")}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors",
+                          viewMode === "raw"
+                            ? "bg-white/[0.08] text-foreground shadow-sm"
+                            : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-white/[0.02]"
+                        )}
+                      >
+                        <Code2 className="h-3.5 w-3.5" />
+                        Raw Data
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-transparent">
+                    {viewMode === "ui" ? (
+                      <CertificateDiscoveryPanel data={certMut.data} domain={domain} />
+                    ) : (
+                      <SmartDataViewer data={certMut.data} />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!certMut.data && !certMut.isPending && !certMut.error && (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/30 px-6 text-center">
+                  <div className="h-16 w-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
+                    <FileWarning className="h-7 w-7 opacity-50" />
+                  </div>
+                  <span className="text-[14px] font-medium text-muted-foreground/50">
+                    Enter a domain to begin certificate discovery
+                  </span>
+                  <span className="text-[12px] mt-1 text-muted-foreground/30">
+                    Scan Certificate Transparency logs (crt.sh) to discover related domains and subdomains.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Coming Soon Tabs ── */}
-          {activeTab !== "subdomains" && (
+          {activeTab !== "subdomains" && activeTab !== "certificates" && (
             <ComingSoonPanel
               tabId={activeTab}
               icon={TABS.find(t => t.id === activeTab)!.icon}

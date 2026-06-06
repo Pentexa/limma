@@ -7,6 +7,9 @@ use super::VulnDetector;
 use crate::domain::active_vuln::*;
 use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
 
+use std::sync::{Arc, Mutex};
+use headless_chrome::{Browser, LaunchOptionsBuilder};
+
 pub struct XssDetector {
     client: Client,
 }
@@ -16,30 +19,59 @@ impl XssDetector {
         Self { client }
     }
 
-    fn check_xss_reflection(&self, body: &str, payload: &str) -> bool {
+    fn check_xss_reflection(&self, body: &str, payload: &str) -> (bool, bool) {
         if !body.contains(payload) {
-            return false;
+            return (false, false);
         }
-        // Ensure it's NOT HTML-encoded
+        
         let encoded = payload.replace('<', "&lt;").replace('>', "&gt;");
         if body.contains(&encoded) && !body.contains(payload) {
-            return false;
+            return (false, false);
         }
-        // Check for active script/event handler contexts
+
         let dangerous_indicators = [
-            "<script",
-            "onerror=",
-            "onload=",
-            "onclick=",
-            "onfocus=",
-            "onmouseover=",
-            "ontoggle=",
-            "javascript:",
-            "constructor.constructor",
+            "<script", "onerror=", "onload=", "onclick=", "onfocus=", "onmouseover=", "ontoggle=", "javascript:",
         ];
-        dangerous_indicators
+        
+        let is_dangerous = dangerous_indicators
             .iter()
-            .any(|ind| payload.to_lowercase().contains(&ind.to_lowercase()))
+            .any(|ind| payload.to_lowercase().contains(&ind.to_lowercase()) || body.to_lowercase().contains(&ind.to_lowercase()));
+            
+        (true, is_dangerous)
+    }
+
+    fn headless_verify(&self, test_url: &str) -> bool {
+        let options = LaunchOptionsBuilder::default()
+            .headless(true)
+            .idle_browser_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
+
+        if let Ok(browser) = Browser::new(options) {
+            if let Ok(tab) = browser.new_tab() {
+                let triggered = Arc::new(Mutex::new(false));
+                let triggered_clone = triggered.clone();
+
+                let _ = tab.add_event_listener(Arc::new(move |event: &headless_chrome::protocol::cdp::types::Event| {
+                    match event {
+                        headless_chrome::protocol::cdp::types::Event::PageJavascriptDialogOpening(ref _dialog) => {
+                            if let Ok(mut lock) = triggered_clone.lock() {
+                                *lock = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }));
+
+                // Attempt navigation
+                let _ = tab.navigate_to(test_url);
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                
+                let res = *triggered.lock().unwrap();
+                return res;
+            }
+        }
+        false
     }
 }
 
@@ -62,6 +94,8 @@ impl VulnDetector for XssDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
         let payloads = payload_selector.select(ActiveVulnType::ReflectedXss);
@@ -95,16 +129,39 @@ impl VulnDetector for XssDetector {
 
             let body = resp.text().await.map_err(|e| e.to_string())?;
 
-            if self.check_xss_reflection(&body, &payload_def.payload) {
-                // DIFFERENTIAL ANALYSIS: False Positive Check
-                // If the baseline inherently has this exact "payload" string (e.g. it was part of the original page script), ignore it.
+            let (reflected, dangerous) = self.check_xss_reflection(&body, &payload_def.payload);
+            if reflected {
+                if !dangerous {
+                    // Safe reflection (HTML encoded). Not a vulnerability.
+                    continue;
+                }
+
                 let is_false_positive = baseline
                     .map(|b| b.contains_indicator(&payload_def.payload))
                     .unwrap_or(false);
 
                 if is_false_positive {
-                    continue; // Skip, it's just normal page content
+                    continue; 
                 }
+
+                let mut finding_severity = SeverityLevel::Medium;
+                let mut finding_confidence = ConfidenceLevel::Firm;
+                let mut additional_notes = vec![
+                    payload_def.description.clone(),
+                    "Payload reflected without HTML encoding".to_string(),
+                    "Reflection is in a potentially dangerous context (Potential XSS)".to_string(),
+                ];
+
+                    // Headless Verification
+                    if self.headless_verify(&test_url) {
+                        finding_severity = SeverityLevel::High;
+                        finding_confidence = ConfidenceLevel::Certain;
+                        additional_notes.push("Headless Verification: Javascript Execution Confirmed!".to_string());
+                    } else {
+                        additional_notes.push("Headless Verification: Did not execute (False Positive / Defended)".to_string());
+                        // Optional: skip adding the finding if we strictly want only confirmed
+                        // continue;
+                    }
 
                 findings.push(ActiveVulnFinding {
                     id: Uuid::new_v4(),
@@ -120,25 +177,59 @@ impl VulnDetector for XssDetector {
                         response_raw: body.chars().take(2000).collect(),
                         response_time_ms: elapsed,
                         matched_indicator: format!("XSS payload reflected: {}", payload_def.id),
-                        additional_notes: vec![
-                            payload_def.description.clone(),
-                            "Payload reflected without HTML encoding".to_string(),
-                            "Verified against Differential Baseline".to_string(),
-                        ],
+                        additional_notes,
                     },
-                    severity: SeverityLevel::High,
-                    confidence: ConfidenceLevel::Certain,
+                    severity: finding_severity,
+                    confidence: finding_confidence.clone(),
                     exploitability: ExploitabilityLevel::Actionable,
                     poc_generated: false,
                     poc_id: None,
-                    verified: true,
+                    verified: finding_confidence == ConfidenceLevel::Certain,
                     false_positive: false,
                 });
-                // One finding per parameter is enough
-                break;
+                
+                if finding_confidence == ConfidenceLevel::Certain {
+                    break;
+                }
             }
         }
 
         Ok(findings)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::Client;
+
+    #[test]
+    fn test_xss_reflection_logic() {
+        let detector = XssDetector::new(Client::new());
+        let payload = "<script>alert(1)</script>";
+        
+        // 1. Valid reflection, dangerous
+        let body = "Hello <script>alert(1)</script> World";
+        let (reflected, dangerous) = detector.check_xss_reflection(body, payload);
+        assert!(reflected);
+        assert!(dangerous);
+        
+        // 2. HTML Encoded, should NOT be reflected
+        let body = "Hello &lt;script&gt;alert(1)&lt;/script&gt; World";
+        let (reflected, _dangerous) = detector.check_xss_reflection(body, payload);
+        assert!(!reflected);
+        
+        // 3. Not reflected
+        let body = "Hello World";
+        let (reflected, _dangerous) = detector.check_xss_reflection(body, payload);
+        assert!(!reflected);
+        
+        // 4. Reflected but not dangerous
+        let payload_safe = "JohnDoe";
+        let body_safe = "Hello JohnDoe";
+        let (reflected, dangerous) = detector.check_xss_reflection(body_safe, payload_safe);
+        assert!(reflected);
+        assert!(!dangerous);
+    }
+}
+

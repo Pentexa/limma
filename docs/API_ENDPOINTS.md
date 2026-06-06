@@ -148,15 +148,7 @@ ExploitResult {
 
 ---
 
-## 🔌 Burp Suite Bridge
 
-| Method | Endpoint | Request | Response |
-|--------|----------|---------|----------|
-| `POST` | `/api/burp/handshake` | `{burp_version, plugin_version}` | `BurpHandshakeResponse` (session_id) |
-| `POST` | `/api/burp/import-traffic` | `{session_id, http_requests[]}` | `BurpImportTrafficResponse` |
-| `GET` | `/api/burp/findings/:session_id` | - | `BurpFindingsResponse` |
-| `GET` | `/api/burp/stream/:session_id` | - | SSE stream (real-time) |
-| `GET` | `/api/burp/sessions` | - | `BurpBridgeSession[]` |
 
 ---
 
@@ -164,8 +156,6 @@ ExploitResult {
 
 | Method | Endpoint | Request | Response |
 |--------|----------|---------|----------|
-| `POST` | `/api/export/burp` | `MasterReport` | `{xml_url}` (Burp XML export) |
-| `POST` | `/api/export/nuclei` | `MasterReport` | `{yaml_templates[]}` |
 | `POST` | `/proxy-request` | `{url, method, body?}` | Proxied HTTP response |
 | `POST` | `/verify-port` | `{host, port}` | `{is_active, latency_ms, banner}` |
 

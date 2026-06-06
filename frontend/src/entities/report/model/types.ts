@@ -1,7 +1,7 @@
 import type { ID, Timestamp } from "@/shared/types/common";
 
 /** Report format */
-export type ReportFormat = "pdf" | "html" | "json" | "burp" | "nuclei";
+export type ReportFormat = "pdf" | "html" | "json";
 
 /** Report status */
 export type ReportStatus = "generating" | "completed" | "failed";

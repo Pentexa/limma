@@ -5,7 +5,7 @@ import { useReports, reportKeys } from "@/entities/report/model/use-reports";
 import { saveLocalReport } from "@/entities/report/api/report-api";
 import { useScans } from "@/entities/scan/model/use-scans";
 import { httpClient } from "@/shared/api/http-client";
-import { FileText, Loader2, Download, FileCode, Bug } from "lucide-react";
+import { FileText, Loader2, Download } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Report } from "@/entities/report/model/types";
@@ -15,77 +15,19 @@ export function ReportsScreen() {
   const { data: reports = [], isLoading } = useReports();
   const { data: scans = [] } = useScans();
   const activeScan = scans.find(s => s.status === "running") ?? scans[0];
-  const [exporting, setExporting] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
 
-  async function handleExport(format: "nuclei" | "burp") {
-    if (!activeScan?.targetUrl) return;
-    setExporting(format);
-    try {
-      // 1. Fetch MasterReport payload expected by backend
-      const masterReport = await httpClient.post<ApiMasterReport>("/master-report", { url: activeScan.targetUrl });
-      
-      // 2. Post to the respective export endpoint
-      const endpoint = format === "nuclei" ? "/api/export/nuclei" : "/api/export/burp";
-      const result = await httpClient.post<{ yaml?: string; xml?: string; filename?: string; }>(endpoint, masterReport);
-      
-      // 3. Create blob and download locally (backend returns raw string, not a URL)
-      const content = format === "nuclei" ? result.yaml : result.xml;
-      if (!content) throw new Error("No content received from export endpoint");
-      
-      const filename = result.filename || `limma_export_${format === "nuclei" ? "nuclei.yaml" : "burp.xml"}`;
-      const blob = new Blob([content], { type: "text/plain" });
-      const downloadUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
 
-      // 4. Save report to local history
-      const reportId = crypto.randomUUID();
-      let findings: { severity?: string }[] = [];
-      if (masterReport?.normalized_audit?.canonical_findings) {
-        findings = masterReport.normalized_audit.canonical_findings;
-      } else if (masterReport?.analysis?.risk_insights) {
-        findings = masterReport.analysis.risk_insights;
-      }
-      
-      const newReport: Report = {
-        id: reportId,
-        scanId: activeScan.id,
-        title: `${new URL(activeScan.targetUrl).hostname} Export`,
-        format,
-        status: "completed",
-        fileUrl: null, // Local blob URLs expire, so we leave it null for history items
-        findingCount: findings.length || 0,
-        criticalCount: findings.filter((f) => f.severity === "critical").length || 0,
-        highCount: findings.filter((f) => f.severity === "high").length || 0,
-        createdAt: new Date().toISOString()
-      };
-      saveLocalReport(newReport);
-      queryClient.invalidateQueries({ queryKey: reportKeys.lists() });
-    } catch (err) {
-      console.error(`Export ${format} failed:`, err);
-    } finally {
-      setExporting(null);
-    }
-  }
 
   const FORMAT_BADGE: Record<string, { cls: string }> = {
     pdf: { cls: "bg-risk/10 text-risk border-risk/20" },
     html: { cls: "bg-primary/10 text-primary border-primary/20" },
     json: { cls: "bg-analysis/10 text-analysis border-analysis/20" },
-    burp: { cls: "bg-attention/10 text-attention border-attention/20" },
-    nuclei: { cls: "bg-verified/10 text-verified border-verified/20" },
   };
 
   const metrics = {
     total: reports.length,
-    nuclei: reports.filter(r => r.format === "nuclei").length,
-    burp: reports.filter(r => r.format === "burp").length,
     criticals: reports.reduce((sum, r) => sum + (r.criticalCount || 0), 0)
   };
 
@@ -111,24 +53,7 @@ export function ReportsScreen() {
           </div>
         </div>
         {/* Export actions */}
-        <div className="flex items-center gap-2">
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold bg-verified/10 text-verified border border-verified/20 hover:bg-verified/20 transition-colors disabled:opacity-50"
-            disabled={!activeScan?.id || exporting === "nuclei"}
-            onClick={() => handleExport("nuclei")}
-          >
-            {exporting === "nuclei" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileCode className="h-3 w-3" />}
-            Export Nuclei
-          </button>
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold bg-attention/10 text-attention border border-attention/20 hover:bg-attention/20 transition-colors disabled:opacity-50"
-            disabled={!activeScan?.id || exporting === "burp"}
-            onClick={() => handleExport("burp")}
-          >
-            {exporting === "burp" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bug className="h-3 w-3" />}
-            Export Burp
-          </button>
-        </div>
+
       </div>
 
       {/* Content */}
@@ -155,8 +80,6 @@ export function ReportsScreen() {
               <div className="flex flex-wrap items-center gap-3 px-1 mb-6">
                 {[
                   { label: "Total Reports", value: metrics.total, color: "text-foreground" },
-                  { label: "Nuclei Exports", value: metrics.nuclei, color: "text-verified" },
-                  { label: "Burp Exports", value: metrics.burp, color: "text-attention" },
                   { label: "Total Criticals", value: metrics.criticals, color: "text-risk" },
                 ].map(m => (
                   <div key={m.label} className="flex items-baseline gap-1.5 bg-[#0a0a0a] border border-border/20 px-3 py-1.5 rounded shadow-sm">

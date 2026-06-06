@@ -63,6 +63,11 @@ function mapScanResult(scan: ApiActiveScanResult): ScanResult | null {
     infoCount: s.info_count,
     verifiedCount: scan.findings?.filter((f) => f.verified).length ?? 0,
     unverifiedCount: scan.findings?.filter((f) => !f.verified).length ?? 0,
+    totalEndpoints: s.total_endpoints,
+    totalParameters: s.total_parameters,
+    authBoundsIdentified: s.auth_bounds_identified,
+    apiRoutesMapped: s.api_routes_mapped,
+    inputVectorsAnalyzed: s.input_vectors_analyzed,
   };
 }
 

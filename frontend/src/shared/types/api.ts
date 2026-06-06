@@ -62,6 +62,11 @@ export interface ApiActiveScanSummary {
   vuln_type_breakdown: Record<string, number>;
   waf_detected: boolean;
   waf_blocked_requests: number;
+  total_endpoints?: number;
+  total_parameters?: number;
+  auth_bounds_identified?: number;
+  api_routes_mapped?: number;
+  input_vectors_analyzed?: number;
 }
 
 export interface ApiActiveScanResult {
@@ -517,22 +522,7 @@ export interface ApiFeedbackStatsResponse {
   }[];
 }
 
-// ── Burp Bridge ──
 
-export interface ApiBurpSession {
-  session_id: string;
-  plugin_version: string;
-  created_at: string;
-}
-
-export interface ApiBurpFinding {
-  id: string;
-  session_id: string;
-  name: string;
-  severity: string;
-  url: string;
-  detail: string;
-}
 
 // ── Subdomain Discovery ──
 
@@ -614,6 +604,26 @@ export interface ApiSubdomainDiscoveryResult {
 export interface ApiSubdomainDiscoveryRequest {
   domain: string;
   profile_id?: string;
+}
+
+// ── Certificate Discovery ──
+
+export interface ApiDiscoverCertificatesRequest {
+  domain: string;
+  profile_id?: string;
+  validate_assets?: boolean;
+}
+
+export interface ApiDiscoverCertificatesResponse {
+  total_cert_names: number;
+  unique_candidates: number;
+  wildcard_removed: number;
+  out_of_scope_removed: number;
+  validated_assets: number;
+  assets: ApiSubdomainAsset[];
+  source: string;
+  warnings: string[];
+  scan_duration_ms: number;
 }
 
 // ── Port Verification ──

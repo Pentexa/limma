@@ -9,6 +9,8 @@ import type {
   ApiMasterReport,
   ApiSubdomainDiscoveryResult,
   ApiSubdomainDiscoveryRequest,
+  ApiDiscoverCertificatesRequest,
+  ApiDiscoverCertificatesResponse,
 } from "@/shared/types/api";
 
 export interface IntelRequest {
@@ -54,4 +56,9 @@ export function generateMasterReport(data: IntelRequest) {
 /** POST /discover-subdomains — Subdomain enumeration & validation */
 export function discoverSubdomains(data: ApiSubdomainDiscoveryRequest) {
   return httpClient.post<ApiSubdomainDiscoveryResult>("/discover-subdomains", data);
+}
+
+/** POST /api/discovery/certificates — Certificate enumeration & validation */
+export function discoverCertificates(data: ApiDiscoverCertificatesRequest) {
+  return httpClient.post<ApiDiscoverCertificatesResponse>("/api/discovery/certificates", data);
 }

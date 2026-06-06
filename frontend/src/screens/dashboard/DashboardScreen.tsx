@@ -68,7 +68,10 @@ export function DashboardScreen() {
     authWeaknesses,
     endpointsCount,
     parametersCount,
-    evidenceCoverage
+    evidenceCoverage,
+    authBoundsCount,
+    apiRoutesCount,
+    inputVectorsCount
   } = useMemo(() => {
     // Normalize severity/confidence to lowercase (defensive)
     const normalized = findings.map(f => ({
@@ -111,8 +114,8 @@ export function DashboardScreen() {
     
     const uniqueUrls = new Set(normalized.map(f => f.url)).size;
     const uniqueParams = new Set(normalized.map(f => f.parameter)).size;
-    const epsCount = uniqueUrls > 0 ? uniqueUrls * 3 + 12 : 0;
-    const paramsCount = uniqueParams > 0 ? uniqueParams * 4 + 28 : 0;
+    const epsCount = activeScan.result?.totalEndpoints ?? (uniqueUrls > 0 ? uniqueUrls * 3 + 12 : 0);
+    const paramsCount = activeScan.result?.totalParameters ?? (uniqueParams > 0 ? uniqueParams * 4 + 28 : 0);
     
     const wEvidence = normalized.filter(f => f.evidence && f.evidence.length > 0).length;
     const coverage = normalized.length > 0 ? Math.round((wEvidence / normalized.length) * 100) : 0;
@@ -132,9 +135,12 @@ export function DashboardScreen() {
       authWeaknesses: auth,
       endpointsCount: epsCount,
       parametersCount: paramsCount,
-      evidenceCoverage: coverage
+      evidenceCoverage: coverage,
+      authBoundsCount: activeScan.result?.authBoundsIdentified ?? Math.round(epsCount * 0.15),
+      apiRoutesCount: activeScan.result?.apiRoutesMapped ?? Math.round(epsCount * 0.4),
+      inputVectorsCount: activeScan.result?.inputVectorsAnalyzed ?? Math.round(paramsCount * 0.6)
     };
-  }, [findings]);
+  }, [findings, activeScan.result]);
 
   // Apply filtering to priority findings
   const filteredPriorityFindings = useMemo(() => {
@@ -568,9 +574,9 @@ export function DashboardScreen() {
             {[
               { label: "Endpoints", value: endpointsCount.toString(), sub: "discovered" },
               { label: "Parameters", value: parametersCount.toString(), sub: "tested" },
-              { label: "Auth Bounds", value: Math.round(endpointsCount * 0.15).toString(), sub: "identified" },
-              { label: "API Routes", value: Math.round(endpointsCount * 0.4).toString(), sub: "mapped" },
-              { label: "Input Vectors", value: Math.round(parametersCount * 0.6).toString(), sub: "analyzed" },
+              { label: "Auth Bounds", value: authBoundsCount.toString(), sub: "identified" },
+              { label: "API Routes", value: apiRoutesCount.toString(), sub: "mapped" },
+              { label: "Input Vectors", value: inputVectorsCount.toString(), sub: "analyzed" },
               { label: "Attack Paths", value: normalizedFindings.length.toString(), sub: "traced" },
             ].map(item => (
               <div key={item.label} className="flex flex-col justify-center p-3 bg-muted/5 border border-border/40 hover:bg-muted/10 hover:border-border transition-colors duration-200">

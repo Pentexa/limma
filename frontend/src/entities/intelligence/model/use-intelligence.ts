@@ -10,6 +10,7 @@ import {
   mapForms,
   generateMasterReport,
   discoverSubdomains,
+  discoverCertificates,
   type IntelRequest,
 } from "../api/intelligence-api";
 import type { 
@@ -22,6 +23,8 @@ import type {
   ApiMasterReport,
   ApiSubdomainDiscoveryResult,
   ApiSubdomainDiscoveryRequest,
+  ApiDiscoverCertificatesRequest,
+  ApiDiscoverCertificatesResponse,
 } from "@/shared/types/api";
 
 export function useAnalyzeWebsite() {
@@ -69,5 +72,11 @@ export function useGenerateMasterReport() {
 export function useDiscoverSubdomains() {
   return useMutation<ApiSubdomainDiscoveryResult, Error, ApiSubdomainDiscoveryRequest>({
     mutationFn: discoverSubdomains,
+  });
+}
+
+export function useDiscoverCertificates() {
+  return useMutation<ApiDiscoverCertificatesResponse, Error, ApiDiscoverCertificatesRequest>({
+    mutationFn: discoverCertificates,
   });
 }

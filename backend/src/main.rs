@@ -4,25 +4,24 @@
 #![allow(clippy::empty_line_after_outer_attr)]
 
 use limma::api::handlers::{
-    analyze_website, analyze_website_stream, audit_security, blind_scan, burp_get_findings,
-    burp_handshake, burp_import_traffic, burp_list_sessions, burp_stream_events, collect_services,
-    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis, discover_subdomains,
-    download_poc, export_to_burp, export_to_nuclei, generate_master_report, generate_poc,
+    analyze_website, analyze_website_stream, audit_security, blind_scan, collect_services,
+    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis, discover_subdomains, discover_certificates,
+    download_poc, generate_master_report, generate_poc,
     generate_poc_for_finding, get_active_finding, get_active_scan, get_consents_handler,
     get_feedback_stats, get_history_delta, get_history_trends, get_rule_engine_status,
     get_scan_by_id, get_settings_profiles, get_health, grant_consent_handler, investigate_server,
     investigate_server_stream, list_active_findings, list_active_findings_filtered,
     list_active_scans, list_scans, map_forms, proxy_request, revoke_consent_handler,
-    start_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
+    start_active_scan, pause_active_scan, resume_active_scan, cancel_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
     update_settings_profile, verify_exploit, verify_finding, verify_port, AppState,
 };
 use limma::infrastructure::auditor::HttpSecurityAuditor;
-use limma::infrastructure::burp_bridge::BurpBridgeManager;
 use limma::infrastructure::collector::HttpServiceCollector;
 use limma::infrastructure::db::init_db;
 use limma::infrastructure::delta_engine::DeltaEngine;
 use limma::infrastructure::discoverer::HttpApiDiscoverer;
 use limma::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
+use limma::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer;
 use limma::infrastructure::investigator::HttpInvestigator;
 use limma::infrastructure::mapper::HttpFormMapper;
 
@@ -63,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let website_scanner = Arc::new(HttpWebsiteScanner::new());
     let server_investigator = Arc::new(HttpInvestigator::new());
     let subdomain_discoverer = Arc::new(HttpSubdomainDiscoverer::new());
+    let certificate_discoverer = Arc::new(CertificateDiscoverer::new(subdomain_discoverer.clone()));
     let api_discoverer = Arc::new(HttpApiDiscoverer::new());
     let service_collector = Arc::new(HttpServiceCollector::new());
     let security_auditor = Arc::new(HttpSecurityAuditor::new().with_pool(pool.clone()));
@@ -105,7 +105,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let burp_bridge = Arc::new(BurpBridgeManager::new(pool.clone()).await);
 
     // Delta Engine
     let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
@@ -205,12 +204,12 @@ async fn main() -> anyhow::Result<()> {
         website_scanner,
         server_investigator,
         subdomain_discoverer,
+        certificate_discoverer,
         api_discoverer,
         service_collector,
         security_auditor,
         form_mapper,
         dynamic_rule_engine,
-        burp_bridge,
         delta_engine,
         blind_detection_engine,
         poc_generator,
@@ -225,6 +224,7 @@ async fn main() -> anyhow::Result<()> {
         active_detectors,
         payload_db,
         db_pool: pool,
+        scan_controller: Arc::new(limma::infrastructure::scan_controller::ScanController::new()),
     });
 
     // Configure middleware layers
@@ -249,6 +249,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/discover-apis", post(discover_apis))
         .route("/discover-subdomains", post(discover_subdomains))
+        .route("/api/discovery/certificates", post(discover_certificates))
         .route("/collect-services", post(collect_services))
         .route("/audit-security", post(audit_security))
         .route("/map-forms", post(map_forms))
@@ -276,19 +277,6 @@ async fn main() -> anyhow::Result<()> {
             "/api/settings/consent/:id",
             axum::routing::delete(revoke_consent_handler),
         )
-        .route("/api/export/burp", post(export_to_burp))
-        .route("/api/export/nuclei", post(export_to_nuclei))
-        .route("/api/burp/handshake", post(burp_handshake))
-        .route("/api/burp/import-traffic", post(burp_import_traffic))
-        .route(
-            "/api/burp/findings/:session_id",
-            axum::routing::get(burp_get_findings),
-        )
-        .route(
-            "/api/burp/stream/:session_id",
-            axum::routing::get(burp_stream_events),
-        )
-        .route("/api/burp/sessions", axum::routing::get(burp_list_sessions))
         .route(
             "/api/history/trends",
             axum::routing::get(get_history_trends),
@@ -329,6 +317,9 @@ async fn main() -> anyhow::Result<()> {
             "/api/active-scans/:id",
             axum::routing::delete(delete_active_scan),
         )
+        .route("/api/active-scans/:id/pause", post(pause_active_scan))
+        .route("/api/active-scans/:id/resume", post(resume_active_scan))
+        .route("/api/active-scans/:id/cancel", post(cancel_active_scan))
         .route(
             "/api/active-findings",
             axum::routing::get(list_active_findings_filtered),

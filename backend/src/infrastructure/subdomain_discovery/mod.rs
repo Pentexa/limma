@@ -1,4 +1,5 @@
 pub mod active;
+pub mod certificate;
 pub mod confidence;
 pub mod http_probe;
 pub mod passive;
@@ -71,6 +72,58 @@ impl SubdomainDiscoverer for HttpSubdomainDiscoverer {
         }
         
         let total_candidates = all_candidates.len();
+        let (assets, validated_count, wildcard_filtered_count, http_alive_count) = self.validate_candidates(
+            all_candidates,
+            &wildcard_info,
+            config,
+        ).await;
+        
+        let metrics = SubdomainDiscoveryMetrics {
+            total_candidates,
+            validated_count,
+            wildcard_filtered_count,
+            duplicate_removed_count: 0, // Handled implicitly by HashMap
+            http_alive_count,
+            passive_source_count: passive_count,
+            active_source_count: active_count,
+            precision: if total_candidates > 0 {
+                validated_count as f32 / total_candidates as f32
+            } else {
+                0.0
+            },
+            scan_duration_ms: start_time.elapsed().as_millis() as u64,
+        };
+        
+        let discovery_certainty = if validated_count > 0 {
+            Some(CertaintyNote {
+                level: CertaintyLevel::Certain,
+                reason: format!("{} verified subdomains found.", validated_count),
+            })
+        } else {
+            Some(CertaintyNote {
+                level: CertaintyLevel::Unknown,
+                reason: "No subdomains found.".to_string(),
+            })
+        };
+        
+        Ok(SubdomainDiscoveryResult {
+            domain: domain.to_string(),
+            wildcard_dns: wildcard_info,
+            assets,
+            metrics,
+            discovery_certainty,
+            scan_timestamp: chrono::Utc::now(),
+        })
+    }
+}
+
+impl HttpSubdomainDiscoverer {
+    pub async fn validate_candidates(
+        &self,
+        all_candidates: HashMap<String, Vec<SubdomainSource>>,
+        wildcard_info: &crate::domain::entities::WildcardDnsInfo,
+        config: &EngineConfig,
+    ) -> (Vec<SubdomainAsset>, usize, usize, usize) {
         let mut assets = Vec::new();
         let mut validated_count = 0;
         let mut wildcard_filtered_count = 0;
@@ -145,42 +198,7 @@ impl SubdomainDiscoverer for HttpSubdomainDiscoverer {
             b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal)
                 .then(a.asset.cmp(&b.asset))
         });
-        
-        let metrics = SubdomainDiscoveryMetrics {
-            total_candidates,
-            validated_count,
-            wildcard_filtered_count,
-            duplicate_removed_count: 0, // Handled implicitly by HashMap
-            http_alive_count,
-            passive_source_count: passive_count,
-            active_source_count: active_count,
-            precision: if total_candidates > 0 {
-                validated_count as f32 / total_candidates as f32
-            } else {
-                0.0
-            },
-            scan_duration_ms: start_time.elapsed().as_millis() as u64,
-        };
-        
-        let discovery_certainty = if validated_count > 0 {
-            Some(CertaintyNote {
-                level: CertaintyLevel::Certain,
-                reason: format!("{} verified subdomains found.", validated_count),
-            })
-        } else {
-            Some(CertaintyNote {
-                level: CertaintyLevel::Unknown,
-                reason: "No subdomains found.".to_string(),
-            })
-        };
-        
-        Ok(SubdomainDiscoveryResult {
-            domain: domain.to_string(),
-            wildcard_dns: wildcard_info,
-            assets,
-            metrics,
-            discovery_certainty,
-            scan_timestamp: chrono::Utc::now(),
-        })
+
+        (assets, validated_count, wildcard_filtered_count, http_alive_count)
     }
 }

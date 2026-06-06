@@ -1,6 +1,6 @@
 "use client";
 
-import { StartScanButton } from "@/features/start-scan/ui/StartScanButton";
+import { ModernScanConfigPanel } from "@/widgets/scan-config/ModernScanConfigPanel";
 import { PauseScanButton } from "@/features/pause-scan/ui/PauseScanButton";
 import { CancelScanButton } from "@/features/cancel-scan/ui/CancelScanButton";
 import type { ScanStatus } from "@/entities/scan/model/types";
@@ -56,7 +56,7 @@ export function ScanControls({ targetUrl, scanId, scanStatus }: ScanControlsProp
             </SelectContent>
           </Select>
 
-          <StartScanButton targetUrl={targetUrl} profileId={selectedProfileId} />
+          <ModernScanConfigPanel targetUrl={targetUrl} profileId={selectedProfileId} />
         </div>
       )}
 

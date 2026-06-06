@@ -3,7 +3,7 @@
 import { APP_NAME } from "@/shared/config/constants";
 import { WorkspaceSwitcher } from "@/entities/workspace/ui/WorkspaceSwitcher";
 import { UserMenu } from "@/entities/user/ui/UserMenu";
-import { BurpConnectButton } from "@/features/connect-burp/ui/BurpConnectButton";
+
 
 export function AppHeader() {
   return (
@@ -13,7 +13,7 @@ export function AppHeader() {
         <WorkspaceSwitcher />
       </div>
       <div className="flex items-center gap-2">
-        <BurpConnectButton />
+
         <UserMenu />
       </div>
     </div>

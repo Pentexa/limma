@@ -54,8 +54,20 @@ pub struct BlindScanApiRequest {
 pub struct ActiveScanApiRequest {
     pub target_url: String,
     pub vuln_types: Vec<crate::domain::active_vuln::ActiveVulnType>,
-    pub max_duration_seconds: Option<u32>,
-    pub rate_limit_rps: Option<u32>,
+    pub scan_mode: String,
+    pub enable_headless_browser: bool,
+    pub max_browser_tabs: u32,
+    pub bearer_token: Option<String>,
+    pub cookie: Option<String>,
+    pub custom_headers: Option<String>,
+    pub basic_auth_user: Option<String>,
+    pub basic_auth_pass: Option<String>,
+    pub enable_json_fuzzing: bool,
+    pub enable_xss_verification: bool,
+    pub allow_destructive_methods: bool,
+    pub l3_consent_accepted: bool,
+    pub max_scan_duration_sec: Option<u32>,
+    pub max_requests_per_endpoint: Option<u32>,
     pub follow_redirects: Option<bool>,
     pub profile_id: Option<String>,
     pub custom_parameters: Option<Vec<String>>,
@@ -65,4 +77,29 @@ pub struct ActiveScanApiRequest {
 pub struct SubdomainDiscoveryRequest {
     pub domain: String,
     pub profile_id: Option<String>,
+}
+
+fn default_validate_assets() -> bool {
+    true
+}
+
+#[derive(Deserialize)]
+pub struct DiscoverCertificatesRequest {
+    pub domain: String,
+    pub profile_id: Option<String>,
+    #[serde(default = "default_validate_assets")]
+    pub validate_assets: bool,
+}
+
+#[derive(Serialize)]
+pub struct DiscoverCertificatesResponse {
+    pub total_cert_names: usize,
+    pub unique_candidates: usize,
+    pub wildcard_removed: usize,
+    pub out_of_scope_removed: usize,
+    pub validated_assets: usize,
+    pub assets: Vec<crate::domain::entities::SubdomainAsset>,
+    pub source: String,
+    pub warnings: Vec<String>,
+    pub scan_duration_ms: u64,
 }

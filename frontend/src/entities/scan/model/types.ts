@@ -35,6 +35,11 @@ export interface ScanResult {
   infoCount: number;
   verifiedCount: number;
   unverifiedCount: number;
+  totalEndpoints?: number;
+  totalParameters?: number;
+  authBoundsIdentified?: number;
+  apiRoutesMapped?: number;
+  inputVectorsAnalyzed?: number;
 }
 
 /** Main scan entity */

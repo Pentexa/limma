@@ -1,6 +1,7 @@
 pub mod consistency;
 pub mod correlation;
 pub mod crawler;
+pub mod browser_crawler;
 pub mod fingerprint;
 pub mod security;
 

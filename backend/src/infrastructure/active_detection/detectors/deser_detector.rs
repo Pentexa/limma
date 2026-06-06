@@ -36,6 +36,8 @@ impl VulnDetector for DeserDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
 
@@ -132,3 +134,4 @@ impl VulnDetector for DeserDetector {
         Ok(findings)
     }
 }
+

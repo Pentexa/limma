@@ -8,7 +8,6 @@ use crate::application::use_cases::{
 use crate::error::AppError;
 use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::blind_detection::HttpBlindDetectionEngine;
-use crate::infrastructure::burp_bridge::SharedBurpBridgeManager;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
 use crate::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
@@ -30,12 +29,12 @@ pub struct AppState {
     pub website_scanner: Arc<HttpWebsiteScanner>,
     pub server_investigator: Arc<HttpInvestigator>,
     pub subdomain_discoverer: Arc<HttpSubdomainDiscoverer>,
+    pub certificate_discoverer: Arc<crate::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer>,
     pub api_discoverer: Arc<HttpApiDiscoverer>,
     pub service_collector: Arc<HttpServiceCollector>,
     pub security_auditor: Arc<HttpSecurityAuditor>,
     pub form_mapper: Arc<HttpFormMapper>,
     pub dynamic_rule_engine: SharedDynamicRuleEngine,
-    pub burp_bridge: SharedBurpBridgeManager,
     pub delta_engine: Arc<crate::infrastructure::delta_engine::DeltaEngine>,
     // Faz F: Blind Detection & Exploitation
     pub blind_detection_engine: Arc<HttpBlindDetectionEngine>,
@@ -56,6 +55,7 @@ pub struct AppState {
         Arc<Vec<Box<dyn crate::infrastructure::active_detection::detectors::VulnDetector>>>,
     pub payload_db: Arc<crate::infrastructure::active_detection::payloads::PayloadDatabase>,
     pub db_pool: sqlx::PgPool,
+    pub scan_controller: Arc<crate::infrastructure::scan_controller::ScanController>,
 }
 
 /// Helper: resolve a SettingsProfile from the repo, falling back to default.
@@ -242,6 +242,18 @@ pub async fn discover_subdomains(
         .execute(payload.domain, &profile)
         .await
         .map_err(AppError::Internal)?;
+    let value = serde_json::to_value(res)?;
+    Ok(Json(value))
+}
+
+pub async fn discover_certificates(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<crate::api::models::DiscoverCertificatesRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let config = crate::domain::engine_config::EngineConfig::from_profile(&profile);
+    
+    let res = state.certificate_discoverer.discover(payload, &config).await;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -493,8 +505,8 @@ pub async fn get_rule_engine_status(
 
     Ok(Json(RuleEngineStatus {
         total_rules: engine.rule_count(),
-        disabled_packs: disabled_packs.into_iter().collect(),
-        disabled_rules: disabled_rules.into_iter().collect(),
+        disabled_packs: disabled_packs.into_iter().collect::<Vec<String>>(),
+        disabled_rules: disabled_rules.into_iter().collect::<Vec<String>>(),
         active_rules: rules,
         feedback_stats,
         load_errors: engine.load_errors().to_vec(),
@@ -626,135 +638,7 @@ pub async fn delete_custom_rule(
     })))
 }
 
-/// Export scan results to Burp Suite XML format.
-pub async fn export_to_burp(
-    Json(payload): Json<crate::domain::entities::MasterReport>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let burp_export = crate::infrastructure::export::burp::BurpExport::from_master_report(&payload);
-    let xml = burp_export.to_xml();
-    let filename = format!(
-        "{}_limma_burp_export.xml",
-        url::Url::parse(&payload.url)
-            .map(|u| u.host_str().unwrap_or("target").to_string())
-            .unwrap_or_else(|_| "target".to_string())
-    );
 
-    Ok(Json(serde_json::json!({
-        "xml": xml,
-        "filename": filename,
-        "item_count": burp_export.items.len()
-    })))
-}
-
-/// Export scan results to Nuclei YAML template format.
-pub async fn export_to_nuclei(
-    Json(payload): Json<crate::domain::entities::MasterReport>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let nuclei_export =
-        crate::infrastructure::export::nuclei::NucleiExport::from_master_report(&payload);
-    let yaml = nuclei_export.to_yaml();
-
-    Ok(Json(serde_json::json!({
-        "yaml": yaml,
-        "template_count": nuclei_export.templates.len()
-    })))
-}
-
-// ── Burp Suite Bridge Handlers ──
-
-/// Handshake endpoint: Burp plugin registers itself and gets a session ID.
-pub async fn burp_handshake(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<crate::domain::entities::BurpHandshakeRequest>,
-) -> Result<Json<crate::domain::entities::BurpHandshakeResponse>, AppError> {
-    let response = state.burp_bridge.create_session(&payload).await;
-    Ok(Json(response))
-}
-
-/// Import HTTP traffic captured by Burp Suite into LIMMA.
-pub async fn burp_import_traffic(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<crate::domain::entities::BurpImportTrafficRequest>,
-) -> Result<Json<crate::domain::entities::BurpImportTrafficResponse>, AppError> {
-    let response = state
-        .burp_bridge
-        .import_traffic(
-            &payload.session_id,
-            payload.items,
-            &state.dynamic_rule_engine,
-        )
-        .await
-        .map_err(AppError::BadRequest)?;
-    Ok(Json(response))
-}
-
-/// Export LIMMA findings in Burp-native format for a given session.
-pub async fn burp_get_findings(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(session_id): axum::extract::Path<String>,
-) -> Result<Json<crate::domain::entities::BurpFindingsResponse>, AppError> {
-    // Verify session exists
-    let session = state
-        .burp_bridge
-        .get_session(&session_id)
-        .ok_or_else(|| AppError::BadRequest(format!("Session not found: {}", session_id)))?;
-
-    // Phase 2: Retrieve findings generated directly from the imported traffic
-    let findings = state.burp_bridge.get_session_findings(&session_id);
-    let total = findings.len();
-
-    Ok(Json(crate::domain::entities::BurpFindingsResponse {
-        session_id,
-        target: session.target_url,
-        findings,
-        total_count: total,
-        generated_at: chrono::Utc::now(),
-    }))
-}
-
-/// SSE endpoint to stream real-time events to the Burp plugin
-pub async fn burp_stream_events(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(session_id): axum::extract::Path<String>,
-) -> Result<
-    axum::response::Sse<
-        impl futures::stream::Stream<
-            Item = Result<axum::response::sse::Event, std::convert::Infallible>,
-        >,
-    >,
-    AppError,
-> {
-    use axum::response::sse::Event;
-    use tokio_stream::StreamExt;
-
-    // Verify session exists and get a subscriber receiver
-    let rx = state
-        .burp_bridge
-        .subscribe_to_events(&session_id)
-        .ok_or_else(|| AppError::BadRequest("Session not found or inactive".to_string()))?;
-
-    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
-        .filter_map(|msg_result| {
-            // broadcast stream can return RecvError::Lagged, we just ignore lagged messages
-            msg_result.ok()
-        })
-        .map(|event| {
-            let json_str = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
-            Ok(Event::default()
-                .event("message") // Standard SSE event type
-                .data(json_str))
-        });
-
-    Ok(axum::response::Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new()))
-}
-
-/// List all active Burp Bridge sessions.
-pub async fn burp_list_sessions(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<crate::domain::entities::BurpBridgeSession>>, AppError> {
-    let sessions = state.burp_bridge.get_all_sessions();
-    Ok(Json(sessions))
-}
 
 // ── Delta Engine Handlers ──
 
@@ -1030,8 +914,8 @@ pub async fn start_active_scan(
     );
 
     let use_case = PerformActiveScan {
-        scan_repo: &*state.active_scan_repo,
-        finding_repo: &*state.active_finding_repo,
+        scan_repo: state.active_scan_repo.clone(),
+        finding_repo: state.active_finding_repo.clone(),
         detectors: state.active_detectors.clone(),
         payload_selector,
     };
@@ -1039,22 +923,41 @@ pub async fn start_active_scan(
     let config = ActiveScanConfig {
         target_url: payload.target_url,
         vuln_types: payload.vuln_types,
-        max_duration_seconds: payload.max_duration_seconds.unwrap_or(600),
-        rate_limit_rps: engine_config.rate_limit_rps,
-        follow_redirects: engine_config.follow_redirects,
-        profile_id: payload.profile_id,
+        scan_mode: payload.scan_mode,
+        enable_headless_browser: payload.enable_headless_browser,
+        max_browser_tabs: payload.max_browser_tabs,
+        bearer_token: payload.bearer_token,
+        cookie: payload.cookie,
+        custom_headers: payload.custom_headers,
+        basic_auth_user: payload.basic_auth_user,
+        basic_auth_pass: payload.basic_auth_pass,
+        enable_json_fuzzing: payload.enable_json_fuzzing,
+        enable_xss_verification: payload.enable_xss_verification,
+        allow_destructive_methods: payload.allow_destructive_methods,
+        l3_consent_accepted: payload.l3_consent_accepted,
+        max_scan_duration_sec: payload.max_scan_duration_sec,
+        max_requests_per_endpoint: payload.max_requests_per_endpoint,
+        follow_redirects: payload.follow_redirects.unwrap_or(engine_config.follow_redirects),
         enable_waf_bypass,
         safe_mode,
         custom_parameters: payload.custom_parameters,
     };
 
-    let scan_id = use_case.execute(config).await.map_err(AppError::Internal)?;
+    let scan_id = uuid::Uuid::new_v4();
+    let handle = state.scan_controller.register_scan(scan_id).await;
+
+    let scan_controller = state.scan_controller.clone();
+    tokio::spawn(async move {
+        let _ = use_case.execute(scan_id, config, handle).await;
+        scan_controller.unregister_scan(&scan_id).await;
+    });
 
     Ok(Json(serde_json::json!({
         "status": "success",
         "scan_id": scan_id
     })))
 }
+
 
 pub async fn get_active_scan(
     State(state): State<Arc<AppState>>,
@@ -1118,6 +1021,39 @@ pub async fn list_active_scans(
         .map_err(AppError::Internal)?;
 
     Ok(Json(serde_json::to_value(scans)?))
+}
+
+pub async fn pause_active_scan(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    state.scan_controller.pause_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": format!("Scan {} paused", id)
+    })))
+}
+
+pub async fn resume_active_scan(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    state.scan_controller.resume_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": format!("Scan {} resumed", id)
+    })))
+}
+
+pub async fn cancel_active_scan(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    state.scan_controller.cancel_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": format!("Scan {} cancelled", id)
+    })))
 }
 
 pub async fn delete_active_scan(

@@ -24,7 +24,7 @@ export function Sidebar({ className }: { className?: string }) {
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-3 h-[45px] border-b border-white/[0.06] shrink-0">
         <div className="flex items-center justify-center shrink-0">
-          <Image src="/logo.svg" alt="Limma" width={24} height={24} className="object-contain" />
+          <img src="/logo.svg" alt="Limma" className="w-6 h-6 object-contain shrink-0" />
         </div>
         {!collapsed && (
           <div className="min-w-0 flex items-baseline gap-1.5">
@@ -53,12 +53,12 @@ export function Sidebar({ className }: { className?: string }) {
               <span>Findings:</span>
               <span>{findings.length}</span>
             </p>
-            {criticalFindings > 0 && (
+            <div className={cn("overflow-hidden transition-all", criticalFindings > 0 ? "h-auto opacity-100 mt-0.5" : "h-0 opacity-0")}>
               <p className="flex items-center justify-between">
                 <span>Critical:</span>
                 <span className="sev-critical font-bold">{criticalFindings}</span>
               </p>
-            )}
+            </div>
           </div>
         )}
         <button

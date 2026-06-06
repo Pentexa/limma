@@ -163,10 +163,21 @@ pub enum ExpectedIndicator {
 pub struct ActiveScanConfig {
     pub target_url: String,
     pub vuln_types: Vec<ActiveVulnType>,
-    pub max_duration_seconds: u32,
-    pub rate_limit_rps: u32,
+    pub scan_mode: String,
+    pub enable_headless_browser: bool,
+    pub max_browser_tabs: u32,
+    pub bearer_token: Option<String>,
+    pub cookie: Option<String>,
+    pub custom_headers: Option<String>,
+    pub basic_auth_user: Option<String>,
+    pub basic_auth_pass: Option<String>,
+    pub enable_json_fuzzing: bool,
+    pub enable_xss_verification: bool,
+    pub allow_destructive_methods: bool,
+    pub l3_consent_accepted: bool,
+    pub max_scan_duration_sec: Option<u32>,
+    pub max_requests_per_endpoint: Option<u32>,
     pub follow_redirects: bool,
-    pub profile_id: Option<String>,
     pub enable_waf_bypass: bool,
     pub safe_mode: bool,
     pub custom_parameters: Option<Vec<String>>,
@@ -240,6 +251,13 @@ pub struct ScanSummary {
     pub vuln_type_breakdown: HashMap<String, u32>,
     pub waf_detected: bool,
     pub waf_blocked_requests: u32,
+    
+    // Phase 4 Authentic Metrics
+    pub total_endpoints: u32,
+    pub total_parameters: u32,
+    pub auth_bounds_identified: u32,
+    pub api_routes_mapped: u32,
+    pub input_vectors_analyzed: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

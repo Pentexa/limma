@@ -7,13 +7,42 @@ export interface StartScanRequest {
   enabled_detectors?: string[];
   max_depth?: number;
   max_pages?: number;
+  
+  // New config fields passed from frontend UI
+  scan_mode?: string;
+  enable_headless_browser?: boolean;
+  max_browser_tabs?: number;
+  bearer_token?: string;
+  cookie?: string;
+  custom_headers?: string;
+  basic_auth_user?: string;
+  basic_auth_pass?: string;
+  enable_json_fuzzing?: boolean;
+  enable_xss_verification?: boolean;
+  allow_destructive_methods?: boolean;
+  l3_consent_accepted?: boolean;
+  max_scan_duration_sec?: number;
+  max_requests_per_endpoint?: number;
+  vuln_types?: ActiveVulnType[];
 }
 
 export interface StartActiveScanRequest {
   target_url: string;
   vuln_types: ActiveVulnType[];
-  max_duration_seconds?: number;
-  rate_limit_rps?: number;
+  scan_mode: string;
+  enable_headless_browser: boolean;
+  max_browser_tabs: number;
+  bearer_token?: string;
+  cookie?: string;
+  custom_headers?: string;
+  basic_auth_user?: string;
+  basic_auth_pass?: string;
+  enable_json_fuzzing: boolean;
+  enable_xss_verification: boolean;
+  allow_destructive_methods: boolean;
+  l3_consent_accepted: boolean;
+  max_scan_duration_sec?: number;
+  max_requests_per_endpoint?: number;
   follow_redirects?: boolean;
   profile_id?: string;
   custom_parameters?: string[];
@@ -60,10 +89,22 @@ export async function startScan(data: StartScanRequest): Promise<StartScanRespon
 
   return startActiveScan({
     target_url: data.target_url,
-    vuln_types: ALL_VULN_TYPES,
+    vuln_types: data.vuln_types ?? ALL_VULN_TYPES,
     profile_id: data.profile_id,
-    max_duration_seconds: 3600,
-    rate_limit_rps: 50,
+    scan_mode: data.scan_mode ?? "fast",
+    enable_headless_browser: data.enable_headless_browser ?? false,
+    max_browser_tabs: data.max_browser_tabs ?? 2,
+    bearer_token: data.bearer_token,
+    cookie: data.cookie,
+    custom_headers: data.custom_headers,
+    basic_auth_user: data.basic_auth_user,
+    basic_auth_pass: data.basic_auth_pass,
+    enable_json_fuzzing: data.enable_json_fuzzing ?? true,
+    enable_xss_verification: data.enable_xss_verification ?? true,
+    allow_destructive_methods: data.allow_destructive_methods ?? false,
+    l3_consent_accepted: data.l3_consent_accepted ?? false,
+    max_scan_duration_sec: data.max_scan_duration_sec ?? 3600,
+    max_requests_per_endpoint: data.max_requests_per_endpoint,
     follow_redirects: true
   });
 }

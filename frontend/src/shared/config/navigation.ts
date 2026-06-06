@@ -9,7 +9,6 @@ import {
   Search,
   BarChart3,
   History,
-  Plug,
   Shield,
   Eye,
   Globe,
@@ -65,12 +64,7 @@ export const NAVIGATION: NavGroup[] = [
       { label: "Scan History", href: ROUTES.HISTORY, icon: History },
     ],
   },
-  {
-    label: "Integrations",
-    items: [
-      { label: "Burp Suite", href: ROUTES.INTEGRATIONS, icon: Plug },
-    ],
-  },
+
   {
     label: "System",
     items: [
