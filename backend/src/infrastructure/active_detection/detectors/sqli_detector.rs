@@ -103,8 +103,8 @@ impl VulnDetector for SqliDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
-        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
-        _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
+        endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
 
@@ -115,29 +115,24 @@ impl VulnDetector for SqliDetector {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
             }
 
-            let test_url = format!(
-                "{}?{}={}",
+            let payload_response = super::send_payload_request(
+                &self.client,
                 target_url,
                 parameter,
-                urlencoding::encode(&payload_def.payload)
-            );
-            let start = std::time::Instant::now();
-            let mut req = self.client.get(&test_url);
-            if payload_selector.is_waf_bypass_enabled() {
-                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
-                    req,
-                );
-            }
-            let resp = req.send().await.map_err(|e| e.to_string())?;
+                &payload_def.payload,
+                endpoint_ctx,
+                insertion_point,
+                payload_selector.is_waf_bypass_enabled(),
+            )
+            .await?;
 
-            let status = resp.status().as_u16();
-            waf_monitor.register_response(target_url, status);
+            waf_monitor
+                .register_response(&payload_response.request_url, payload_response.status_code);
             if waf_monitor.is_waf_detected(target_url) {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
             }
 
-            let elapsed = start.elapsed().as_millis() as u64;
-            let body = resp.text().await.map_err(|e| e.to_string())?;
+            let body = payload_response.response_body.clone();
 
             if let Some((db_type, matched)) = self.identify_sql_error(&body) {
                 // DIFFERENTIAL ANALYSIS: False Positive Check
@@ -155,14 +150,14 @@ impl VulnDetector for SqliDetector {
                     scan_id,
                     timestamp: Utc::now(),
                     vuln_type: ActiveVulnType::SqlInjectionError,
-                    target_url: target_url.to_string(),
+                    target_url: payload_response.request_url.clone(),
                     affected_parameter: parameter.to_string(),
-                    http_method: "GET".to_string(),
+                    http_method: payload_response.http_method.clone(),
                     payload_used: payload_def.payload.clone(),
                     evidence: ActiveVulnEvidence {
-                        request_raw: format!("GET {} HTTP/1.1", test_url),
+                        request_raw: payload_response.request_raw,
                         response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
+                        response_time_ms: payload_response.response_time_ms,
                         matched_indicator: format!("SQL error from {} DB: {}", db_type, matched),
                         additional_notes: vec![
                             format!("Detected database: {}", db_type),
@@ -184,85 +179,76 @@ impl VulnDetector for SqliDetector {
         // Phase 1.5: Boolean-Based Blind SQLi Verification (Differential Analysis)
         if findings.is_empty() {
             if let Some(base) = baseline {
-                // Generate True and False payload URLs
                 let true_payload = "1' AND 1=1-- -";
                 let false_payload = "1' AND 1=2-- -";
 
-                let true_url = format!(
-                    "{}?{}={}",
+                let true_response = super::send_payload_request(
+                    &self.client,
                     target_url,
                     parameter,
-                    urlencoding::encode(true_payload)
-                );
-                let false_url = format!(
-                    "{}?{}={}",
+                    true_payload,
+                    endpoint_ctx,
+                    insertion_point,
+                    payload_selector.is_waf_bypass_enabled(),
+                )
+                .await;
+                let false_response = super::send_payload_request(
+                    &self.client,
                     target_url,
                     parameter,
-                    urlencoding::encode(false_payload)
-                );
+                    false_payload,
+                    endpoint_ctx,
+                    insertion_point,
+                    payload_selector.is_waf_bypass_enabled(),
+                )
+                .await;
 
-                // Send True Payload
-                let mut true_req = self.client.get(&true_url);
-                if payload_selector.is_waf_bypass_enabled() {
-                    true_req =
-                    crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
-                        true_req,
-                    );
-                }
-                if let Ok(true_resp) = true_req.send().await {
-                    let t_status = true_resp.status().as_u16();
-                    let t_body = true_resp.text().await.unwrap_or_default();
+                if let (Ok(true_resp), Ok(false_resp)) = (true_response, false_response) {
+                    let t_status = true_resp.status_code;
+                    let f_status = false_resp.status_code;
+                    let t_body = true_resp.response_body.clone();
+                    let f_body = false_resp.response_body.clone();
 
-                    // Send False Payload
-                    let mut false_req = self.client.get(&false_url);
-                    if payload_selector.is_waf_bypass_enabled() {
-                        false_req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(false_req);
-                    }
-                    if let Ok(false_resp) = false_req.send().await {
-                        let f_status = false_resp.status().as_u16();
-                        let f_body = false_resp.text().await.unwrap_or_default();
+                    // If TRUE matches baseline AND FALSE diverges from baseline -> 100% SQLi
+                    let true_is_similar = !base.is_significantly_different(t_status, &t_body);
+                    let false_is_different = base.is_significantly_different(f_status, &f_body);
 
-                        // If TRUE matches baseline AND FALSE diverges from baseline -> 100% SQLi
-                        let true_is_similar = !base.is_significantly_different(t_status, &t_body);
-                        let false_is_different = base.is_significantly_different(f_status, &f_body);
-
-                        if true_is_similar && false_is_different {
-                            findings.push(ActiveVulnFinding {
-                                id: Uuid::new_v4(),
-                                scan_id,
-                                timestamp: Utc::now(),
-                                vuln_type: ActiveVulnType::SqlInjectionBlindBoolean,
-                                target_url: target_url.to_string(),
-                                affected_parameter: parameter.to_string(),
-                                http_method: "GET".to_string(),
-                                payload_used: true_payload.to_string(),
-                                evidence: ActiveVulnEvidence {
-                                    request_raw: format!(
-                                        "GET {} HTTP/1.1\n\nGET {} HTTP/1.1",
-                                        true_url, false_url
-                                    ),
-                                    response_raw: format!(
-                                        "True length: {}, False length: {}, Baseline: {}",
-                                        t_body.len(),
-                                        f_body.len(),
-                                        base.content_length
-                                    ),
-                                    response_time_ms: 0,
-                                    matched_indicator: "Differential Content Analysis".to_string(),
-                                    additional_notes: vec![
-                                        "Boolean Blind SQL Injection verified via True/False logic"
-                                            .to_string(),
-                                    ],
-                                },
-                                severity: SeverityLevel::Critical,
-                                confidence: ConfidenceLevel::Certain,
-                                exploitability: ExploitabilityLevel::Actionable,
-                                poc_generated: false,
-                                poc_id: None,
-                                verified: true,
-                                false_positive: false,
-                            });
-                        }
+                    if true_is_similar && false_is_different {
+                        findings.push(ActiveVulnFinding {
+                            id: Uuid::new_v4(),
+                            scan_id,
+                            timestamp: Utc::now(),
+                            vuln_type: ActiveVulnType::SqlInjectionBlindBoolean,
+                            target_url: true_resp.request_url.clone(),
+                            affected_parameter: parameter.to_string(),
+                            http_method: true_resp.http_method.clone(),
+                            payload_used: true_payload.to_string(),
+                            evidence: ActiveVulnEvidence {
+                                request_raw: format!(
+                                    "{}\n\n{}",
+                                    true_resp.request_raw, false_resp.request_raw
+                                ),
+                                response_raw: format!(
+                                    "True length: {}, False length: {}, Baseline: {}",
+                                    t_body.len(),
+                                    f_body.len(),
+                                    base.content_length
+                                ),
+                                response_time_ms: 0,
+                                matched_indicator: "Differential Content Analysis".to_string(),
+                                additional_notes: vec![
+                                    "Boolean Blind SQL Injection verified via True/False logic"
+                                        .to_string(),
+                                ],
+                            },
+                            severity: SeverityLevel::Critical,
+                            confidence: ConfidenceLevel::Certain,
+                            exploitability: ExploitabilityLevel::Actionable,
+                            poc_generated: false,
+                            poc_id: None,
+                            verified: true,
+                            false_positive: false,
+                        });
                     }
                 }
             }
@@ -276,49 +262,51 @@ impl VulnDetector for SqliDetector {
                     tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
                 }
 
-                let test_url = format!(
-                    "{}?{}={}",
+                let payload_response = super::send_payload_request(
+                    &self.client,
                     target_url,
                     parameter,
-                    urlencoding::encode(&payload_def.payload)
-                );
-                let start = std::time::Instant::now();
-                let mut req = self.client.get(&test_url);
-                if payload_selector.is_waf_bypass_enabled() {
-                    req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(req);
-                }
-                let resp = req.send().await.map_err(|e| e.to_string())?;
+                    &payload_def.payload,
+                    endpoint_ctx,
+                    insertion_point,
+                    payload_selector.is_waf_bypass_enabled(),
+                )
+                .await?;
 
-                let status = resp.status().as_u16();
-                waf_monitor.register_response(target_url, status);
+                waf_monitor
+                    .register_response(&payload_response.request_url, payload_response.status_code);
                 if waf_monitor.is_waf_detected(target_url) {
                     tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
                 }
 
-                let elapsed = start.elapsed().as_millis() as u64;
-
                 // If response takes >= 4500ms (expected ~5000ms), it's likely time-based blind
-                if elapsed >= 4500 {
+                if payload_response.response_time_ms >= 4500 {
                     findings.push(ActiveVulnFinding {
                         id: Uuid::new_v4(),
                         scan_id,
                         timestamp: Utc::now(),
                         vuln_type: ActiveVulnType::SqlInjectionBlindTime,
-                        target_url: target_url.to_string(),
+                        target_url: payload_response.request_url.clone(),
                         affected_parameter: parameter.to_string(),
-                        http_method: "GET".to_string(),
+                        http_method: payload_response.http_method.clone(),
                         payload_used: payload_def.payload.clone(),
                         evidence: ActiveVulnEvidence {
-                            request_raw: format!("GET {} HTTP/1.1", test_url),
-                            response_raw: format!("Response delayed: {}ms", elapsed),
-                            response_time_ms: elapsed,
+                            request_raw: payload_response.request_raw,
+                            response_raw: format!(
+                                "Response delayed: {}ms",
+                                payload_response.response_time_ms
+                            ),
+                            response_time_ms: payload_response.response_time_ms,
                             matched_indicator: format!(
                                 "Time delay: {}ms (expected ~5000ms)",
-                                elapsed
+                                payload_response.response_time_ms
                             ),
                             additional_notes: vec![
                                 "Time-based blind SQL injection detected".to_string(),
-                                format!("Response took {}ms vs normal <1s", elapsed),
+                                format!(
+                                    "Response took {}ms vs normal <1s",
+                                    payload_response.response_time_ms
+                                ),
                             ],
                         },
                         severity: SeverityLevel::Critical,
@@ -337,4 +325,3 @@ impl VulnDetector for SqliDetector {
         Ok(findings)
     }
 }
-

@@ -17,12 +17,25 @@ impl ScopeEnforcer {
             return Ok(());
         }
 
-        // Check if target URL matches any allowed domain
-        let url_lower = target_url.to_lowercase();
-        let is_in_scope = self
-            .allowed_domains
-            .iter()
-            .any(|domain| url_lower.contains(&domain.to_lowercase()));
+        let target_host = url::Url::parse(target_url)
+            .ok()
+            .and_then(|url| url.host_str().map(ToString::to_string))
+            .unwrap_or_else(|| target_url.to_string())
+            .trim_start_matches("*.")
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+
+        let is_in_scope = self.allowed_domains.iter().any(|domain| {
+            let domain = domain
+                .trim()
+                .trim_start_matches("*.")
+                .trim_start_matches('.')
+                .trim_end_matches('.')
+                .to_ascii_lowercase();
+
+            !domain.is_empty()
+                && (target_host == domain || target_host.ends_with(&format!(".{}", domain)))
+        });
 
         if is_in_scope {
             Ok(())
@@ -59,5 +72,8 @@ mod tests {
         let res = enforcer.validate("https://evil.com/");
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("out of scope"));
+
+        let res = enforcer.validate("https://badexample.com/");
+        assert!(res.is_err());
     }
 }

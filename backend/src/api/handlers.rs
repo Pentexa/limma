@@ -10,8 +10,8 @@ use crate::infrastructure::auditor::HttpSecurityAuditor;
 use crate::infrastructure::blind_detection::HttpBlindDetectionEngine;
 use crate::infrastructure::collector::HttpServiceCollector;
 use crate::infrastructure::discoverer::HttpApiDiscoverer;
-use crate::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
 use crate::infrastructure::exploitation::poc_generator::CompositePocGenerator;
+use crate::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
 
 use crate::infrastructure::investigator::HttpInvestigator;
 use crate::infrastructure::mapper::HttpFormMapper;
@@ -23,13 +23,17 @@ use crate::infrastructure::rule_engine::SharedDynamicRuleEngine;
 use crate::infrastructure::safety::SafetyFrameworkImpl;
 use crate::infrastructure::scanner::HttpWebsiteScanner;
 use axum::{extract::State, http::StatusCode, Json};
-use std::sync::Arc;
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 pub struct AppState {
     pub website_scanner: Arc<HttpWebsiteScanner>,
     pub server_investigator: Arc<HttpInvestigator>,
     pub subdomain_discoverer: Arc<HttpSubdomainDiscoverer>,
-    pub certificate_discoverer: Arc<crate::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer>,
+    pub certificate_discoverer:
+        Arc<crate::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer>,
     pub api_discoverer: Arc<HttpApiDiscoverer>,
     pub service_collector: Arc<HttpServiceCollector>,
     pub security_auditor: Arc<HttpSecurityAuditor>,
@@ -58,26 +62,191 @@ pub struct AppState {
     pub scan_controller: Arc<crate::infrastructure::scan_controller::ScanController>,
 }
 
+struct ResolvedExternalUrl {
+    host: String,
+    addrs: Vec<SocketAddr>,
+}
+
 /// Helper: resolve a SettingsProfile from the repo, falling back to default.
 async fn resolve_profile(
     state: &AppState,
     profile_id: Option<&str>,
-) -> crate::domain::entities::SettingsProfile {
-    let key = profile_id.unwrap_or("default");
-    state
+) -> Result<crate::domain::entities::SettingsProfile, AppError> {
+    if let Some(key) = profile_id {
+        return state
+            .settings_repo
+            .get_profile(key)
+            .await
+            .map_err(AppError::Internal)?
+            .ok_or_else(|| AppError::BadRequest(format!("Unknown profile_id: {}", key)));
+    }
+
+    Ok(state
         .settings_repo
-        .get_profile(key)
+        .get_profile("default")
         .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(crate::domain::entities::SettingsProfile::default)
+        .map_err(AppError::Internal)?
+        .unwrap_or_else(crate::domain::entities::SettingsProfile::default))
+}
+
+fn allow_private_targets() -> bool {
+    std::env::var("LIMMA_ALLOW_PRIVATE_TARGETS")
+        .map(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn validate_external_url(raw_url: &str) -> Result<(), AppError> {
+    let url = url::Url::parse(raw_url)
+        .map_err(|e| AppError::BadRequest(format!("Invalid URL: {}", e)))?;
+
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(AppError::BadRequest(
+            "Only http and https URLs are allowed".to_string(),
+        ));
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| AppError::BadRequest("URL must include a host".to_string()))?;
+
+    validate_external_host(host)
+}
+
+async fn resolve_external_url(raw_url: &str) -> Result<ResolvedExternalUrl, AppError> {
+    validate_external_url(raw_url)?;
+
+    let url = url::Url::parse(raw_url)
+        .map_err(|e| AppError::BadRequest(format!("Invalid URL: {}", e)))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| AppError::BadRequest("URL must include a host".to_string()))?;
+
+    let addrs =
+        resolve_external_socket_addrs(host, url.port_or_known_default().unwrap_or(443)).await?;
+    Ok(ResolvedExternalUrl {
+        host: host.to_ascii_lowercase(),
+        addrs,
+    })
+}
+
+async fn resolve_external_socket_addrs(host: &str, port: u16) -> Result<Vec<SocketAddr>, AppError> {
+    validate_external_host(host)?;
+
+    let normalized = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+
+    if let Ok(ip) = normalized.parse::<IpAddr>() {
+        return Ok(vec![SocketAddr::new(ip, port)]);
+    }
+
+    let addrs: Vec<SocketAddr> = tokio::net::lookup_host((normalized.as_str(), port))
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Could not resolve host {}: {}", host, e)))?
+        .collect();
+
+    if addrs.is_empty() {
+        return Err(AppError::BadRequest(format!(
+            "Host did not resolve to any address: {}",
+            host
+        )));
+    }
+
+    if !allow_private_targets() {
+        if let Some(blocked_addr) = addrs.iter().find(|addr| is_blocked_ip(addr.ip())) {
+            return Err(AppError::SafetyViolation(format!(
+                "Host resolves to private/internal IP: {} -> {}",
+                host,
+                blocked_addr.ip()
+            )));
+        }
+    }
+
+    Ok(addrs)
+}
+
+fn validate_external_host(host: &str) -> Result<(), AppError> {
+    if allow_private_targets() {
+        return Ok(());
+    }
+
+    let normalized = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+
+    if normalized.is_empty() {
+        return Err(AppError::BadRequest("Host must not be empty".to_string()));
+    }
+
+    let blocked_names = [
+        "localhost",
+        "ip6-localhost",
+        "ip6-loopback",
+        "metadata",
+        "metadata.google.internal",
+    ];
+    if blocked_names.contains(&normalized.as_str()) || normalized.ends_with(".localhost") {
+        return Err(AppError::SafetyViolation(format!(
+            "Private/internal host is not allowed: {}",
+            host
+        )));
+    }
+
+    if let Ok(ip) = normalized.parse::<IpAddr>() {
+        if is_blocked_ip(ip) {
+            return Err(AppError::SafetyViolation(format!(
+                "Private/internal IP is not allowed: {}",
+                host
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn is_blocked_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(addr) => {
+            let octets = addr.octets();
+            addr.is_private()
+                || addr.is_loopback()
+                || addr.is_link_local()
+                || addr.is_unspecified()
+                || addr.is_multicast()
+                || addr.is_broadcast()
+                || octets[0] == 0
+                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+        }
+        IpAddr::V6(addr) => {
+            if let Some(v4) = addr.to_ipv4_mapped() {
+                return is_blocked_ip(IpAddr::V4(v4));
+            }
+
+            addr.is_loopback()
+                || addr.is_unspecified()
+                || addr.is_unique_local()
+                || addr.is_unicast_link_local()
+                || addr.is_multicast()
+        }
+    }
 }
 
 pub async fn analyze_website(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = AnalyzeWebsite {
         scanner: &*state.website_scanner,
     };
@@ -94,8 +263,11 @@ pub async fn get_health(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Check DB
-    let db_ok = sqlx::query("SELECT 1").execute(&state.db_pool).await.is_ok();
-    
+    let db_ok = sqlx::query("SELECT 1")
+        .execute(&state.db_pool)
+        .await
+        .is_ok();
+
     // Check Docker
     let docker_ok = match bollard::Docker::connect_with_local_defaults() {
         Ok(docker) => docker.ping().await.is_ok(),
@@ -163,7 +335,7 @@ pub async fn investigate_server(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = InvestigateServer {
         investigator: &*state.server_investigator,
     };
@@ -216,7 +388,7 @@ pub async fn discover_apis(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = DiscoverApis {
         discoverer: &*state.api_discoverer,
     };
@@ -233,7 +405,7 @@ pub async fn discover_subdomains(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<crate::api::models::SubdomainDiscoveryRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = crate::application::use_cases::subdomain_discovery::DiscoverSubdomains {
         discoverer: &*state.subdomain_discoverer,
     };
@@ -250,10 +422,13 @@ pub async fn discover_certificates(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<crate::api::models::DiscoverCertificatesRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let config = crate::domain::engine_config::EngineConfig::from_profile(&profile);
-    
-    let res = state.certificate_discoverer.discover(payload, &config).await;
+
+    let res = state
+        .certificate_discoverer
+        .discover(payload, &config)
+        .await;
     let value = serde_json::to_value(res)?;
     Ok(Json(value))
 }
@@ -262,7 +437,7 @@ pub async fn collect_services(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = CollectExternalServices {
         collector: &*state.service_collector,
     };
@@ -279,7 +454,7 @@ pub async fn audit_security(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = AuditSecurity {
         auditor: &*state.security_auditor,
     };
@@ -296,7 +471,7 @@ pub async fn map_forms(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<AnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let use_case = MapForms {
         mapper: &*state.form_mapper,
     };
@@ -344,14 +519,28 @@ pub async fn generate_master_report(
 pub async fn proxy_request(
     Json(payload): Json<ProxyRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
-    let client = reqwest::Client::new();
-    let req = match payload.method.to_uppercase().as_str() {
+    let resolved = resolve_external_url(&payload.url).await?;
+
+    let method = payload.method.to_uppercase();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve_to_addrs(&resolved.host, &resolved.addrs)
+        .build()
+        .map_err(|e| AppError::Internal(format!("Failed to build proxy client: {}", e)))?;
+
+    let req = match method.as_str() {
+        "GET" => client.get(&payload.url),
         "POST" => client.post(&payload.url),
-        _ => client.get(&payload.url),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Proxy only supports GET and POST".to_string(),
+            ))
+        }
     };
 
     let req = if let Some(body) = payload.body {
-        if payload.method.to_uppercase() == "POST" {
+        if method == "POST" {
             req.header("Content-Type", "application/json").body(body)
         } else {
             req
@@ -374,15 +563,20 @@ pub async fn proxy_request(
 
 pub async fn verify_port(
     Json(payload): Json<VerifyPortRequest>,
-) -> (StatusCode, Json<VerifyPortResponse>) {
+) -> Result<(StatusCode, Json<VerifyPortResponse>), AppError> {
     use std::time::Instant;
     use tokio::net::TcpStream;
     use tokio::time::{timeout, Duration};
 
-    let target = format!("{}:{}", payload.host, payload.port);
+    let target_addrs = resolve_external_socket_addrs(&payload.host, payload.port).await?;
     let start = Instant::now();
 
-    match timeout(Duration::from_secs(3), TcpStream::connect(&target)).await {
+    let response = match timeout(
+        Duration::from_secs(3),
+        TcpStream::connect(target_addrs.as_slice()),
+    )
+    .await
+    {
         Ok(Ok(mut stream)) => {
             let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -410,7 +604,9 @@ pub async fn verify_port(
                 banner: None,
             }),
         ),
-    }
+    };
+
+    Ok(response)
 }
 
 pub async fn submit_feedback(
@@ -637,8 +833,6 @@ pub async fn delete_custom_rule(
         "message": format!("Rule '{}' deleted", rule_id)
     })))
 }
-
-
 
 // ── Delta Engine Handlers ──
 
@@ -890,10 +1084,11 @@ pub async fn start_active_scan(
     Json(payload): Json<crate::api::models::ActiveScanApiRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     use crate::application::use_cases::active_scan::PerformActiveScan;
-    use crate::domain::active_vuln::ActiveScanConfig;
+    use crate::domain::active_vuln::{ActiveScanConfig, ActiveScanStatus};
+    use crate::domain::repositories::ActiveScanRepository;
 
     // Resolve settings profile → EngineConfig for intensity-aware payload selection
-    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await;
+    let profile = resolve_profile(&state, payload.profile_id.as_deref()).await?;
     let engine_config = crate::domain::engine_config::EngineConfig::from_profile(&profile);
 
     // Derive safe_mode and waf_bypass from EngineConfig
@@ -937,7 +1132,9 @@ pub async fn start_active_scan(
         l3_consent_accepted: payload.l3_consent_accepted,
         max_scan_duration_sec: payload.max_scan_duration_sec,
         max_requests_per_endpoint: payload.max_requests_per_endpoint,
-        follow_redirects: payload.follow_redirects.unwrap_or(engine_config.follow_redirects),
+        follow_redirects: payload
+            .follow_redirects
+            .unwrap_or(engine_config.follow_redirects),
         enable_waf_bypass,
         safe_mode,
         custom_parameters: payload.custom_parameters,
@@ -947,8 +1144,21 @@ pub async fn start_active_scan(
     let handle = state.scan_controller.register_scan(scan_id).await;
 
     let scan_controller = state.scan_controller.clone();
+    let active_scan_repo = state.active_scan_repo.clone();
     tokio::spawn(async move {
-        let _ = use_case.execute(scan_id, config, handle).await;
+        if let Err(e) = use_case.execute(scan_id, config, handle).await {
+            tracing::error!("Active scan {} failed: {}", scan_id, e);
+            if let Err(update_err) = active_scan_repo
+                .update_status(scan_id, ActiveScanStatus::Failed)
+                .await
+            {
+                tracing::error!(
+                    "Failed to mark active scan {} as failed: {}",
+                    scan_id,
+                    update_err
+                );
+            }
+        }
         scan_controller.unregister_scan(&scan_id).await;
     });
 
@@ -957,7 +1167,6 @@ pub async fn start_active_scan(
         "scan_id": scan_id
     })))
 }
-
 
 pub async fn get_active_scan(
     State(state): State<Arc<AppState>>,
@@ -1027,7 +1236,11 @@ pub async fn pause_active_scan(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    state.scan_controller.pause_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    state
+        .scan_controller
+        .pause_scan(&id)
+        .await
+        .map_err(AppError::BadRequest)?;
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Scan {} paused", id)
@@ -1038,7 +1251,11 @@ pub async fn resume_active_scan(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    state.scan_controller.resume_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    state
+        .scan_controller
+        .resume_scan(&id)
+        .await
+        .map_err(AppError::BadRequest)?;
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Scan {} resumed", id)
@@ -1049,7 +1266,11 @@ pub async fn cancel_active_scan(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    state.scan_controller.cancel_scan(&id).await.map_err(|e| AppError::BadRequest(e))?;
+    state
+        .scan_controller
+        .cancel_scan(&id)
+        .await
+        .map_err(AppError::BadRequest)?;
     Ok(Json(serde_json::json!({
         "status": "success",
         "message": format!("Scan {} cancelled", id)
@@ -1401,4 +1622,37 @@ pub async fn get_consents_handler(
         .await
         .map_err(AppError::Internal)?;
     Ok(Json(consents))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn private_ip_classifier_blocks_internal_ranges() {
+        assert!(is_blocked_ip("127.0.0.1".parse().unwrap()));
+        assert!(is_blocked_ip("10.0.0.1".parse().unwrap()));
+        assert!(is_blocked_ip("172.16.0.1".parse().unwrap()));
+        assert!(is_blocked_ip("192.168.1.1".parse().unwrap()));
+        assert!(is_blocked_ip("169.254.169.254".parse().unwrap()));
+        assert!(is_blocked_ip("::1".parse().unwrap()));
+        assert!(is_blocked_ip("fc00::1".parse().unwrap()));
+        assert!(!is_blocked_ip("8.8.8.8".parse().unwrap()));
+        assert!(!is_blocked_ip("2001:4860:4860::8888".parse().unwrap()));
+    }
+
+    #[test]
+    fn external_url_validator_rejects_bad_schemes_and_localhost() {
+        let previous = std::env::var("LIMMA_ALLOW_PRIVATE_TARGETS").ok();
+        std::env::remove_var("LIMMA_ALLOW_PRIVATE_TARGETS");
+
+        assert!(validate_external_url("ftp://example.com/file").is_err());
+        assert!(validate_external_url("http://localhost:8080").is_err());
+        assert!(validate_external_url("http://127.0.0.1:8080").is_err());
+        assert!(validate_external_url("https://example.com").is_ok());
+
+        if let Some(value) = previous {
+            std::env::set_var("LIMMA_ALLOW_PRIVATE_TARGETS", value);
+        }
+    }
 }

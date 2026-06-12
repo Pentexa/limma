@@ -1,19 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum AuthType {
+    #[default]
     None,
     Cookie(String),
     BearerToken(String),
     CustomHeaders(HashMap<String, String>),
     BurpRequest(String), // Raw HTTP request to extract headers/cookies from
-}
-
-impl Default for AuthType {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -54,7 +49,10 @@ impl AuthProfile {
                         let value = line[idx + 1..].trim().to_string();
                         // Ignore Host, Content-Length etc that might conflict, mostly we want Cookie, Auth
                         let lower_key = key.to_lowercase();
-                        if lower_key == "cookie" || lower_key == "authorization" || lower_key.starts_with("x-") {
+                        if lower_key == "cookie"
+                            || lower_key == "authorization"
+                            || lower_key.starts_with("x-")
+                        {
                             headers.insert(key, value);
                         }
                     }

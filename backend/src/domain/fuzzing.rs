@@ -1,5 +1,3 @@
-use reqwest::Method;
-use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +14,12 @@ pub struct EndpointContext {
     pub url: String,
     pub headers: std::collections::HashMap<String, String>,
     pub body: Option<String>, // Can be JSON string, raw data, etc.
+    #[serde(default)]
+    pub response_status: Option<u16>,
+    #[serde(default)]
+    pub response_headers: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub response_body_preview: Option<String>,
 }
 
 impl EndpointContext {
@@ -25,6 +29,9 @@ impl EndpointContext {
             url: url.to_string(),
             headers: std::collections::HashMap::new(),
             body: None,
+            response_status: None,
+            response_headers: std::collections::HashMap::new(),
+            response_body_preview: None,
         }
     }
 }

@@ -4,36 +4,136 @@
 #![allow(clippy::empty_line_after_outer_attr)]
 
 use limma::api::handlers::{
-    analyze_website, analyze_website_stream, audit_security, blind_scan, collect_services,
-    create_custom_rule, delete_active_scan, delete_custom_rule, delete_history_scan, discover_apis, discover_subdomains, discover_certificates,
-    download_poc, generate_master_report, generate_poc,
-    generate_poc_for_finding, get_active_finding, get_active_scan, get_consents_handler,
-    get_feedback_stats, get_history_delta, get_history_trends, get_rule_engine_status,
-    get_scan_by_id, get_settings_profiles, get_health, grant_consent_handler, investigate_server,
-    investigate_server_stream, list_active_findings, list_active_findings_filtered,
-    list_active_scans, list_scans, map_forms, proxy_request, revoke_consent_handler,
-    start_active_scan, pause_active_scan, resume_active_scan, cancel_active_scan, submit_feedback, submit_rule_feedback, update_active_finding,
-    update_settings_profile, verify_exploit, verify_finding, verify_port, AppState,
+    analyze_website, analyze_website_stream, audit_security, blind_scan, cancel_active_scan,
+    collect_services, create_custom_rule, delete_active_scan, delete_custom_rule,
+    delete_history_scan, discover_apis, discover_certificates, discover_subdomains, download_poc,
+    generate_master_report, generate_poc, generate_poc_for_finding, get_active_finding,
+    get_active_scan, get_consents_handler, get_feedback_stats, get_health, get_history_delta,
+    get_history_trends, get_rule_engine_status, get_scan_by_id, get_settings_profiles,
+    grant_consent_handler, investigate_server, investigate_server_stream, list_active_findings,
+    list_active_findings_filtered, list_active_scans, list_scans, map_forms, pause_active_scan,
+    proxy_request, resume_active_scan, revoke_consent_handler, start_active_scan, submit_feedback,
+    submit_rule_feedback, update_active_finding, update_settings_profile, verify_exploit,
+    verify_finding, verify_port, AppState,
 };
 use limma::infrastructure::auditor::HttpSecurityAuditor;
 use limma::infrastructure::collector::HttpServiceCollector;
 use limma::infrastructure::db::init_db;
 use limma::infrastructure::delta_engine::DeltaEngine;
 use limma::infrastructure::discoverer::HttpApiDiscoverer;
-use limma::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
-use limma::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer;
 use limma::infrastructure::investigator::HttpInvestigator;
 use limma::infrastructure::mapper::HttpFormMapper;
+use limma::infrastructure::subdomain_discovery::certificate::CertificateDiscoverer;
+use limma::infrastructure::subdomain_discovery::HttpSubdomainDiscoverer;
 
 use anyhow::Context;
-use axum::{routing::post, Router};
+use axum::{
+    http::{header, HeaderValue, Method},
+    routing::post,
+    Router,
+};
 use limma::infrastructure::repositories::pg_settings::PgSettingsRepository;
 use limma::infrastructure::rule_engine::{resolve_rules_dir, DynamicRuleEngine};
 use limma::infrastructure::scanner::HttpWebsiteScanner;
 use std::sync::Arc;
 use std::time::Duration;
-// Rate limiter disabled for development
-// use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_http::cors::{Any, CorsLayer};
+
+fn env_bool(name: &str, default: bool) -> bool {
+    std::env::var(name)
+        .map(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(default)
+}
+
+fn env_u32(name: &str, default: u32) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(default)
+}
+
+fn env_u64(name: &str, default: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
+fn is_production_mode() -> bool {
+    env_bool("LIMMA_PRODUCTION", false)
+        || std::env::var("LIMMA_ENV")
+            .or_else(|_| std::env::var("APP_ENV"))
+            .map(|value| value.eq_ignore_ascii_case("production"))
+            .unwrap_or(false)
+}
+
+fn build_cors_layer(production_mode: bool) -> CorsLayer {
+    let layer = CorsLayer::new()
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::ACCEPT,
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::ORIGIN,
+        ]);
+
+    if !production_mode {
+        return layer.allow_origin(Any).allow_headers(Any);
+    }
+
+    let origins: Vec<HeaderValue> = std::env::var("LIMMA_ALLOWED_ORIGINS")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|origin| {
+            let origin = origin.trim();
+            if origin.is_empty() || origin == "*" {
+                return None;
+            }
+            HeaderValue::from_str(origin).ok()
+        })
+        .collect();
+
+    if origins.is_empty() {
+        tracing::warn!(
+            "Production CORS mode enabled without LIMMA_ALLOWED_ORIGINS; browser CORS requests will be denied"
+        );
+        layer
+    } else {
+        layer.allow_origin(origins)
+    }
+}
+
+fn allowed_target_domains(production_mode: bool) -> Vec<String> {
+    let domains: Vec<String> = std::env::var("LIMMA_ALLOWED_TARGET_DOMAINS")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|domain| !domain.is_empty())
+        .map(ToString::to_string)
+        .collect();
+
+    if production_mode && domains.is_empty() {
+        tracing::warn!(
+            "Production mode enabled without LIMMA_ALLOWED_TARGET_DOMAINS; active exploit safety scope will deny all explicit-scope checks"
+        );
+        vec!["__limma_no_allowed_target_domains__".to_string()]
+    } else {
+        domains
+    }
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,6 +147,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Database Initialization
     dotenvy::dotenv().ok();
+    let production_mode = is_production_mode();
+    tracing::info!(
+        "[Security] production_mode={} (set LIMMA_PRODUCTION=true or LIMMA_ENV=production)",
+        production_mode
+    );
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgres://postgres:password@127.0.0.1:5432/limma?sslmode=disable".to_string()
     });
@@ -105,7 +210,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-
     // Delta Engine
     let delta_engine = Arc::new(DeltaEngine::new(pool.clone()));
 
@@ -128,8 +232,8 @@ async fn main() -> anyhow::Result<()> {
 
     let safety_framework = Arc::new(limma::infrastructure::safety::SafetyFrameworkImpl::new(
         pool.clone(),
-        vec![], // Open scope: all domains allowed
-        60,     // 60 requests per minute rate limit
+        allowed_target_domains(production_mode),
+        60, // 60 requests per minute rate limit
     ));
 
     let exploit_bridge = Arc::new(
@@ -228,11 +332,24 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Configure middleware layers
-    let cors = tower_http::cors::CorsLayer::new()
-        .allow_origin(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
-        .allow_methods(tower_http::cors::Any);
-    // Rate limiter disabled for development
+    let cors = build_cors_layer(production_mode);
+    let mut governor_builder = GovernorConfigBuilder::default();
+    governor_builder
+        .per_second(env_u64("LIMMA_RATE_LIMIT_REPLENISH_SECONDS", 1))
+        .burst_size(env_u32(
+            "LIMMA_RATE_LIMIT_BURST",
+            if production_mode { 60 } else { 300 },
+        ));
+    let governor_conf = Arc::new(
+        governor_builder
+            .finish()
+            .context("Invalid rate limiter configuration")?,
+    );
+    let governor_limiter = governor_conf.limiter().clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(60));
+        governor_limiter.retain_recent();
+    });
 
     // Build our application with routes
     let app = Router::new()
@@ -337,7 +454,9 @@ async fn main() -> anyhow::Result<()> {
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
             300,
         )))
-        // GovernorLayer (rate limiter) disabled for development
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
         .layer(cors);
 
     // Run our app

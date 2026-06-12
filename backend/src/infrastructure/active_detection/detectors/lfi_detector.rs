@@ -52,8 +52,8 @@ impl VulnDetector for LfiDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
-        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
-        _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
+        endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
         let payloads = payload_selector.select(ActiveVulnType::LocalFileInclusion);
@@ -62,29 +62,24 @@ impl VulnDetector for LfiDetector {
             if rate_limit_ms > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
             }
-            let test_url = format!(
-                "{}?{}={}",
+            let payload_response = super::send_payload_request(
+                &self.client,
                 target_url,
                 parameter,
-                urlencoding::encode(&payload_def.payload)
-            );
-            let start = std::time::Instant::now();
-            let mut req = self.client.get(&test_url);
-            if payload_selector.is_waf_bypass_enabled() {
-                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
-                    req,
-                );
-            }
-            let resp = req.send().await.map_err(|e| e.to_string())?;
+                &payload_def.payload,
+                endpoint_ctx,
+                insertion_point,
+                payload_selector.is_waf_bypass_enabled(),
+            )
+            .await?;
 
-            let status = resp.status().as_u16();
-            waf_monitor.register_response(target_url, status);
+            waf_monitor
+                .register_response(&payload_response.request_url, payload_response.status_code);
             if waf_monitor.is_waf_detected(target_url) {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
             }
 
-            let elapsed = start.elapsed().as_millis() as u64;
-            let body = resp.text().await.map_err(|e| e.to_string())?;
+            let body = payload_response.response_body.clone();
 
             if let Some(file) = Self::check_file_content(&body) {
                 findings.push(ActiveVulnFinding {
@@ -92,14 +87,14 @@ impl VulnDetector for LfiDetector {
                     scan_id,
                     timestamp: Utc::now(),
                     vuln_type: ActiveVulnType::LocalFileInclusion,
-                    target_url: target_url.to_string(),
+                    target_url: payload_response.request_url.clone(),
                     affected_parameter: parameter.to_string(),
-                    http_method: "GET".to_string(),
+                    http_method: payload_response.http_method.clone(),
                     payload_used: payload_def.payload.clone(),
                     evidence: ActiveVulnEvidence {
-                        request_raw: format!("GET {} HTTP/1.1", test_url),
+                        request_raw: payload_response.request_raw,
                         response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
+                        response_time_ms: payload_response.response_time_ms,
                         matched_indicator: format!("File content detected: {}", file),
                         additional_notes: vec![
                             payload_def.description.clone(),
@@ -121,4 +116,3 @@ impl VulnDetector for LfiDetector {
         Ok(findings)
     }
 }
-

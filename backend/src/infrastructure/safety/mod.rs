@@ -93,7 +93,7 @@ impl SafetyFramework for SafetyFrameworkImpl {
     }
 
     async fn verify_explicit_consent(&self, poc: &Poc) -> Result<(), String> {
-        let result = sqlx::query("SELECT url FROM active_findings WHERE id = $1")
+        let result = sqlx::query("SELECT target_url FROM active_findings WHERE id = $1")
             .bind(poc.finding_id)
             .fetch_optional(&self.pool)
             .await
@@ -102,7 +102,7 @@ impl SafetyFramework for SafetyFrameworkImpl {
         let url_str = result
             .map(|r| {
                 use sqlx::Row;
-                r.try_get::<String, _>("url")
+                r.try_get::<String, _>("target_url")
                     .unwrap_or_else(|_| "unknown".to_string())
             })
             .unwrap_or_else(|| "unknown".to_string());

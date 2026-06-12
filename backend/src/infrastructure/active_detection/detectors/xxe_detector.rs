@@ -32,7 +32,7 @@ impl VulnDetector for XxeDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
-        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
@@ -42,10 +42,26 @@ impl VulnDetector for XxeDetector {
             if rate_limit_ms > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
             }
+            let request_url = endpoint_ctx
+                .map(|ctx| ctx.url.clone())
+                .unwrap_or_else(|| target_url.to_string());
+            let method = endpoint_ctx
+                .map(|ctx| ctx.method.to_uppercase())
+                .filter(|method| matches!(method.as_str(), "POST" | "PUT" | "PATCH"))
+                .unwrap_or_else(|| "POST".to_string());
+
             let start = std::time::Instant::now();
-            let mut req = self
-                .client
-                .post(target_url)
+            let mut req = match method.as_str() {
+                "PUT" => self.client.put(&request_url),
+                "PATCH" => self.client.patch(&request_url),
+                _ => self.client.post(&request_url),
+            };
+            if let Some(ctx) = endpoint_ctx {
+                for (k, v) in &ctx.headers {
+                    req = req.header(k, v);
+                }
+            }
+            req = req
                 .header("Content-Type", "application/xml")
                 .body(payload_def.payload.clone());
             if payload_selector.is_waf_bypass_enabled() {
@@ -56,7 +72,7 @@ impl VulnDetector for XxeDetector {
             let resp = req.send().await.map_err(|e| e.to_string())?;
 
             let status = resp.status().as_u16();
-            waf_monitor.register_response(target_url, status);
+            waf_monitor.register_response(&request_url, status);
             if waf_monitor.is_waf_detected(target_url) {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
             }
@@ -73,14 +89,14 @@ impl VulnDetector for XxeDetector {
                     scan_id,
                     timestamp: Utc::now(),
                     vuln_type: ActiveVulnType::XmlExternalEntity,
-                    target_url: target_url.to_string(),
+                    target_url: request_url.clone(),
                     affected_parameter: "XML body".to_string(),
-                    http_method: "POST".to_string(),
+                    http_method: method.clone(),
                     payload_used: payload_def.payload.clone(),
                     evidence: ActiveVulnEvidence {
                         request_raw: format!(
-                            "POST {} HTTP/1.1\nContent-Type: application/xml\n\n{}",
-                            target_url, payload_def.payload
+                            "{} {} HTTP/1.1\nContent-Type: application/xml\n\n{}",
+                            method, request_url, payload_def.payload
                         ),
                         response_raw: body.chars().take(2000).collect(),
                         response_time_ms: elapsed,
@@ -102,4 +118,3 @@ impl VulnDetector for XxeDetector {
         Ok(findings)
     }
 }
-

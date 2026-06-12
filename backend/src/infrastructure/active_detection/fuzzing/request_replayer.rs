@@ -1,6 +1,6 @@
-use reqwest::{Client, RequestBuilder};
-use crate::domain::fuzzing::{EndpointContext, InsertionPoint};
 use crate::domain::auth::AuthProfile;
+use crate::domain::fuzzing::{EndpointContext, InsertionPoint};
+use reqwest::{Client, RequestBuilder};
 use url::Url;
 
 pub struct RequestReplayer {
@@ -36,7 +36,16 @@ impl RequestReplayer {
         // Scope enforcement
         if let Ok(parsed_url) = Url::parse(&ctx.url) {
             if let Some(host) = parsed_url.host_str() {
-                if !self.allowed_domains.is_empty() && !self.allowed_domains.iter().any(|d| host.ends_with(d)) {
+                let host = host.trim_end_matches('.').to_ascii_lowercase();
+                if !self.allowed_domains.is_empty()
+                    && !self.allowed_domains.iter().any(|domain| {
+                        let domain = domain
+                            .trim_start_matches('.')
+                            .trim_end_matches('.')
+                            .to_ascii_lowercase();
+                        host == domain || host.ends_with(&format!(".{}", domain))
+                    })
+                {
                     return Err(format!("Out of scope URL: {}", ctx.url));
                 }
             }
@@ -45,7 +54,10 @@ impl RequestReplayer {
         // L3 Consent check for destructive methods
         let method_upper = ctx.method.to_uppercase();
         if ["PUT", "PATCH", "DELETE"].contains(&method_upper.as_str()) && !self.has_l3_consent {
-            return Err(format!("Destructive method {} requires L3 consent", method_upper));
+            return Err(format!(
+                "Destructive method {} requires L3 consent",
+                method_upper
+            ));
         }
 
         let mut builder = match method_upper.as_str() {
@@ -81,7 +93,9 @@ impl RequestReplayer {
             }
             InsertionPoint::JsonBodyPath(path) => {
                 if let Some(ref b) = ctx.body {
-                    if let Some(mutated_body) = super::json_mutator::JsonMutator::inject_payload(b, path, payload) {
+                    if let Some(mutated_body) =
+                        super::json_mutator::JsonMutator::inject_payload(b, path, payload)
+                    {
                         builder = builder.header("Content-Type", "application/json");
                         builder = builder.body(mutated_body);
                     } else {
@@ -99,7 +113,7 @@ impl RequestReplayer {
             }
             InsertionPoint::FormData(field) => {
                 // Simplified form-urlencoded support
-                let mut form = vec![(field.as_str(), payload)];
+                let form = vec![(field.as_str(), payload)];
                 builder = builder.form(&form);
             }
         }
@@ -116,14 +130,14 @@ mod tests {
     fn test_scope_enforcement() {
         let client = Client::new();
         let replayer = RequestReplayer::new(client, None, vec!["example.com".to_string()], false);
-        
+
         let mut ctx = EndpointContext::new("GET", "http://test.com/api");
         let point = InsertionPoint::QueryParam("q".to_string());
-        
+
         // Out of scope
         let res = replayer.build_request(&ctx, &point, "payload");
         assert!(res.is_err());
-        
+
         // In scope
         ctx.url = "http://api.example.com/api".to_string();
         let res2 = replayer.build_request(&ctx, &point, "payload");
@@ -134,15 +148,15 @@ mod tests {
     fn test_l3_consent_enforcement() {
         let client = Client::new();
         let replayer = RequestReplayer::new(client, None, vec![], false);
-        
+
         let ctx = EndpointContext::new("DELETE", "http://test.com/api");
         let point = InsertionPoint::QueryParam("q".to_string());
-        
+
         // Destructive without consent
         let res = replayer.build_request(&ctx, &point, "payload");
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("requires L3 consent"));
-        
+
         // Destructive with consent
         let replayer_l3 = RequestReplayer::new(Client::new(), None, vec![], true);
         let res_l3 = replayer_l3.build_request(&ctx, &point, "payload");

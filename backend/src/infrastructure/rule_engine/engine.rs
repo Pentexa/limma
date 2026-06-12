@@ -409,6 +409,18 @@ pub type SharedDynamicRuleEngine = Arc<DynamicRuleEngine>;
 
 /// Resolves the rules directory path relative to the executable or workspace.
 pub fn resolve_rules_dir() -> String {
+    if let Ok(configured) = std::env::var("LIMMA_RULES_DIR") {
+        let configured_path = PathBuf::from(&configured);
+        if configured_path.exists() {
+            return configured_path.to_string_lossy().to_string();
+        }
+    }
+
+    let manifest_rules = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rules");
+    if manifest_rules.exists() {
+        return manifest_rules.to_string_lossy().to_string();
+    }
+
     // Try relative to the current working directory first
     let cwd_rules = std::env::current_dir()
         .map(|d| d.join("rules"))
@@ -416,6 +428,14 @@ pub fn resolve_rules_dir() -> String {
 
     if cwd_rules.exists() {
         return cwd_rules.to_string_lossy().to_string();
+    }
+
+    let cwd_backend_rules = std::env::current_dir()
+        .map(|d| d.join("backend").join("rules"))
+        .unwrap_or_else(|_| PathBuf::from("backend").join("rules"));
+
+    if cwd_backend_rules.exists() {
+        return cwd_backend_rules.to_string_lossy().to_string();
     }
 
     // Fallback: relative to the executable

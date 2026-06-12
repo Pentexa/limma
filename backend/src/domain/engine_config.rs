@@ -117,17 +117,19 @@ impl EngineConfig {
         let mut target_ports = HashSet::new();
         let range_str = profile.services.port_scan_range.to_lowercase();
 
-        if range_str == "top-100" || range_str == "common" {
+        if range_str == "top-100" || range_str == "top100" || range_str == "common" {
             target_ports.extend(vec![
                 21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 1433, 1521, 2049, 3306,
                 3389, 5432, 6379, 8080, 8443,
             ]);
-        } else if range_str == "top-1000" {
+        } else if range_str == "top-1000" || range_str == "top1000" {
             // A realistic sample of top 1000 for this exercise, we can extend it later
             target_ports.extend(vec![
                 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306,
                 3389, 5900, 8080,
             ]);
+        } else if range_str == "full" || range_str == "all" {
+            target_ports.extend(1u16..=u16::MAX);
         } else {
             // parse comma separated and dash separated
             for part in range_str.split(',') {

@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 #[async_trait]
 pub trait ConsentRepository: Send + Sync {
-    async fn get_active_consent(&self, target_domain: &str) -> Result<Option<(Uuid, String)>, String>;
+    async fn get_active_consent(
+        &self,
+        target_domain: &str,
+    ) -> Result<Option<(Uuid, String)>, String>;
     async fn insert_consent(
         &self,
         id: Uuid,
@@ -44,7 +47,10 @@ impl PgConsentRepository {
 
 #[async_trait]
 impl ConsentRepository for PgConsentRepository {
-    async fn get_active_consent(&self, target_domain: &str) -> Result<Option<(Uuid, String)>, String> {
+    async fn get_active_consent(
+        &self,
+        target_domain: &str,
+    ) -> Result<Option<(Uuid, String)>, String> {
         let now = Utc::now();
         sqlx::query(
             r#"
@@ -222,14 +228,21 @@ impl ConsentValidatorImpl {
         target_domain: &str,
         consent_level: &str,
         granted_by: &str,
-        duration_days: Option<i64>,
+        duration_hours: Option<i64>,
     ) -> Result<Uuid, String> {
         let id = Uuid::new_v4();
         let granted_at = Utc::now();
-        let expires_at = duration_days.map(|d| granted_at + chrono::Duration::days(d));
+        let expires_at = duration_hours.map(|h| granted_at + chrono::Duration::hours(h));
 
         self.repo
-            .insert_consent(id, target_domain, consent_level, granted_by, granted_at, expires_at)
+            .insert_consent(
+                id,
+                target_domain,
+                consent_level,
+                granted_by,
+                granted_at,
+                expires_at,
+            )
             .await?;
 
         tracing::info!(
@@ -254,7 +267,9 @@ impl ConsentValidatorImpl {
         }
     }
 
-    pub async fn get_consents(&self) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
+    pub async fn get_consents(
+        &self,
+    ) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
         self.repo.get_consents().await
     }
 
@@ -266,7 +281,9 @@ impl ConsentValidatorImpl {
         actor: Option<&str>,
     ) -> Result<(), String> {
         let id = Uuid::new_v4();
-        self.repo.insert_audit_log(id, action, details, target, actor).await
+        self.repo
+            .insert_audit_log(id, action, details, target, actor)
+            .await
     }
 }
 
@@ -297,7 +314,10 @@ mod tests {
 
     #[async_trait]
     impl ConsentRepository for MockConsentRepository {
-        async fn get_active_consent(&self, _target_domain: &str) -> Result<Option<(Uuid, String)>, String> {
+        async fn get_active_consent(
+            &self,
+            _target_domain: &str,
+        ) -> Result<Option<(Uuid, String)>, String> {
             Ok(self.active_consent.lock().unwrap().clone())
         }
         async fn insert_consent(
@@ -312,15 +332,29 @@ mod tests {
             *self.active_consent.lock().unwrap() = Some((id, consent_level.to_string()));
             Ok(())
         }
-        async fn revoke_consent(&self, _id: Uuid, _target_domain: &str, _revoked_at: chrono::DateTime<Utc>) -> Result<bool, String> {
+        async fn revoke_consent(
+            &self,
+            _id: Uuid,
+            _target_domain: &str,
+            _revoked_at: chrono::DateTime<Utc>,
+        ) -> Result<bool, String> {
             *self.revoked.lock().unwrap() = true;
             *self.active_consent.lock().unwrap() = None;
             Ok(true)
         }
-        async fn get_consents(&self) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
+        async fn get_consents(
+            &self,
+        ) -> Result<Vec<crate::domain::entities::ConsentRecord>, String> {
             Ok(vec![])
         }
-        async fn insert_audit_log(&self, _id: Uuid, action: &str, _details: Option<&str>, _target: Option<&str>, _actor: Option<&str>) -> Result<(), String> {
+        async fn insert_audit_log(
+            &self,
+            _id: Uuid,
+            action: &str,
+            _details: Option<&str>,
+            _target: Option<&str>,
+            _actor: Option<&str>,
+        ) -> Result<(), String> {
             self.audit_logs.lock().unwrap().push(action.to_string());
             Ok(())
         }
@@ -334,7 +368,10 @@ mod tests {
 
         let res = validator.verify_consent("example.com", "L3").await;
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), "Insufficient consent level. Required: L3, Found: L1");
+        assert_eq!(
+            res.unwrap_err(),
+            "Insufficient consent level. Required: L3, Found: L1"
+        );
     }
 
     #[tokio::test]
@@ -344,7 +381,10 @@ mod tests {
         let validator = ConsentValidatorImpl::new(Box::new(repo));
 
         let res = validator.verify_consent("example.com", "L2").await;
-        assert!(res.is_ok(), "L3 implies sufficient for L2/L1 implicitly via code");
+        assert!(
+            res.is_ok(),
+            "L3 implies sufficient for L2/L1 implicitly via code"
+        );
     }
 
     #[tokio::test]
@@ -352,7 +392,10 @@ mod tests {
         let repo = MockConsentRepository::new();
         let validator = ConsentValidatorImpl::new(Box::new(repo));
 
-        let id = validator.grant_consent("example.com", "L2", "admin", None).await.unwrap();
+        let id = validator
+            .grant_consent("example.com", "L2", "admin", None)
+            .await
+            .unwrap();
         assert!(validator.verify_consent("example.com", "L2").await.is_ok());
 
         validator.revoke_consent(id, "example.com").await.unwrap();
@@ -364,7 +407,10 @@ mod tests {
         let repo = Box::new(MockConsentRepository::new());
         let validator = ConsentValidatorImpl::new(repo);
 
-        validator.log_audit("TEST_ACTION", None, Some("example.com"), None).await.unwrap();
+        validator
+            .log_audit("TEST_ACTION", None, Some("example.com"), None)
+            .await
+            .unwrap();
         // With a proper trait/mock we could assert the audit logs list.
     }
 }

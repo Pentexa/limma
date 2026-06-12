@@ -47,49 +47,48 @@ impl VulnDetector for SsrfDetector {
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
         _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
-        _endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
-        _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
+        endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
+        insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
         let payloads = payload_selector.select(ActiveVulnType::ServerSideRequestForgery);
 
         // First: get baseline response
-        let baseline_url = format!("{}?{}=https://example.com", target_url, parameter);
-        let baseline_resp = self
-            .client
-            .get(&baseline_url)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-        let baseline_len = baseline_resp.text().await.map_err(|e| e.to_string())?.len();
+        let baseline_resp = super::send_payload_request(
+            &self.client,
+            target_url,
+            parameter,
+            "https://example.com",
+            endpoint_ctx,
+            insertion_point,
+            false,
+        )
+        .await?;
+        let baseline_len = baseline_resp.response_body.len();
 
         for payload_def in &payloads {
             if rate_limit_ms > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms)).await;
             }
-            let test_url = format!(
-                "{}?{}={}",
+            let payload_response = super::send_payload_request(
+                &self.client,
                 target_url,
                 parameter,
-                urlencoding::encode(&payload_def.payload)
-            );
-            let start = std::time::Instant::now();
-            let mut req = self.client.get(&test_url);
-            if payload_selector.is_waf_bypass_enabled() {
-                req = crate::infrastructure::active_detection::waf_bypass_headers::apply_waf_bypass(
-                    req,
-                );
-            }
-            let resp = req.send().await.map_err(|e| e.to_string())?;
+                &payload_def.payload,
+                endpoint_ctx,
+                insertion_point,
+                payload_selector.is_waf_bypass_enabled(),
+            )
+            .await?;
 
-            let status = resp.status().as_u16();
-            waf_monitor.register_response(target_url, status);
+            let status = payload_response.status_code;
+            waf_monitor.register_response(&payload_response.request_url, status);
             if waf_monitor.is_waf_detected(target_url) {
                 tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
             }
 
-            let elapsed = start.elapsed().as_millis() as u64;
-            let body = resp.text().await.map_err(|e| e.to_string())?;
+            let elapsed = payload_response.response_time_ms;
+            let body = payload_response.response_body.clone();
 
             let mut detected = false;
             let mut indicator_msg = String::new();
@@ -116,12 +115,12 @@ impl VulnDetector for SsrfDetector {
                     scan_id,
                     timestamp: Utc::now(),
                     vuln_type: ActiveVulnType::ServerSideRequestForgery,
-                    target_url: target_url.to_string(),
+                    target_url: payload_response.request_url.clone(),
                     affected_parameter: parameter.to_string(),
-                    http_method: "GET".to_string(),
+                    http_method: payload_response.http_method.clone(),
                     payload_used: payload_def.payload.clone(),
                     evidence: ActiveVulnEvidence {
-                        request_raw: format!("GET {} HTTP/1.1", test_url),
+                        request_raw: payload_response.request_raw,
                         response_raw: body.chars().take(2000).collect(),
                         response_time_ms: elapsed,
                         matched_indicator: indicator_msg,
@@ -142,4 +141,3 @@ impl VulnDetector for SsrfDetector {
         Ok(findings)
     }
 }
-
