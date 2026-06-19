@@ -1,11 +1,15 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
 use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::reflection_analyzer::ReflectionAnalyzer;
+use crate::infrastructure::active_detection::evidence::EvidenceStrength;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use std::sync::{Arc, Mutex};
@@ -19,33 +23,10 @@ impl XssDetector {
         Self { client }
     }
 
+    #[cfg(test)]
     fn check_xss_reflection(&self, body: &str, payload: &str) -> (bool, bool) {
-        if !body.contains(payload) {
-            return (false, false);
-        }
-
-        let encoded = payload.replace('<', "&lt;").replace('>', "&gt;");
-        if body.contains(&encoded) && !body.contains(payload) {
-            return (false, false);
-        }
-
-        let dangerous_indicators = [
-            "<script",
-            "onerror=",
-            "onload=",
-            "onclick=",
-            "onfocus=",
-            "onmouseover=",
-            "ontoggle=",
-            "javascript:",
-        ];
-
-        let is_dangerous = dangerous_indicators.iter().any(|ind| {
-            payload.to_lowercase().contains(&ind.to_lowercase())
-                || body.to_lowercase().contains(&ind.to_lowercase())
-        });
-
-        (true, is_dangerous)
+        let analysis = ReflectionAnalyzer::analyze(body, payload);
+        (analysis.reflected, analysis.dangerous_context)
     }
 
     fn headless_verify(&self, test_url: &str) -> bool {
@@ -129,71 +110,55 @@ impl VulnDetector for XssDetector {
 
             let body = payload_response.response_body.clone();
 
-            let (reflected, dangerous) = self.check_xss_reflection(&body, &payload_def.payload);
-            if reflected {
-                if !dangerous {
-                    // Safe reflection (HTML encoded). Not a vulnerability.
-                    continue;
-                }
+            let analysis = ReflectionAnalyzer::analyze(&body, &payload_def.payload);
+            if !analysis.reflected || !analysis.dangerous_context {
+                continue;
+            }
 
-                let is_false_positive = baseline
-                    .map(|b| b.contains_indicator(&payload_def.payload))
-                    .unwrap_or(false);
+            let Some(mut evidence) = analysis.evidence else {
+                continue;
+            };
 
-                if is_false_positive {
-                    continue;
-                }
+            let mut finding_severity = SeverityLevel::Medium;
+            evidence.summary = format!(
+                "XSS payload reflected without HTML encoding in dangerous context ({})",
+                payload_def.description
+            );
 
-                let mut finding_severity = SeverityLevel::Medium;
-                let mut finding_confidence = ConfidenceLevel::Firm;
-                let mut additional_notes = vec![
-                    payload_def.description.clone(),
-                    "Payload reflected without HTML encoding".to_string(),
-                    "Reflection is in a potentially dangerous context (Potential XSS)".to_string(),
-                ];
+            // Headless verification is only possible for browser-navigable GET query payloads.
+            if payload_response
+                .browser_verification_url
+                .as_deref()
+                .is_some_and(|test_url| self.headless_verify(test_url))
+            {
+                finding_severity = SeverityLevel::High;
+                evidence.strength = EvidenceStrength::Conclusive;
+                evidence.summary =
+                    "Headless verification confirmed JavaScript execution for reflected payload"
+                        .to_string();
+            }
 
-                // Headless Verification is only possible for browser-navigable GET query payloads.
-                if payload_response
-                    .browser_verification_url
-                    .as_deref()
-                    .is_some_and(|test_url| self.headless_verify(test_url))
-                {
-                    finding_severity = SeverityLevel::High;
-                    finding_confidence = ConfidenceLevel::Certain;
-                    additional_notes
-                        .push("Headless Verification: Javascript Execution Confirmed!".to_string());
-                } else {
-                    additional_notes.push("Headless Verification: Not confirmed or not applicable for this insertion point".to_string());
-                    // Optional: skip adding the finding if we strictly want only confirmed
-                    // continue;
-                }
+            let candidate = CandidateFinding::new(
+                scan_id,
+                ActiveVulnType::ReflectedXss,
+                payload_response.request_url.clone(),
+                parameter,
+                payload_response.http_method.clone(),
+                payload_def.payload.clone(),
+                payload_response.request_raw,
+                body,
+                payload_response.response_time_ms,
+                payload_response.status_code,
+                finding_severity,
+                ExploitabilityLevel::Actionable,
+                vec![evidence],
+            );
 
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
-                    scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::ReflectedXss,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: payload_response.response_time_ms,
-                        matched_indicator: format!("XSS payload reflected: {}", payload_def.id),
-                        additional_notes,
-                    },
-                    severity: finding_severity,
-                    confidence: finding_confidence.clone(),
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: finding_confidence == ConfidenceLevel::Certain,
-                    false_positive: false,
-                });
+            if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                let is_certain = finding.confidence == ConfidenceLevel::Certain;
+                findings.push(finding);
 
-                if finding_confidence == ConfidenceLevel::Certain {
+                if is_certain {
                     break;
                 }
             }

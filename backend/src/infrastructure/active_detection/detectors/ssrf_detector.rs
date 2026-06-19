@@ -1,11 +1,15 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::response_diff::ResponseDiffAnalyzer;
+use crate::infrastructure::active_detection::evidence::token_matcher::TokenMatcher;
+use crate::infrastructure::active_detection::evidence::{EvidenceItem, EvidenceStrength};
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct SsrfDetector {
     client: Client,
@@ -46,14 +50,13 @@ impl VulnDetector for SsrfDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
         let payloads = payload_selector.select(ActiveVulnType::ServerSideRequestForgery);
 
-        // First: get baseline response
         let baseline_resp = super::send_payload_request(
             &self.client,
             target_url,
@@ -64,7 +67,8 @@ impl VulnDetector for SsrfDetector {
             false,
         )
         .await?;
-        let baseline_len = baseline_resp.response_body.len();
+        let baseline_snapshot =
+            ResponseDiffAnalyzer::snapshot(baseline_resp.status_code, baseline_resp.response_body);
 
         for payload_def in &payloads {
             if rate_limit_ms > 0 {
@@ -89,51 +93,60 @@ impl VulnDetector for SsrfDetector {
 
             let elapsed = payload_response.response_time_ms;
             let body = payload_response.response_body.clone();
+            let mut evidences = Vec::new();
 
-            let mut detected = false;
-            let mut indicator_msg = String::new();
-
-            // Check for cloud metadata
             if let Some(cloud) = Self::check_cloud_metadata(&body) {
-                detected = true;
-                indicator_msg = format!("Cloud metadata exposed: {}", cloud);
+                if let Some(mut evidence) = TokenMatcher::find_any(
+                    &body,
+                    &["ami-id", "instance-id", "computeMetadata", "\"compute\""],
+                ) {
+                    evidence.summary = format!("Cloud metadata exposed: {}", cloud);
+                    evidences.push(evidence);
+                }
             }
 
-            // Check if response differs significantly from baseline (internal page loaded)
-            if !detected && status == 200 && body.len() > baseline_len * 2 {
-                detected = true;
-                indicator_msg = format!(
-                    "Response size anomaly: {} vs baseline {}",
-                    body.len(),
-                    baseline_len
-                );
+            if evidences.is_empty() && status == 200 {
+                let observed_snapshot = ResponseDiffAnalyzer::snapshot(status, body.clone());
+                let diff =
+                    ResponseDiffAnalyzer::compare_snapshots(&baseline_snapshot, &observed_snapshot);
+
+                if diff.is_significant()
+                    && observed_snapshot.content_length > baseline_snapshot.content_length * 2
+                {
+                    let mut evidence = EvidenceItem::response_diff(
+                        "ssrf_internal_response_diff",
+                        format!(
+                            "SSRF response differed from safe URL baseline: {}",
+                            diff.summary()
+                        ),
+                    );
+                    evidence.strength = EvidenceStrength::Conclusive;
+                    evidences.push(evidence);
+                }
             }
 
-            if detected {
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
-                    scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::ServerSideRequestForgery,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
-                        matched_indicator: indicator_msg,
-                        additional_notes: vec![payload_def.description.clone()],
-                    },
-                    severity: SeverityLevel::Critical,
-                    confidence: ConfidenceLevel::Firm,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: false,
-                    false_positive: false,
-                });
+            if evidences.is_empty() {
+                continue;
+            }
+
+            let candidate = CandidateFinding::new(
+                scan_id,
+                ActiveVulnType::ServerSideRequestForgery,
+                payload_response.request_url.clone(),
+                parameter,
+                payload_response.http_method.clone(),
+                payload_def.payload.clone(),
+                payload_response.request_raw,
+                body,
+                elapsed,
+                status,
+                payload_def.severity.clone(),
+                ExploitabilityLevel::Actionable,
+                evidences,
+            );
+
+            if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                findings.push(finding);
                 break;
             }
         }

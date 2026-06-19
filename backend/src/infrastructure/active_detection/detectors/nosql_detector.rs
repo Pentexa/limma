@@ -1,20 +1,27 @@
 #![allow(clippy::collapsible_match)]
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::ConfidenceLevel;
+use crate::infrastructure::active_detection::evidence::error_pattern_matcher::ErrorPatternMatcher;
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct NosqlDetector {
     client: Client,
+    error_matcher: ErrorPatternMatcher,
 }
 
 impl NosqlDetector {
     pub fn new(client: Client) -> Self {
-        Self { client }
+        Self {
+            client,
+            error_matcher: ErrorPatternMatcher::new(),
+        }
     }
 }
 
@@ -68,58 +75,67 @@ impl VulnDetector for NosqlDetector {
             }
 
             let body = payload_response.response_body.clone();
+            let mut evidences = Vec::new();
+            let mut expected_delay_ms = None;
 
-            let mut is_vuln = false;
-            let mut matched_ind = String::new();
+            if let Some(matched) = self.error_matcher.match_nosql(&body) {
+                evidences.push(EvidenceItem::error_pattern(
+                    matched.matched_text.clone(),
+                    format!(
+                        "NoSQL error from {} engine: {}",
+                        matched.family, matched.matched_text
+                    ),
+                ));
+            }
 
             match &payload_def.expected_indicator {
-                ExpectedIndicator::StatusCode(code) => {
-                    if status == *code {
-                        is_vuln = true;
-                        matched_ind = format!("Status code matched: {}", code);
-                    }
+                ExpectedIndicator::StatusCode(code) if status == *code => {
+                    evidences.push(EvidenceItem::status_code(
+                        status,
+                        format!(
+                            "Expected NoSQL status code matched: {} ({})",
+                            code, payload_def.description
+                        ),
+                    ));
                 }
                 ExpectedIndicator::TimeDelay(delay) => {
-                    if elapsed >= *delay {
-                        is_vuln = true;
-                        matched_ind = format!("Time delay detected: {}ms", elapsed);
-                    }
+                    expected_delay_ms = Some(*delay);
+                    evidences.push(EvidenceItem::time_delay(elapsed, *delay));
                 }
                 _ => {}
             }
 
-            if is_vuln {
-                let is_false_positive = baseline
-                    .map(|b| b.contains_indicator(&payload_def.payload))
-                    .unwrap_or(false);
-                if is_false_positive {
-                    continue;
-                }
+            if evidences.is_empty() {
+                continue;
+            }
 
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
-                    scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::NoSqlInjection,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
-                        matched_indicator: matched_ind,
-                        additional_notes: vec![payload_def.description.clone()],
-                    },
-                    severity: payload_def.severity,
-                    confidence: ConfidenceLevel::Firm,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: true,
-                    false_positive: false,
-                });
+            let exploitability = if expected_delay_ms.is_some() {
+                ExploitabilityLevel::Conditional
+            } else {
+                ExploitabilityLevel::Actionable
+            };
+            let mut candidate = CandidateFinding::new(
+                scan_id,
+                ActiveVulnType::NoSqlInjection,
+                payload_response.request_url.clone(),
+                parameter,
+                payload_response.http_method.clone(),
+                payload_def.payload.clone(),
+                payload_response.request_raw,
+                body,
+                elapsed,
+                status,
+                payload_def.severity,
+                exploitability,
+                evidences,
+            );
+
+            if let Some(delay) = expected_delay_ms {
+                candidate = candidate.with_expected_delay(delay);
+            }
+
+            if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                findings.push(finding);
             }
         }
 

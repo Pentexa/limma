@@ -1,11 +1,14 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::token_matcher::TokenMatcher;
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct LfiDetector {
     client: Client,
@@ -16,7 +19,7 @@ impl LfiDetector {
         Self { client }
     }
 
-    fn check_file_content(body: &str) -> Option<&'static str> {
+    fn check_file_content(body: &str) -> Option<(&'static str, &'static str)> {
         let indicators: Vec<(&str, &str)> = vec![
             ("root:x:0:0:", "/etc/passwd"),
             ("root:$", "/etc/shadow"),
@@ -26,7 +29,7 @@ impl LfiDetector {
         ];
         for (pattern, file) in indicators {
             if body.contains(pattern) {
-                return Some(file);
+                return Some((pattern, file));
             }
         }
         None
@@ -51,7 +54,7 @@ impl VulnDetector for LfiDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
@@ -81,35 +84,47 @@ impl VulnDetector for LfiDetector {
 
             let body = payload_response.response_body.clone();
 
-            if let Some(file) = Self::check_file_content(&body) {
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
+            let evidence = match &payload_def.expected_indicator {
+                ExpectedIndicator::FileContent(indicator)
+                | ExpectedIndicator::ReflectedContent(indicator) => {
+                    TokenMatcher::find_expected(&body, indicator).map(|mut evidence| {
+                        evidence.summary =
+                            format!("Sensitive file content detected: {}", indicator);
+                        evidence
+                    })
+                }
+                _ => None,
+            }
+            .or_else(|| {
+                Self::check_file_content(&body).map(|(indicator, file)| {
+                    EvidenceItem::file_content(
+                        indicator,
+                        format!("Sensitive file read confirmed: {}", file),
+                    )
+                })
+            });
+
+            if let Some(evidence) = evidence {
+                let candidate = CandidateFinding::new(
                     scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::LocalFileInclusion,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: payload_response.response_time_ms,
-                        matched_indicator: format!("File content detected: {}", file),
-                        additional_notes: vec![
-                            payload_def.description.clone(),
-                            format!("Sensitive file read: {}", file),
-                        ],
-                    },
-                    severity: SeverityLevel::High,
-                    confidence: ConfidenceLevel::Certain,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: true,
-                    false_positive: false,
-                });
-                break;
+                    ActiveVulnType::LocalFileInclusion,
+                    payload_response.request_url.clone(),
+                    parameter,
+                    payload_response.http_method.clone(),
+                    payload_def.payload.clone(),
+                    payload_response.request_raw,
+                    body,
+                    payload_response.response_time_ms,
+                    payload_response.status_code,
+                    payload_def.severity.clone(),
+                    ExploitabilityLevel::Actionable,
+                    vec![evidence],
+                );
+
+                if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                    findings.push(finding);
+                    break;
+                }
             }
         }
 

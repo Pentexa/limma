@@ -1,11 +1,13 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct JwtDetector {
     client: Client,
@@ -34,13 +36,12 @@ impl VulnDetector for JwtDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
         let mut findings = Vec::new();
 
-        // Phase 1: None algorithm bypass
         let none_payloads = payload_selector.select(ActiveVulnType::JwtNoneAlgorithm);
         for payload_def in &none_payloads {
             if rate_limit_ms > 0 {
@@ -87,41 +88,39 @@ impl VulnDetector for JwtDetector {
 
             let elapsed = start.elapsed().as_millis() as u64;
             let body = resp.text().await.map_err(|e| e.to_string())?;
+            let body_lower = body.to_lowercase();
 
-            // If we get 200 OK with the none-alg token, the endpoint accepts it
-            if status == 200 && !body.contains("invalid") && !body.contains("unauthorized") {
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
+            if status == 200
+                && !body_lower.contains("invalid")
+                && !body_lower.contains("unauthorized")
+            {
+                let request_raw = format!(
+                    "{} {} HTTP/1.1\nAuthorization: Bearer {}",
+                    method, request_url, payload_def.payload
+                );
+                let candidate = CandidateFinding::new(
                     scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::JwtNoneAlgorithm,
-                    target_url: request_url.clone(),
-                    affected_parameter: "Authorization header".to_string(),
-                    http_method: method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: format!(
-                            "{} {} HTTP/1.1\nAuthorization: Bearer {}",
-                            method, request_url, payload_def.payload
-                        ),
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
-                        matched_indicator: format!("JWT none-alg accepted (HTTP {})", status),
-                        additional_notes: vec![
-                            payload_def.description.clone(),
-                            "Server accepted JWT with 'none' algorithm — critical auth bypass"
-                                .to_string(),
-                        ],
-                    },
-                    severity: SeverityLevel::Critical,
-                    confidence: ConfidenceLevel::Firm,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: false,
-                    false_positive: false,
-                });
-                break;
+                    ActiveVulnType::JwtNoneAlgorithm,
+                    request_url.clone(),
+                    "Authorization header",
+                    method.clone(),
+                    payload_def.payload.clone(),
+                    request_raw,
+                    body,
+                    elapsed,
+                    status,
+                    payload_def.severity.clone(),
+                    ExploitabilityLevel::Actionable,
+                    vec![EvidenceItem::jwt_accepted(
+                        status,
+                        format!("JWT none-alg accepted (HTTP {})", status),
+                    )],
+                );
+
+                if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                    findings.push(finding);
+                    break;
+                }
             }
         }
 

@@ -1,5 +1,7 @@
 use reqwest::Client;
-use std::time::Duration;
+
+use crate::infrastructure::active_detection::evidence::response_diff::ResponseDiffAnalyzer;
+use crate::infrastructure::active_detection::timing::baseline_analyzer::BaselineAnalyzer;
 
 #[derive(Debug, Clone)]
 pub struct BaselineProfile {
@@ -8,28 +10,18 @@ pub struct BaselineProfile {
     pub response_body: String,
 
     pub response_time_ms: u64,
+    pub average_response_time_ms: u64,
+    pub body_hash: String,
+    pub header_fingerprint: Vec<String>,
+    pub error_rate: f32,
+    pub redirect_location: Option<String>,
 }
 
 impl BaselineProfile {
     /// Compares a new response to the baseline to detect structural changes.
     /// Returns true if the difference is significant (e.g. content length delta > 5% and different status).
     pub fn is_significantly_different(&self, new_status: u16, new_body: &str) -> bool {
-        if self.status_code != new_status {
-            return true;
-        }
-
-        let new_len = new_body.len();
-        let diff_ratio = if self.content_length > 0 {
-            (self.content_length as f64 - new_len as f64).abs() / (self.content_length as f64)
-        } else {
-            if new_len > 0 {
-                1.0
-            } else {
-                0.0
-            }
-        };
-
-        diff_ratio > 0.05 // 5% delta threshold
+        ResponseDiffAnalyzer::compare_to_baseline(self, new_status, new_body).is_significant()
     }
 
     /// Checks if the baseline naturally contains a certain indicator (e.g. "syntax error")
@@ -45,24 +37,5 @@ pub async fn build_baseline(
     param: &str,
     safe_value: &str,
 ) -> Result<BaselineProfile, String> {
-    let start_time = std::time::Instant::now();
-    let resp = client
-        .get(target_url)
-        .query(&[(param, safe_value)])
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let elapsed = start_time.elapsed().as_millis() as u64;
-    let status_code = resp.status().as_u16();
-    let response_body = resp.text().await.unwrap_or_default();
-    let content_length = response_body.len();
-
-    Ok(BaselineProfile {
-        status_code,
-        content_length,
-        response_body,
-        response_time_ms: elapsed,
-    })
+    BaselineAnalyzer::build(client, target_url, param, safe_value).await
 }

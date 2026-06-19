@@ -1,19 +1,26 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::ConfidenceLevel;
+use crate::infrastructure::active_detection::evidence::error_pattern_matcher::ErrorPatternMatcher;
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct DeserDetector {
     client: Client,
+    error_matcher: ErrorPatternMatcher,
 }
 
 impl DeserDetector {
     pub fn new(client: Client) -> Self {
-        Self { client }
+        Self {
+            client,
+            error_matcher: ErrorPatternMatcher::new(),
+        }
     }
 }
 
@@ -78,51 +85,41 @@ impl VulnDetector for DeserDetector {
 
             let body = payload_response.response_body.clone();
 
-            let mut is_vuln = false;
-            let mut matched_ind = String::new();
+            let mut evidences = Vec::new();
 
             if let ExpectedIndicator::ErrorPattern(pattern) = &payload_def.expected_indicator {
                 if body.contains(pattern) {
-                    is_vuln = true;
-                    matched_ind = format!("Error pattern matched: {}", pattern);
+                    evidences.push(EvidenceItem::error_pattern(
+                        pattern.clone(),
+                        format!("Deserialization error pattern matched: {}", pattern),
+                    ));
+                } else if let Some(matched) = self.error_matcher.match_deserialization(&body) {
+                    evidences.push(matched.to_evidence());
                 }
             }
 
-            if is_vuln {
-                let is_false_positive = baseline
-                    .map(|b| b.contains_indicator(&payload_def.payload))
-                    .unwrap_or(false);
-                if is_false_positive {
-                    continue;
-                }
+            if evidences.is_empty() {
+                continue;
+            }
 
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
-                    scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
-                        matched_indicator: matched_ind,
-                        additional_notes: vec![
-                            payload_def.description.clone(),
-                            "Deserialization error pattern found in response".to_string(),
-                        ],
-                    },
-                    severity: payload_def.severity,
-                    confidence: ConfidenceLevel::Firm,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: true,
-                    false_positive: false,
-                });
+            let candidate = CandidateFinding::new(
+                scan_id,
+                vuln_type,
+                payload_response.request_url.clone(),
+                parameter,
+                payload_response.http_method.clone(),
+                payload_def.payload.clone(),
+                payload_response.request_raw,
+                body,
+                elapsed,
+                status,
+                payload_def.severity,
+                ExploitabilityLevel::Actionable,
+                evidences,
+            );
+
+            if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                findings.push(finding);
             }
         }
 

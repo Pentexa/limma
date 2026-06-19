@@ -1,11 +1,14 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::token_matcher::TokenMatcher;
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct XxeDetector {
     client: Client,
@@ -31,7 +34,7 @@ impl VulnDetector for XxeDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         _insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
@@ -80,38 +83,59 @@ impl VulnDetector for XxeDetector {
             let elapsed = start.elapsed().as_millis() as u64;
             let body = resp.text().await.map_err(|e| e.to_string())?;
 
-            let file_indicators = ["root:x:0:0:", "root:$", "[fonts]", "ami-id", "PD9waH"];
-            let detected = file_indicators.iter().any(|ind| body.contains(ind));
+            let evidence = match &payload_def.expected_indicator {
+                ExpectedIndicator::FileContent(indicator)
+                | ExpectedIndicator::ReflectedContent(indicator) => {
+                    TokenMatcher::find_expected(&body, indicator).map(|mut evidence| {
+                        evidence.summary =
+                            format!("XXE response exposed expected content: {}", indicator);
+                        evidence
+                    })
+                }
+                ExpectedIndicator::ErrorPattern(pattern) => {
+                    if body.contains(pattern) {
+                        Some(EvidenceItem::error_pattern(
+                            pattern.clone(),
+                            format!("XXE parser error pattern matched: {}", pattern),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+            .or_else(|| {
+                TokenMatcher::find_any(
+                    &body,
+                    &["root:x:0:0:", "root:$", "[fonts]", "ami-id", "PD9waH"],
+                )
+            });
 
-            if detected {
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
+            if let Some(evidence) = evidence {
+                let request_raw = format!(
+                    "{} {} HTTP/1.1\nContent-Type: application/xml\n\n{}",
+                    method, request_url, payload_def.payload
+                );
+                let candidate = CandidateFinding::new(
                     scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::XmlExternalEntity,
-                    target_url: request_url.clone(),
-                    affected_parameter: "XML body".to_string(),
-                    http_method: method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: format!(
-                            "{} {} HTTP/1.1\nContent-Type: application/xml\n\n{}",
-                            method, request_url, payload_def.payload
-                        ),
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: elapsed,
-                        matched_indicator: format!("XXE file content detected: {}", payload_def.id),
-                        additional_notes: vec![payload_def.description.clone()],
-                    },
-                    severity: SeverityLevel::Critical,
-                    confidence: ConfidenceLevel::Certain,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: true,
-                    false_positive: false,
-                });
-                break;
+                    ActiveVulnType::XmlExternalEntity,
+                    request_url.clone(),
+                    "XML body",
+                    method.clone(),
+                    payload_def.payload.clone(),
+                    request_raw,
+                    body,
+                    elapsed,
+                    status,
+                    payload_def.severity.clone(),
+                    ExploitabilityLevel::Actionable,
+                    vec![evidence],
+                );
+
+                if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                    findings.push(finding);
+                    break;
+                }
             }
         }
 

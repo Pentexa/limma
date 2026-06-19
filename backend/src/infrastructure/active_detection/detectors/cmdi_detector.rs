@@ -1,11 +1,15 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::domain::entities::SeverityLevel;
+use crate::infrastructure::active_detection::evidence::token_matcher::TokenMatcher;
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct CmdiDetector {
     client: Client,
@@ -14,11 +18,6 @@ pub struct CmdiDetector {
 impl CmdiDetector {
     pub fn new(client: Client) -> Self {
         Self { client }
-    }
-
-    fn check_cmd_output(body: &str) -> bool {
-        let indicators = ["uid=", "root:", "www-data", "[fonts]", "Windows", "SYSTEM"];
-        indicators.iter().any(|ind| body.contains(ind))
     }
 }
 
@@ -39,7 +38,7 @@ impl VulnDetector for CmdiDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
@@ -70,32 +69,30 @@ impl VulnDetector for CmdiDetector {
 
             let body = payload_response.response_body.clone();
 
-            if Self::check_cmd_output(&body) {
-                findings.push(ActiveVulnFinding {
-                    id: Uuid::new_v4(),
+            if let Some(evidence) = TokenMatcher::find_any(
+                &body,
+                &["uid=", "root:", "www-data", "[fonts]", "Windows", "SYSTEM"],
+            ) {
+                let candidate = CandidateFinding::new(
                     scan_id,
-                    timestamp: Utc::now(),
-                    vuln_type: ActiveVulnType::CommandInjection,
-                    target_url: payload_response.request_url.clone(),
-                    affected_parameter: parameter.to_string(),
-                    http_method: payload_response.http_method.clone(),
-                    payload_used: payload_def.payload.clone(),
-                    evidence: ActiveVulnEvidence {
-                        request_raw: payload_response.request_raw,
-                        response_raw: body.chars().take(2000).collect(),
-                        response_time_ms: payload_response.response_time_ms,
-                        matched_indicator: format!("Command output detected: {}", payload_def.id),
-                        additional_notes: vec![payload_def.description.clone()],
-                    },
-                    severity: SeverityLevel::Critical,
-                    confidence: ConfidenceLevel::Certain,
-                    exploitability: ExploitabilityLevel::Actionable,
-                    poc_generated: false,
-                    poc_id: None,
-                    verified: true,
-                    false_positive: false,
-                });
-                break;
+                    ActiveVulnType::CommandInjection,
+                    payload_response.request_url.clone(),
+                    parameter,
+                    payload_response.http_method.clone(),
+                    payload_def.payload.clone(),
+                    payload_response.request_raw,
+                    body,
+                    payload_response.response_time_ms,
+                    payload_response.status_code,
+                    SeverityLevel::Critical,
+                    ExploitabilityLevel::Actionable,
+                    vec![evidence],
+                );
+
+                if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                    findings.push(finding);
+                    break;
+                }
             }
         }
 
@@ -123,23 +120,32 @@ impl VulnDetector for CmdiDetector {
                     tokio::time::sleep(std::time::Duration::from_millis(rate_limit_ms * 2)).await;
                 }
 
-                if payload_response.response_time_ms >= 4500 {
-                    findings.push(ActiveVulnFinding {
-                        id: Uuid::new_v4(), scan_id, timestamp: Utc::now(),
-                        vuln_type: ActiveVulnType::CommandInjectionBlind,
-                        target_url: payload_response.request_url.clone(), affected_parameter: parameter.to_string(),
-                        http_method: payload_response.http_method.clone(), payload_used: payload_def.payload.clone(),
-                        evidence: ActiveVulnEvidence {
-                            request_raw: payload_response.request_raw,
-                            response_raw: format!("Response delayed: {}ms", payload_response.response_time_ms),
-                            response_time_ms: payload_response.response_time_ms,
-                            matched_indicator: format!("Blind CMDi time delay: {}ms", payload_response.response_time_ms),
-                            additional_notes: vec!["Time-based blind command injection".to_string()],
-                        },
-                        severity: SeverityLevel::Critical, confidence: ConfidenceLevel::Firm,
-                        exploitability: ExploitabilityLevel::Conditional,
-                        poc_generated: false, poc_id: None, verified: false, false_positive: false,
-                    });
+                let expected_delay_ms = match &payload_def.expected_indicator {
+                    ExpectedIndicator::TimeDelay(delay) => *delay,
+                    _ => 5_000,
+                };
+                let candidate = CandidateFinding::new(
+                    scan_id,
+                    ActiveVulnType::CommandInjectionBlind,
+                    payload_response.request_url.clone(),
+                    parameter,
+                    payload_response.http_method.clone(),
+                    payload_def.payload.clone(),
+                    payload_response.request_raw,
+                    format!("Response delayed: {}ms", payload_response.response_time_ms),
+                    payload_response.response_time_ms,
+                    payload_response.status_code,
+                    SeverityLevel::Critical,
+                    ExploitabilityLevel::Conditional,
+                    vec![EvidenceItem::time_delay(
+                        payload_response.response_time_ms,
+                        expected_delay_ms,
+                    )],
+                )
+                .with_expected_delay(expected_delay_ms);
+
+                if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                    findings.push(finding);
                     break;
                 }
             }

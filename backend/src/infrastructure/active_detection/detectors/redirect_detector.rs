@@ -1,11 +1,13 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest::Client;
 use uuid::Uuid;
 
 use super::VulnDetector;
 use crate::domain::active_vuln::*;
-use crate::domain::entities::{ConfidenceLevel, SeverityLevel};
+use crate::infrastructure::active_detection::evidence::EvidenceItem;
+use crate::infrastructure::active_detection::verification::{
+    CandidateFinding, VerificationPipeline,
+};
 
 pub struct RedirectDetector {
     _client: Client,
@@ -31,7 +33,7 @@ impl VulnDetector for RedirectDetector {
         payload_selector: &crate::infrastructure::active_detection::payload_selector::PayloadSelector,
         rate_limit_ms: u64,
         waf_monitor: std::sync::Arc<crate::infrastructure::safety::waf_monitor::WafMonitor>,
-        _baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
+        baseline: Option<&crate::infrastructure::active_detection::differential::BaselineProfile>,
         endpoint_ctx: Option<&crate::domain::fuzzing::EndpointContext>,
         insertion_point: Option<&crate::domain::fuzzing::InsertionPoint>,
     ) -> Result<Vec<ActiveVulnFinding>, String> {
@@ -71,35 +73,38 @@ impl VulnDetector for RedirectDetector {
             if (300..400).contains(&status) {
                 if let Some(location) = payload_response.headers.get("location") {
                     let loc_str = location.to_str().unwrap_or("");
-                    if loc_str.contains("evil.com")
+                    let expected_location = match &payload_def.expected_indicator {
+                        ExpectedIndicator::RedirectLocation(indicator) => indicator.as_str(),
+                        _ => "evil.com",
+                    };
+                    let suspicious_redirect = loc_str.contains(expected_location)
                         || loc_str.starts_with("javascript:")
-                        || loc_str.starts_with("//")
-                    {
-                        findings.push(ActiveVulnFinding {
-                            id: Uuid::new_v4(),
+                        || loc_str.starts_with("//");
+
+                    if suspicious_redirect {
+                        let candidate = CandidateFinding::new(
                             scan_id,
-                            timestamp: Utc::now(),
-                            vuln_type: ActiveVulnType::OpenRedirect,
-                            target_url: payload_response.request_url.clone(),
-                            affected_parameter: parameter.to_string(),
-                            http_method: payload_response.http_method.clone(),
-                            payload_used: payload_def.payload.clone(),
-                            evidence: ActiveVulnEvidence {
-                                request_raw: payload_response.request_raw,
-                                response_raw: format!("HTTP/1.1 {}\nLocation: {}", status, loc_str),
-                                response_time_ms: elapsed,
-                                matched_indicator: format!("Redirect to external: {}", loc_str),
-                                additional_notes: vec![payload_def.description.clone()],
-                            },
-                            severity: SeverityLevel::Medium,
-                            confidence: ConfidenceLevel::Certain,
-                            exploitability: ExploitabilityLevel::Actionable,
-                            poc_generated: false,
-                            poc_id: None,
-                            verified: true,
-                            false_positive: false,
-                        });
-                        break;
+                            ActiveVulnType::OpenRedirect,
+                            payload_response.request_url.clone(),
+                            parameter,
+                            payload_response.http_method.clone(),
+                            payload_def.payload.clone(),
+                            payload_response.request_raw,
+                            format!("HTTP/1.1 {}\nLocation: {}", status, loc_str),
+                            elapsed,
+                            status,
+                            payload_def.severity.clone(),
+                            ExploitabilityLevel::Actionable,
+                            vec![EvidenceItem::redirect_location(
+                                loc_str,
+                                format!("Redirect to attacker-controlled location: {}", loc_str),
+                            )],
+                        );
+
+                        if let Some(finding) = VerificationPipeline::verify(candidate, baseline) {
+                            findings.push(finding);
+                            break;
+                        }
                     }
                 }
             }
