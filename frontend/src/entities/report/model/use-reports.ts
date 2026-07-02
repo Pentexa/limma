@@ -16,7 +16,6 @@ export function useReports() {
   return useQuery<Report[], Error>({
     queryKey: reportKeys.lists(),
     queryFn: fetchReports,
-    refetchInterval: 30000,
   });
 }
 

@@ -112,10 +112,8 @@ export function DashboardScreen() {
       f.title?.toLowerCase().includes("jwt")
     ).length;
     
-    const uniqueUrls = new Set(normalized.map(f => f.url)).size;
-    const uniqueParams = new Set(normalized.map(f => f.parameter)).size;
-    const epsCount = activeScan.result?.totalEndpoints ?? (uniqueUrls > 0 ? uniqueUrls * 3 + 12 : 0);
-    const paramsCount = activeScan.result?.totalParameters ?? (uniqueParams > 0 ? uniqueParams * 4 + 28 : 0);
+    const epsCount = activeScan.result?.totalEndpoints;
+    const paramsCount = activeScan.result?.totalParameters;
     
     const wEvidence = normalized.filter(f => f.evidence && f.evidence.length > 0).length;
     const coverage = normalized.length > 0 ? Math.round((wEvidence / normalized.length) * 100) : 0;
@@ -136,9 +134,9 @@ export function DashboardScreen() {
       endpointsCount: epsCount,
       parametersCount: paramsCount,
       evidenceCoverage: coverage,
-      authBoundsCount: activeScan.result?.authBoundsIdentified ?? Math.round(epsCount * 0.15),
-      apiRoutesCount: activeScan.result?.apiRoutesMapped ?? Math.round(epsCount * 0.4),
-      inputVectorsCount: activeScan.result?.inputVectorsAnalyzed ?? Math.round(paramsCount * 0.6)
+      authBoundsCount: activeScan.result?.authBoundsIdentified,
+      apiRoutesCount: activeScan.result?.apiRoutesMapped,
+      inputVectorsCount: activeScan.result?.inputVectorsAnalyzed
     };
   }, [findings, activeScan.result]);
 
@@ -351,7 +349,11 @@ export function DashboardScreen() {
               {/* Modernized List with Indicators */}
               <div className="flex-1 space-y-2 text-[10.5px]">
                 {[
-                  { label: "Attack Surface", value: endpointsCount > 50 ? "High" : endpointsCount > 10 ? "Moderate" : "Low", cls: endpointsCount > 50 ? "text-risk" : "text-attention" },
+                  {
+                    label: "Attack Surface",
+                    value: endpointsCount == null ? "Unavailable" : endpointsCount > 50 ? "High" : endpointsCount > 10 ? "Moderate" : "Low",
+                    cls: endpointsCount == null ? "text-muted-foreground" : endpointsCount > 50 ? "text-risk" : "text-attention",
+                  },
                   { label: "Exposure Level", value: riskScore < 50 ? "High" : riskScore < 80 ? "Moderate" : "Low", cls: riskColor },
                   { label: "Data Sensitivity", value: "Moderate", cls: "text-attention" },
                   { label: "Auth Weaknesses", value: authWeaknesses.toString(), cls: authWeaknesses > 0 ? "text-risk" : "text-muted-foreground", suffix: "found" },
@@ -572,11 +574,11 @@ export function DashboardScreen() {
           <div className="px-4 py-3 border-b border-border/30 bg-gradient-to-r from-primary/10 to-transparent"><span className="text-[13px] font-bold tracking-wide text-foreground">Attack Surface</span></div>
           <div className="p-4 flex-1 grid grid-cols-2 grid-rows-3 gap-2">
             {[
-              { label: "Endpoints", value: endpointsCount.toString(), sub: "discovered" },
-              { label: "Parameters", value: parametersCount.toString(), sub: "tested" },
-              { label: "Auth Bounds", value: authBoundsCount.toString(), sub: "identified" },
-              { label: "API Routes", value: apiRoutesCount.toString(), sub: "mapped" },
-              { label: "Input Vectors", value: inputVectorsCount.toString(), sub: "analyzed" },
+              { label: "Endpoints", value: endpointsCount?.toString() ?? "—", sub: "discovered" },
+              { label: "Parameters", value: parametersCount?.toString() ?? "—", sub: "tested" },
+              { label: "Auth Bounds", value: authBoundsCount?.toString() ?? "—", sub: "identified" },
+              { label: "API Routes", value: apiRoutesCount?.toString() ?? "—", sub: "mapped" },
+              { label: "Input Vectors", value: inputVectorsCount?.toString() ?? "—", sub: "analyzed" },
               { label: "Attack Paths", value: normalizedFindings.length.toString(), sub: "traced" },
             ].map(item => (
               <div key={item.label} className="flex flex-col justify-center p-3 bg-muted/5 border border-border/40 hover:bg-muted/10 hover:border-border transition-colors duration-200">

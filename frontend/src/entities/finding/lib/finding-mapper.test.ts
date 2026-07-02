@@ -39,6 +39,11 @@ describe("finding mapper", () => {
       confidence: "high",
       verification: "verified",
       parameter: "q",
+      request: "GET /search?q=test HTTP/1.1",
+      responseTimeMs: 42,
+      exploitability: "actionable",
+      pocGenerated: false,
+      pocId: null,
       cwe: "CWE-89",
       cvss: 7.5,
     });

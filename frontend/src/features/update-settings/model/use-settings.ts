@@ -18,11 +18,11 @@ export function useSettingsProfiles() {
   });
 }
 
-/** Fetch scan profiles */
+/** Scan configuration profiles exposed by the settings API. */
 export function useScanProfiles() {
   return useQuery<ApiSettingsProfile[], Error>({
     queryKey: settingsKeys.scanProfiles(),
-    queryFn: () => httpClient.get<ApiSettingsProfile[]>("/api/profiles"),
+    queryFn: () => httpClient.get<ApiSettingsProfile[]>("/api/settings/profiles"),
   });
 }
 
@@ -37,13 +37,14 @@ export function useUpdateSettingsProfile() {
   });
 }
 
-/** Update a scan profile */
+/** Update a scan configuration profile through the canonical settings API. */
 export function useUpdateScanProfile() {
   const queryClient = useQueryClient();
   return useMutation<ApiSettingsProfile, Error, { id: string; data: Partial<ApiSettingsProfile> }>({
-    mutationFn: ({ id, data }) => httpClient.put<ApiSettingsProfile>(`/api/profiles/${id}`, data),
+    mutationFn: ({ id, data }) => httpClient.put<ApiSettingsProfile>(`/api/settings/profiles/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.scanProfiles() });
+      queryClient.invalidateQueries({ queryKey: settingsKeys.profiles() });
     },
   });
 }

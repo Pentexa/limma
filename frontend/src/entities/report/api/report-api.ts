@@ -1,4 +1,3 @@
-import { httpClient } from "@/shared/api/http-client";
 import type { Report } from "../model/types";
 
 const LOCAL_STORAGE_KEY = "limma_reports_history";
@@ -20,16 +19,11 @@ export function saveLocalReport(report: Report) {
 }
 
 export async function fetchReports(): Promise<Report[]> {
-  try {
-    const apiReports = await httpClient.get<Report[]>("/api/reports");
-    return [...getLocalReports(), ...(Array.isArray(apiReports) ? apiReports : [])];
-  } catch {
-    return getLocalReports();
-  }
+  return getLocalReports();
 }
 
 export async function fetchReport(id: string): Promise<Report> {
   const local = getLocalReports().find((r) => r.id === id);
   if (local) return local;
-  return httpClient.get<Report>(`/api/reports/${id}`);
+  throw new Error(`Report '${id}' was not found in local report history.`);
 }

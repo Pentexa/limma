@@ -1,7 +1,7 @@
 /**
  * Map backend ActiveScanFinding (snake_case) → frontend Finding (camelCase).
  */
-import type { Finding, DetectorType, Confidence, VerificationStatus } from "../model/types";
+import type { Finding, DetectorType, Confidence, Exploitability, VerificationStatus } from "../model/types";
 import type { Severity } from "@/shared/types/common";
 import { asFindingId, asScanId } from "@/shared/types/common";
 import type { ApiActiveScanFinding } from "@/shared/types/api";
@@ -59,6 +59,14 @@ function mapVerification(finding: ApiActiveScanFinding): VerificationStatus {
   if (finding.false_positive) return "false_positive";
   if (finding.verified) return "verified";
   return "unverified";
+}
+
+function mapExploitability(value?: string): Exploitability | null {
+  const normalized = value?.toLowerCase();
+  if (normalized === "actionable" || normalized === "conditional" || normalized === "theoretical") {
+    return normalized;
+  }
+  return null;
 }
 
 /** Map vuln_type to a human-readable title */
@@ -119,11 +127,16 @@ export function mapActiveFindingToFinding(api: ApiActiveScanFinding): Finding {
     parameter: api.affected_parameter,
     method: api.http_method,
     payload: api.payload_used,
-    response: api.evidence?.response_raw?.slice(0, 500) ?? "",
+    request: api.evidence?.request_raw ?? "",
+    response: api.evidence?.response_raw ?? "",
+    responseTimeMs: api.evidence?.response_time_ms ?? null,
     evidence: [
       api.evidence?.matched_indicator,
       ...(api.evidence?.additional_notes ?? []),
     ].filter(Boolean) as string[],
+    exploitability: mapExploitability(api.exploitability),
+    pocGenerated: api.poc_generated,
+    pocId: api.poc_id ?? null,
     cwe: mapCwe(api.vuln_type),
     cvss: estimateCvss(api.severity),
     references: [],
@@ -152,8 +165,13 @@ export function mapMasterFindingToFinding(api: Record<string, unknown>, scanId: 
     parameter: (api.affected_path_or_endpoint as string) || '',
     method: (api.method as string) || 'GET',
     payload: '',
+    request: '',
     response: '',
+    responseTimeMs: null,
     evidence: Array.isArray(evidence) ? evidence.map((e) => (e.raw_data as string) || (e.description as string) || '') : [],
+    exploitability: null,
+    pocGenerated: false,
+    pocId: null,
     cwe: '',
     cvss: riskScore?.total_score ? (riskScore.total_score as number) / 10 : estimateCvss((api.severity as string) || ''),
     references: [],

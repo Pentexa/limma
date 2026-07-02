@@ -157,6 +157,7 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
                   { icon: Globe, label: "URL", value: finding.url, mono: true },
                   { icon: Code, label: "Parameter", value: finding.parameter || "—", mono: true },
                   { icon: Shield, label: "Method", value: finding.method || "GET", mono: true },
+                  { icon: Clock, label: "Response", value: finding.responseTimeMs == null ? "—" : `${finding.responseTimeMs} ms`, mono: true },
                   { icon: FileCode, label: "Detector", value: `${detectorName} — ${detectorDesc}`, mono: false },
                   { icon: AlertTriangle, label: "CWE", value: finding.cwe, mono: true },
                   { icon: Clock, label: "Discovered", value: finding.createdAt ? new Date(finding.createdAt).toLocaleString() : "—", mono: false },
@@ -180,6 +181,18 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
                 </div>
                 <pre className="text-[11px] font-mono bg-black/40 px-4 py-3 overflow-x-auto whitespace-pre-wrap break-all text-foreground/90 leading-relaxed max-h-[300px]">
                   {finding.payload}
+                </pre>
+              </div>
+            )}
+
+            {finding.request && (
+              <div className="bg-[#080808] border border-border/30 rounded-md shadow-lg overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/20 bg-gradient-to-r from-primary/10 to-transparent flex items-center justify-between">
+                  <span className="text-[13px] font-bold tracking-wide text-foreground">Request</span>
+                  <CopyBtn text={finding.request} />
+                </div>
+                <pre className="text-[10px] font-mono bg-black/40 px-4 py-3 overflow-x-auto whitespace-pre-wrap break-all text-foreground/70 max-h-[300px] leading-relaxed">
+                  {finding.request}
                 </pre>
               </div>
             )}
@@ -230,6 +243,8 @@ export function FindingDetailScreen({ findingId }: FindingDetailScreenProps) {
                   { label: "Severity", value: finding.severity, cls: `sev-${finding.severity}` },
                   { label: "Confidence", value: finding.confidence, cls: finding.confidence === "confirmed" ? "text-verified" : "text-foreground" },
                   { label: "Verification", value: finding.verification, cls: finding.verification === "verified" ? "text-verified" : "text-muted-foreground" },
+                  { label: "Exploitability", value: finding.exploitability ?? "unknown", cls: finding.exploitability === "actionable" ? "text-risk" : "text-attention" },
+                  { label: "PoC", value: finding.pocGenerated ? "generated" : "not generated", cls: finding.pocGenerated ? "text-verified" : "text-muted-foreground" },
                   { label: "Scan ID", value: finding.scanId?.slice(0, 12) ?? "—", cls: "text-muted-foreground font-mono" },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between text-[11px]">

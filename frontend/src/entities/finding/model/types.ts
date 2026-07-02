@@ -5,6 +5,7 @@ export type Confidence = "confirmed" | "high" | "medium" | "low" | "tentative";
 
 /** Finding verification status */
 export type VerificationStatus = "verified" | "unverified" | "false_positive";
+export type Exploitability = "actionable" | "conditional" | "theoretical";
 
 /** Detector that found the vulnerability */
 export type DetectorType =
@@ -43,8 +44,13 @@ export interface Finding {
   parameter: string;
   method: string;
   payload: string;
+  request?: string;
   response: string;
+  responseTimeMs?: number | null;
   evidence: string[];
+  exploitability?: Exploitability | null;
+  pocGenerated?: boolean;
+  pocId?: string | null;
   cwe: string;
   cvss: number | null;
   references: string[];
