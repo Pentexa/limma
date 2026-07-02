@@ -1,24 +1,14 @@
 "use client";
 
 import { cn } from "@/shared/lib/utils";
-import { useReports, reportKeys } from "@/entities/report/model/use-reports";
-import { saveLocalReport } from "@/entities/report/api/report-api";
+import { useReports } from "@/entities/report/model/use-reports";
 import { useScans } from "@/entities/scan/model/use-scans";
-import { httpClient } from "@/shared/api/http-client";
 import { FileText, Loader2, Download } from "lucide-react";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import type { Report } from "@/entities/report/model/types";
-import type { ApiMasterReport } from "@/shared/types/api";
 
 export function ReportsScreen() {
   const { data: reports = [], isLoading } = useReports();
   const { data: scans = [] } = useScans();
   const activeScan = scans.find(s => s.status === "running") ?? scans[0];
-
-  const queryClient = useQueryClient();
-
-
 
   const FORMAT_BADGE: Record<string, { cls: string }> = {
     pdf: { cls: "bg-risk/10 text-risk border-risk/20" },

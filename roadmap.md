@@ -84,12 +84,13 @@ Limma gibi yüksek oranda I/O ve işlemci gücü kullanan bir güvenlik aracın�
 ## 4. Sonraki Adımlar & Aksiyon Roadmap'i
 
 1. **Aşama 1: Stabilizasyon**
-   - [ ] In-Memory History Store'un DB katmanına geçirilmesi.
-   - [ ] Dynamic session ve dynamic API signatures yapılarının kurulması.
-   - [ ] Docker sandbox'ın daemon kesintilerinde güvenli hata vermesinin sağlanması.
+   - [ ] In-Memory History Store'un DB katmanına geçirilmesi. **(Uygulanmadı - `history_store.rs` hâlâ in-memory)**
+   - [ ] Dynamic session ve dynamic API signatures yapılarının kurulması. **(Uygulanmadı - `cache_analyzer.rs` statik sessionid kullanıyor)**
+   - [/] Docker sandbox'ın daemon kesintilerinde güvenli hata vermesinin sağlanması. **(Kısmen Uygulandı - Başlangıçta fallback var ancak çalışma zamanı kesinti uyarıları eksik)**
 2. **Aşama 2: Test Kapsamı Artırımı**
-   - [ ] Dedektörler ve `scope_enforcer.rs` için unit test yazımının %80 coverage üzerine çıkarılması.
-   - [ ] Docker sandbox entegrasyonu için CI/CD pipeline testlerinin kurgulanması.
+   - [ ] Dedektörler ve `scope_enforcer.rs` için unit test yazımının %80 coverage üzerine çıkarılması. **(Uygulanmadı - 12 dedektörden sadece 1'inde temel test mevcut)**
+   - [ ] Docker sandbox entegrasyonu için CI/CD pipeline testlerinin kurgulanması. **(Uygulanmadı - Entegrasyon testi hâlâ `#[ignore]` durumunda)**
 3. **Aşama 3: Benchmark Araçları**
-   - [ ] Backend tarafında kural motoru için Rust `criterion` kütüphanesi kullanılarak mikro-benchmark'ların yazılması.
-   - [ ] `benchmark.js` dosyasının tüm ana analiz endpoint'lerini test edecek şekilde güncellenmesi.
+   - [ ] Backend tarafında kural motoru için Rust `criterion` kütüphanesi kullanılarak mikro-benchmark'ların yazılması. **(Uygulanmadı)**
+   - [ ] `benchmark.js` dosyasının tüm ana analiz endpoint'lerini test edecek şekilde güncellenmesi. **(Uygulanmadı - Kök dizinde benchmark.js dosyası mevcut değil)**
+

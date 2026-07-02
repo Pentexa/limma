@@ -43,6 +43,9 @@ pub struct BlindScanApiRequest {
     pub scan_id: Option<uuid::Uuid>,
     pub target_id: Option<uuid::Uuid>,
     pub max_duration_seconds: Option<u32>,
+    /// Session cookie supplied by the authenticated scan context. It is only
+    /// used for authenticated-vs-anonymous cache deception comparisons.
+    pub cookie: Option<String>,
 
     pub profile_id: Option<String>,
 }

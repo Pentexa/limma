@@ -1,51 +1,54 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
+use sqlx::PgPool;
 use std::time::Instant;
 
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::sleep;
 
-/// Simple in-memory rate limiter for exploit operations.
-///
-/// Tracks request counts per target domain within a sliding window.
+/// PostgreSQL-backed, process-safe rate limiter for exploit operations.
+/// Tracks request counts per target domain in fixed one-minute windows.
 pub struct ExploitRateLimiter {
     max_per_minute: u32,
-    counters: Mutex<HashMap<String, Vec<Instant>>>,
+    pool: PgPool,
 }
 
 impl ExploitRateLimiter {
-    pub fn new(max_per_minute: u32) -> Self {
+    pub fn new(pool: PgPool, max_per_minute: u32) -> Self {
         Self {
             max_per_minute,
-            counters: Mutex::new(HashMap::new()),
+            pool,
         }
     }
 
     /// Check if a request to the target is within rate limits.
     /// Records the request if allowed.
-    pub fn check(&self, target_url: &str) -> Result<(), String> {
+    pub async fn check(&self, target_url: &str) -> Result<(), String> {
         // Extract domain from URL for rate limiting
         let domain = extract_domain(target_url);
 
-        let mut counters = self.counters.lock().map_err(|e| e.to_string())?;
-        let now = Instant::now();
-        let one_minute_ago = now - std::time::Duration::from_secs(60);
+        let count = sqlx::query_scalar::<_, i32>(
+            "WITH cleanup AS (
+                 DELETE FROM exploit_rate_limits WHERE window_start < NOW() - INTERVAL '1 day'
+             )
+             INSERT INTO exploit_rate_limits (target_domain, window_start, request_count)
+             VALUES ($1, date_trunc('minute', NOW()), 1)
+             ON CONFLICT (target_domain, window_start) DO UPDATE
+             SET request_count = exploit_rate_limits.request_count + 1
+             WHERE exploit_rate_limits.request_count < $2
+             RETURNING request_count",
+        )
+        .bind(&domain)
+        .bind(self.max_per_minute as i32)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| format!("Distributed rate limiter unavailable: {e}"))?;
 
-        let timestamps = counters.entry(domain.clone()).or_default();
-
-        // Purge old entries
-        timestamps.retain(|t| *t > one_minute_ago);
-
-        if timestamps.len() as u32 >= self.max_per_minute {
+        if count.is_none() {
             Err(format!(
-                "Rate limit exceeded for '{}': {} requests/minute (max: {})",
-                domain,
-                timestamps.len(),
-                self.max_per_minute
+                "Rate limit exceeded for '{}': maximum {} requests/minute",
+                domain, self.max_per_minute
             ))
         } else {
-            timestamps.push(now);
             Ok(())
         }
     }

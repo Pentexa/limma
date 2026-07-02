@@ -1,5 +1,6 @@
 use crate::domain::entities::*;
 use crate::infrastructure::auditor::learning_feedback::LearningFeedbackEngine;
+use sha2::{Digest, Sha256};
 
 pub struct AutonomousScanStrategyEngine {
     learning_engine: LearningFeedbackEngine,
@@ -33,7 +34,12 @@ impl AutonomousScanStrategyEngine {
         // 2. Discover API Endpoints Strategy
         for ep in &api_discovery.detected_endpoints {
             // Check learning loop to see if this endpoint has historically been a false positive or inert
-            let sig = format!("api_discovery_[{:?}]", ep.path); // Dummy sig
+            let canonical = format!(
+                "{}|{:.3}",
+                ep.path.trim().to_ascii_lowercase(),
+                ep.auth_probability
+            );
+            let sig = format!("api_discovery:{:x}", Sha256::digest(canonical.as_bytes()));
             let learning_impact = self.learning_engine.generate_impact(&sig).await;
 
             let mut priority = TargetPriorityLevel::Standard;

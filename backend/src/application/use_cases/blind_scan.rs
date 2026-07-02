@@ -13,6 +13,7 @@ pub struct BlindScanRequest {
     pub target_url: String,
     pub target_id: Uuid,
     pub detection_types: Vec<BlindVulnType>,
+    pub cookie: Option<String>,
 
     pub max_duration_seconds: u32,
 }
@@ -45,7 +46,11 @@ impl<'a> PerformBlindScan<'a> {
         let start = Instant::now();
         let raw_findings = self
             .detection_engine
-            .detect_blind_vulnerabilities(&request.target_url, &request.detection_types)
+            .detect_blind_vulnerabilities(
+                &request.target_url,
+                &request.detection_types,
+                request.cookie.as_deref(),
+            )
             .await
             .map_err(|e| format!("Blind detection failed: {}", e))?;
 

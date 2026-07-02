@@ -24,7 +24,7 @@ export function Sidebar({ className }: { className?: string }) {
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-3 h-[45px] border-b border-white/[0.06] shrink-0">
         <div className="flex items-center justify-center shrink-0">
-          <img src="/logo.svg" alt="Limma" className="w-6 h-6 object-contain shrink-0" />
+          <Image src="/logo.svg" alt="Limma" width={24} height={24} priority className="w-6 h-6 object-contain shrink-0" />
         </div>
         {!collapsed && (
           <div className="min-w-0 flex items-baseline gap-1.5">

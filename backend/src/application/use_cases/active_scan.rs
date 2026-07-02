@@ -334,7 +334,29 @@ impl<S: ActiveScanRepository + Send + Sync, F: ActiveFindingRepository + Send + 
                         continue;
                     }
 
-                    for detector in self.detectors.iter() {
+                    let baseline =
+                        match crate::infrastructure::active_detection::differential::build_baseline_for_insertion(
+                            &client,
+                            &config.target_url,
+                            &target.endpoint,
+                            &insertion_point,
+                            "limma_safe_base",
+                        )
+                        .await
+                        {
+                            Ok(profile) => Some(profile),
+                            Err(e) => {
+                                tracing::debug!(
+                                    "Deep scan baseline failed for {} {:?}: {}",
+                                    target.endpoint.url,
+                                    insertion_point,
+                                    e
+                                );
+                                None
+                            }
+                        };
+
+                    for detector in scan_detectors_arc.iter() {
                         let supported = detector.supported_types();
                         let should_run: Vec<_> = supported
                             .into_iter()
@@ -350,6 +372,7 @@ impl<S: ActiveScanRepository + Send + Sync, F: ActiveFindingRepository + Send + 
                         let insertion_point_clone = insertion_point.clone();
                         let wm = waf_monitor.clone();
                         let payload_selector_clone = self.payload_selector.clone();
+                        let baseline_clone = baseline.clone();
 
                         let param_fallback = match &insertion_point_clone {
                             InsertionPoint::QueryParam(p) => p.clone(),
@@ -369,7 +392,7 @@ impl<S: ActiveScanRepository + Send + Sync, F: ActiveFindingRepository + Send + 
                                 payload_selector_clone.as_ref(),
                                 rate_limit_ms,
                                 wm,
-                                None, // no baseline for dynamic APIs yet
+                                baseline_clone.as_ref(),
                                 Some(&endpoint_ctx_clone),
                                 Some(&insertion_point_clone),
                             ).await.map_err(|e| format!("Detector error: {}", e))

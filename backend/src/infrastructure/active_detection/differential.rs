@@ -1,5 +1,6 @@
 use reqwest::Client;
 
+use crate::domain::fuzzing::{EndpointContext, InsertionPoint};
 use crate::infrastructure::active_detection::evidence::response_diff::ResponseDiffAnalyzer;
 use crate::infrastructure::active_detection::timing::baseline_analyzer::BaselineAnalyzer;
 
@@ -38,4 +39,22 @@ pub async fn build_baseline(
     safe_value: &str,
 ) -> Result<BaselineProfile, String> {
     BaselineAnalyzer::build(client, target_url, param, safe_value).await
+}
+
+/// Builds a baseline profile by replaying a real endpoint/insertion point with a safe value.
+pub async fn build_baseline_for_insertion(
+    client: &Client,
+    target_url: &str,
+    endpoint_ctx: &EndpointContext,
+    insertion_point: &InsertionPoint,
+    safe_value: &str,
+) -> Result<BaselineProfile, String> {
+    BaselineAnalyzer::build_for_insertion(
+        client,
+        target_url,
+        endpoint_ctx,
+        insertion_point,
+        safe_value,
+    )
+    .await
 }

@@ -5,7 +5,8 @@ import { useState } from "react";
 import { startScan } from "../api/start-scan";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStreamStore } from "@/features/stream-scan-events/model/stream-store";
-import { startScanStream } from "@/features/stream-scan-events/model/scan-stream-manager";
+import { startScanStream, stopScanStream } from "@/features/stream-scan-events/model/scan-stream-manager";
+import { toast } from "sonner";
 
 interface StartScanButtonProps {
   targetUrl: string;
@@ -31,7 +32,14 @@ export function StartScanButton({ targetUrl, profileId, disabled, onStarted, onE
 
     try {
       // 3. Fire the actual API call
-      const result = await startScan({ target_url: targetUrl, profile_id: profileId });
+      const result = await startScan(
+        { target_url: targetUrl, profile_id: profileId },
+        {
+          onPassiveScanError: (error) => {
+            toast.warning(`Passive analysis unavailable: ${error.message}`);
+          },
+        }
+      );
 
       // 4. Promote local state to running
       useStreamStore.getState().setScanRunning(result.scan_id);
@@ -42,11 +50,12 @@ export function StartScanButton({ targetUrl, profileId, disabled, onStarted, onE
       queryClient.invalidateQueries({ queryKey: ["scans"] });
       queryClient.invalidateQueries({ queryKey: ["findings"] });
     } catch (err) {
-      // Revert local state on error
+      // Revert local and streaming state on error.
+      stopScanStream();
       useStreamStore.getState().setScanIdle();
       const msg = err instanceof Error ? err.message : "Failed to start scan";
       onError?.(msg);
-      if (!onError) alert(`Failed to start scan: ${msg}`);
+      if (!onError) toast.error(`Failed to start scan: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -54,6 +63,7 @@ export function StartScanButton({ targetUrl, profileId, disabled, onStarted, onE
 
   return (
     <button
+      type="button"
       onClick={handleStart}
       disabled={disabled || isLoading || !targetUrl}
       className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-[12px] font-medium rounded hover:bg-primary/90 disabled:opacity-40 disabled:pointer-events-none transition-colors"

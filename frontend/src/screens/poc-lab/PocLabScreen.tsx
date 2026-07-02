@@ -14,6 +14,7 @@ import {
   CheckCircle, XCircle, ChevronRight, Copy, Shield,
 } from "lucide-react";
 import { ExecutionLevelDialog } from "@/features/verify-finding/ui/ExecutionLevelDialog";
+import { toast } from "sonner";
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -85,7 +86,7 @@ export function PocLabScreen() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Download failed");
+      toast.error(err instanceof Error ? err.message : "Download failed");
     } finally { setDownloadLoading(false); }
   }
 

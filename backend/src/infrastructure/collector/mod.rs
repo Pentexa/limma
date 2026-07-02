@@ -22,17 +22,15 @@ use futures::stream::{self, StreamExt};
 use tokio::net::lookup_host;
 use url::Url;
 
-pub struct HttpServiceCollector;
-
-impl Default for HttpServiceCollector {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct HttpServiceCollector {
+    history_store: history_store::HistoryStore,
 }
 
 impl HttpServiceCollector {
-    pub fn new() -> Self {
-        Self
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self {
+            history_store: history_store::HistoryStore::new(pool),
+        }
     }
 }
 
@@ -186,9 +184,9 @@ impl ServiceCollector for HttpServiceCollector {
             .iter()
             .filter(|p| {
                 p.state == PortState::Open
-                    && p.service_candidates.iter().any(|c| {
-                        c.decision == crate::domain::entities::DecisionOutcome::Verified
-                    })
+                    && p.service_candidates
+                        .iter()
+                        .any(|c| c.decision == crate::domain::entities::DecisionOutcome::Verified)
             })
             .map(|p| p.port)
             .collect();
@@ -237,7 +235,11 @@ impl ServiceCollector for HttpServiceCollector {
         };
 
         // === 5. Change Detection (Diff Engine) ===
-        if let Some(prev) = history_store::get_previous_snapshot(&target_input.normalized_url) {
+        if let Some(prev) = self
+            .history_store
+            .get_previous_snapshot(&target_input.normalized_url)
+            .await?
+        {
             let diff = diff_engine::compare(&prev, &snapshot);
 
             snapshot.activity_timeline.push(ActivityEvent {
@@ -267,7 +269,9 @@ impl ServiceCollector for HttpServiceCollector {
         }
 
         // Save current snapshot
-        history_store::save_snapshot(&target_input.normalized_url, snapshot.clone());
+        self.history_store
+            .save_snapshot(&target_input.normalized_url, &snapshot)
+            .await?;
 
         Ok(snapshot)
     }

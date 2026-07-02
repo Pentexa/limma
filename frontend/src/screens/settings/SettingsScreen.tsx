@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
-import { useSettingsProfiles, useScanProfiles, useUpdateProfile } from "@/features/update-settings/model/use-settings";
+import {
+  useSettingsProfiles,
+  useScanProfiles,
+  useUpdateScanProfile,
+  useUpdateSettingsProfile,
+} from "@/features/update-settings/model/use-settings";
 import { 
   Settings, Loader2, Save, User, Radar, CheckCircle, XCircle, RotateCcw, 
   AlertTriangle, Globe, Crosshair, Network, FileText, ShieldAlert 
@@ -329,13 +334,22 @@ export function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const { data: settingsProfiles = [], isLoading: spLoading } = useSettingsProfiles();
   const { data: scanProfiles = [], isLoading: scpLoading } = useScanProfiles();
-  const updateMutation = useUpdateProfile();
+  const updateSettingsMutation = useUpdateSettingsProfile();
+  const updateScanProfileMutation = useUpdateScanProfile();
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const isLoading = spLoading || scpLoading;
 
-  const handleSaveProfile = (id: string, updatedProfile: ApiSettingsProfile) => {
-    updateMutation.mutate({ id, data: updatedProfile }, {
+  const handleSaveSettingsProfile = (id: string, updatedProfile: ApiSettingsProfile) => {
+    updateSettingsMutation.mutate({ id, data: updatedProfile }, {
+      onSuccess: () => {
+        setEditingId(null);
+      }
+    });
+  };
+
+  const handleSaveScanProfile = (id: string, updatedProfile: ApiSettingsProfile) => {
+    updateScanProfileMutation.mutate({ id, data: updatedProfile }, {
       onSuccess: () => {
         setEditingId(null);
       }
@@ -436,7 +450,7 @@ export function SettingsScreen() {
                       editingId === profile.id ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
                     )}>
                       <div className="p-5 bg-background/50 border-t border-border/30">
-                        {updateMutation.isSuccess && editingId === profile.id && (
+                        {updateSettingsMutation.isSuccess && editingId === profile.id && (
                           <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3 animate-in slide-in-from-top-2">
                             <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
                               <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
@@ -447,8 +461,8 @@ export function SettingsScreen() {
                         <ProfileEditor 
                           key={profile.id}
                           profile={profile} 
-                          onSave={(p) => handleSaveProfile(profile.id, p)} 
-                          isSaving={updateMutation.isPending} 
+                          onSave={(p) => handleSaveSettingsProfile(profile.id, p)}
+                          isSaving={updateSettingsMutation.isPending}
                         />
                       </div>
                     </div>
@@ -489,7 +503,7 @@ export function SettingsScreen() {
                       editingId === profile.id ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
                     )}>
                       <div className="p-5 bg-background/50 border-t border-border/30">
-                        {updateMutation.isSuccess && editingId === profile.id && (
+                        {updateScanProfileMutation.isSuccess && editingId === profile.id && (
                           <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3">
                             <CheckCircle className="w-4 h-4 text-emerald-400" />
                             <span className="text-xs text-emerald-300 font-medium">Profile saved successfully.</span>
@@ -497,8 +511,8 @@ export function SettingsScreen() {
                         )}
                         <ProfileEditor 
                           profile={profile} 
-                          onSave={(p) => handleSaveProfile(profile.id, p)} 
-                          isSaving={updateMutation.isPending} 
+                          onSave={(p) => handleSaveScanProfile(profile.id, p)}
+                          isSaving={updateScanProfileMutation.isPending}
                         />
                       </div>
                     </div>

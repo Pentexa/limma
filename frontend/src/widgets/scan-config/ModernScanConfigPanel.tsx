@@ -8,11 +8,14 @@ import { Play, Settings2, ShieldAlert } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { startScan } from "@/features/start-scan/api/start-scan";
 import { useStreamStore } from "@/features/stream-scan-events/model/stream-store";
-import { startScanStream } from "@/features/stream-scan-events/model/scan-stream-manager";
+import { startScanStream, stopScanStream } from "@/features/stream-scan-events/model/scan-stream-manager";
 import { DETECTOR_META } from "@/entities/finding/model/types";
 import type { ActiveVulnType } from "@/shared/types/api";
+import { toast } from "sonner";
 
-const DETECTOR_TO_VULN_TYPES: Record<string, string[]> = {
+type ScanMode = "fast" | "modern_spa_api" | "deep_verification";
+
+const DETECTOR_TO_VULN_TYPES: Record<string, ActiveVulnType[]> = {
   xss: ["reflected_xss", "stored_xss", "dom_xss"],
   sqli: ["sql_injection_error", "sql_injection_union", "sql_injection_blind_time", "sql_injection_blind_boolean"],
   cmdi: ["command_injection", "command_injection_blind"],
@@ -33,7 +36,7 @@ export function ModernScanConfigPanel({ targetUrl, profileId, disabled }: { targ
   const [isLoading, setIsLoading] = useState(false);
 
   // Form State
-  const [scanMode, setScanMode] = useState<"fast" | "modern_spa_api" | "deep_verification">("fast");
+  const [scanMode, setScanMode] = useState<ScanMode>("fast");
   const [enableHeadlessBrowser, setEnableHeadlessBrowser] = useState(false);
   const [maxBrowserTabs, setMaxBrowserTabs] = useState(2);
   const [bearerToken, setBearerToken] = useState("");
@@ -55,7 +58,7 @@ export function ModernScanConfigPanel({ targetUrl, profileId, disabled }: { targ
     if (!targetUrl) return;
 
     if (allowDestructiveMethods && !l3ConsentAccepted) {
-      alert("You must accept L3 Consent to use destructive methods.");
+      toast.error("You must accept L3 Consent to use destructive methods.");
       return;
     }
 
@@ -65,32 +68,40 @@ export function ModernScanConfigPanel({ targetUrl, profileId, disabled }: { targ
     startScanStream(targetUrl);
 
     try {
-      const result = await startScan({
-        target_url: targetUrl,
-        profile_id: profileId,
-        scan_mode: scanMode,
-        enable_headless_browser: enableHeadlessBrowser,
-        max_browser_tabs: Math.min(3, Math.max(1, maxBrowserTabs)),
-        bearer_token: bearerToken || undefined,
-        cookie: cookie || undefined,
-        custom_headers: customHeaders || undefined,
-        basic_auth_user: basicAuthUser || undefined,
-        basic_auth_pass: basicAuthPass || undefined,
-        enable_json_fuzzing: enableJsonFuzzing,
-        enable_xss_verification: enableXssVerification,
-        allow_destructive_methods: allowDestructiveMethods,
-        l3_consent_accepted: l3ConsentAccepted,
-        vuln_types: Array.from(selectedDetectors).flatMap(d => DETECTOR_TO_VULN_TYPES[d]) as any[],
-      });
+      const result = await startScan(
+        {
+          target_url: targetUrl,
+          profile_id: profileId,
+          scan_mode: scanMode,
+          enable_headless_browser: enableHeadlessBrowser,
+          max_browser_tabs: Math.min(3, Math.max(1, maxBrowserTabs)),
+          bearer_token: bearerToken || undefined,
+          cookie: cookie || undefined,
+          custom_headers: customHeaders || undefined,
+          basic_auth_user: basicAuthUser || undefined,
+          basic_auth_pass: basicAuthPass || undefined,
+          enable_json_fuzzing: enableJsonFuzzing,
+          enable_xss_verification: enableXssVerification,
+          allow_destructive_methods: allowDestructiveMethods,
+          l3_consent_accepted: l3ConsentAccepted,
+          vuln_types: Array.from(selectedDetectors).flatMap(d => DETECTOR_TO_VULN_TYPES[d] ?? []),
+        },
+        {
+          onPassiveScanError: (error) => {
+            toast.warning(`Passive analysis unavailable: ${error.message}`);
+          },
+        }
+      );
 
       useStreamStore.getState().setScanRunning(result.scan_id);
       queryClient.invalidateQueries({ queryKey: ["scans"] });
       queryClient.invalidateQueries({ queryKey: ["findings"] });
       setIsOpen(false);
     } catch (err) {
+      stopScanStream();
       useStreamStore.getState().setScanIdle();
       const msg = err instanceof Error ? err.message : "Failed to start scan";
-      alert(`Failed to start scan: ${msg}`);
+      toast.error(`Failed to start scan: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +128,7 @@ export function ModernScanConfigPanel({ targetUrl, profileId, disabled }: { targ
               <label className="text-sm font-medium text-foreground/90">Scan Mode</label>
               <select 
                 value={scanMode} 
-                onChange={e => setScanMode(e.target.value as any)}
+                onChange={e => setScanMode(e.target.value as ScanMode)}
                 className="w-full h-10 px-3 text-sm rounded-md bg-white/5 border border-white/10 outline-none focus:border-primary/50 focus:bg-white/10 transition-colors"
               >
                 <option value="fast" className="bg-[#050505]">Fast (Classic Parameter Based)</option>

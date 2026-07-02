@@ -1,10 +1,10 @@
+pub mod cache_analyzer;
 pub mod dom_executor;
+pub mod graphql_analyzer;
 pub mod oob_callback;
 pub mod payload_store;
-pub mod timing_analyzer;
-pub mod graphql_analyzer;
-pub mod cache_analyzer;
 pub mod smuggling_analyzer;
+pub mod timing_analyzer;
 
 use crate::domain::entities::*;
 use async_trait::async_trait;
@@ -16,6 +16,7 @@ pub trait BlindDetectionEngine: Send + Sync {
         &self,
         target_url: &str,
         types: &[BlindVulnType],
+        session_cookie: Option<&str>,
     ) -> Result<Vec<RawBlindFinding>, String>;
 }
 
@@ -54,6 +55,7 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
         &self,
         target_url: &str,
         types: &[BlindVulnType],
+        session_cookie: Option<&str>,
     ) -> Result<Vec<RawBlindFinding>, String> {
         let mut findings = Vec::new();
 
@@ -73,7 +75,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::XmlExternalEntity => {
                     // XXE uses OOB callback with XML entity payloads
-                    self.oob_engine.detect_ssrf(target_url).await?
+                    self.oob_engine
+                        .detect_ssrf(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::XmlExternalEntity;
@@ -83,7 +87,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::InsecureDeserialization => {
                     // Deserialization payloads use OOB callbacks to confirm execution
-                    self.oob_engine.detect_ssrf(target_url).await?
+                    self.oob_engine
+                        .detect_ssrf(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::InsecureDeserialization;
@@ -93,7 +99,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::SecondOrderInjection => {
                     // Second-order injection uses OOB to detect delayed execution
-                    self.oob_engine.detect_ssrf(target_url).await?
+                    self.oob_engine
+                        .detect_ssrf(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::SecondOrderInjection;
@@ -128,7 +136,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::BlindSqliErrorBased => {
                     // Error-based blind SQLi uses differential analysis
-                    self.timing_analyzer.detect_boolean_sqli(target_url).await?
+                    self.timing_analyzer
+                        .detect_boolean_sqli(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::BlindSqliErrorBased;
@@ -138,7 +148,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::RemoteFileInclusion => {
                     // RFI uses OOB callback to detect external file inclusions
-                    self.oob_engine.detect_ssrf(target_url).await?
+                    self.oob_engine
+                        .detect_ssrf(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::RemoteFileInclusion;
@@ -148,7 +160,9 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                 }
                 BlindVulnType::HostHeaderInjection => {
                     // Host Header Injection uses OOB callback via injected Host headers
-                    self.oob_engine.detect_ssrf(target_url).await?
+                    self.oob_engine
+                        .detect_ssrf(target_url)
+                        .await?
                         .into_iter()
                         .map(|mut f| {
                             f.vulnerability_type = BlindVulnType::HostHeaderInjection;
@@ -157,13 +171,19 @@ impl BlindDetectionEngine for HttpBlindDetectionEngine {
                         .collect()
                 }
                 BlindVulnType::GraphqlAbuse => {
-                    self.graphql_analyzer.detect_graphql_abuse(target_url).await?
+                    self.graphql_analyzer
+                        .detect_graphql_abuse(target_url)
+                        .await?
                 }
                 BlindVulnType::WebCacheDeception => {
-                    self.cache_analyzer.detect_cache_deception(target_url).await?
+                    self.cache_analyzer
+                        .detect_cache_deception(target_url, session_cookie)
+                        .await?
                 }
                 BlindVulnType::HttpRequestSmuggling => {
-                    self.smuggling_analyzer.detect_request_smuggling(target_url).await?
+                    self.smuggling_analyzer
+                        .detect_request_smuggling(target_url)
+                        .await?
                 }
             };
             findings.append(&mut results);

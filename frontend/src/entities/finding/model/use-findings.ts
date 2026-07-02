@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchFindings, fetchFilteredFindings, fetchFinding, fetchMasterReportFindings } from "../api/finding-api";
 import type { Finding } from "../model/types";
+import { useScans } from "@/entities/scan/model/use-scans";
 
 /** Query keys for finding data */
 export const findingKeys = {
@@ -51,15 +52,12 @@ export function useMasterReportFindings(targetUrl: string | undefined, scanId: s
     staleTime: Infinity, // Don't refetch automatically
   });
 }
-import { useScans } from "@/entities/scan/model/use-scans";
-
-/** Fetch ALL findings (Active + Master) globally for the current active scan */
+/** Fetch active findings globally for the current active scan without triggering Master Report work. */
 export function useGlobalFindings() {
   const { data: scans = [], isLoading: scansLoading, isFetching: scansFetching } = useScans();
   const activeScan = scans.find((s) => s.status === "running") ?? scans[0] ?? { id: "", targetUrl: "" };
 
   const hasActiveScan = activeScan.id !== "";
-  const hasTarget = activeScan.targetUrl !== "";
 
   const {
     data: activeScanFindings = [],
@@ -69,33 +67,20 @@ export function useGlobalFindings() {
     hasActiveScan ? activeScan.id : undefined
   );
 
-  const {
-    data: masterFindings = [],
-    isLoading: masterLoading,
-    isFetching: masterFetching,
-  } = useMasterReportFindings(
-    hasTarget ? activeScan.targetUrl : undefined,
-    hasActiveScan ? activeScan.id : undefined
-  );
-
-  const findings = Array.from(
-    new Map([...activeScanFindings, ...masterFindings].map(f => [f.id, f])).values()
-  );
-
   // Only report loading when queries are actually enabled AND fetching.
   // Disabled queries (no active scan yet) should NOT cause a loading state.
   const isTrulyLoading = scansLoading || (hasActiveScan && findingsLoading);
 
   // isFetching = true during ANY fetch (initial or refetch after invalidation).
   // This is the signal TopBar needs to know data isn't ready yet.
-  const isTrulyFetching = scansFetching || (hasActiveScan && (findingsFetching || masterFetching));
+  const isTrulyFetching = scansFetching || (hasActiveScan && findingsFetching);
 
   return {
-    data: findings,
+    data: activeScanFindings,
     isLoading: isTrulyLoading,
     isFetching: isTrulyFetching,
-    masterLoading: hasActiveScan ? masterLoading : false,
+    masterLoading: false,
     activeScanFindings,
-    masterFindings
+    masterFindings: []
   };
 }

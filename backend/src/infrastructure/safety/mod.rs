@@ -38,7 +38,7 @@ impl SafetyFrameworkImpl {
             pool: pool.clone(),
             scope_enforcer: scope_enforcer::ScopeEnforcer::new(allowed_domains),
             consent_validator: consent_validator::ConsentValidatorImpl::new(consent_repo),
-            rate_limiter: rate_limiter::ExploitRateLimiter::new(max_requests_per_minute),
+            rate_limiter: rate_limiter::ExploitRateLimiter::new(pool, max_requests_per_minute),
         }
     }
 
@@ -88,7 +88,7 @@ impl SafetyFrameworkImpl {
 impl SafetyFramework for SafetyFrameworkImpl {
     async fn validate_target(&self, target_url: &str) -> Result<(), String> {
         self.scope_enforcer.validate(target_url)?;
-        self.rate_limiter.check(target_url)?;
+        self.rate_limiter.check(target_url).await?;
         Ok(())
     }
 
@@ -120,6 +120,6 @@ impl SafetyFramework for SafetyFrameworkImpl {
     }
 
     async fn check_rate_limit(&self, target_url: &str) -> Result<(), String> {
-        self.rate_limiter.check(target_url)
+        self.rate_limiter.check(target_url).await
     }
 }

@@ -5,7 +5,7 @@ import { PauseScanButton } from "@/features/pause-scan/ui/PauseScanButton";
 import { CancelScanButton } from "@/features/cancel-scan/ui/CancelScanButton";
 import type { ScanStatus } from "@/entities/scan/model/types";
 import { useStreamStore } from "@/features/stream-scan-events/model/stream-store";
-import { useSettingsProfiles } from "@/features/update-settings/model/use-settings";
+import { useScanProfiles } from "@/features/update-settings/model/use-settings";
 import { useState } from "react";
 import { Settings2 } from "lucide-react";
 import {
@@ -24,7 +24,7 @@ interface ScanControlsProps {
 
 export function ScanControls({ targetUrl, scanId, scanStatus }: ScanControlsProps) {
   const localScanState = useStreamStore((s) => s.localScanState);
-  const { data: profiles = [] } = useSettingsProfiles();
+  const { data: profiles = [] } = useScanProfiles();
   const [selectedProfileId, setSelectedProfileId] = useState<string>("default");
 
   // Use local state for instant feedback — covers the gap before polling catches up

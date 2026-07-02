@@ -16,6 +16,7 @@ import { LoadingSpinner } from "@/shared/ui/loading-spinner";
 import { StatusBadge } from "@/shared/ui/badges";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { ConfirmationDialog } from "@/shared/ui/confirmation-dialog";
 
 export function HistoryScreen() {
   const { data: historyScans = [], isLoading } = useScanHistory();
@@ -26,6 +27,9 @@ export function HistoryScreen() {
   const [, setDeltaLoading] = useState(false);
   const [selectedScans, setSelectedScans] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [scanPendingDelete, setScanPendingDelete] = useState<string | null>(null);
+  const [isDeletingScan, setIsDeletingScan] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -39,6 +43,7 @@ export function HistoryScreen() {
   );
 
   async function handleDelete(scanId: string) {
+    setIsDeletingScan(true);
     try {
       // Force delete from both to ensure it's gone regardless of where it lives
       try {
@@ -54,10 +59,12 @@ export function HistoryScreen() {
       
       await queryClient.invalidateQueries();
       router.refresh();
-      
+      setScanPendingDelete(null);
       toast.success("Scan deleted successfully");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete scan failed");
+    } finally {
+      setIsDeletingScan(false);
     }
   }
 
@@ -79,6 +86,7 @@ export function HistoryScreen() {
       await queryClient.invalidateQueries();
       router.refresh();
       setSelectedScans(new Set());
+      setIsBulkDeleteDialogOpen(false);
       
       if (successCount > 0) {
         toast.success(`Successfully deleted ${successCount} scans`);
@@ -170,7 +178,11 @@ export function HistoryScreen() {
               title="No scan history"
               description="You haven't run any scans yet. Go to the Scanner module to start a new scan."
               action={
-                <button className="flex items-center gap-2 px-3 py-1.5 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30 rounded text-[11px] font-semibold transition-colors mt-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/scanner")}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30 rounded text-[11px] font-semibold transition-colors mt-2"
+                >
                   <Play className="h-3 w-3" />
                   Start a Scan
                 </button>
@@ -293,7 +305,7 @@ export function HistoryScreen() {
                             <button
                               className="flex items-center justify-center h-8 w-8 rounded-md bg-white/[0.02] border border-white/[0.05] hover:bg-risk/10 hover:text-risk hover:border-risk/20 text-muted-foreground transition-colors"
                               title="Delete scan"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(scan.id); }}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setScanPendingDelete(scan.id); }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -485,7 +497,7 @@ export function HistoryScreen() {
                 Cancel
               </button>
               <button
-                onClick={handleBulkDelete}
+                onClick={() => setIsBulkDeleteDialogOpen(true)}
                 disabled={isBulkDeleting}
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-risk/20 text-risk border border-risk/30 hover:bg-risk/30 text-[11px] font-semibold transition-colors disabled:opacity-50 shadow-[0_0_15px_rgba(239,68,68,0.15)]"
               >
@@ -500,6 +512,26 @@ export function HistoryScreen() {
           </div>
         </div>
       )}
+      <ConfirmationDialog
+        open={scanPendingDelete !== null}
+        onOpenChange={(open) => !open && setScanPendingDelete(null)}
+        title="Delete scan record?"
+        description="This scan will be removed from active scans and history. This action cannot be undone."
+        confirmLabel="Delete Scan"
+        destructive
+        isPending={isDeletingScan}
+        onConfirm={() => scanPendingDelete && handleDelete(scanPendingDelete)}
+      />
+      <ConfirmationDialog
+        open={isBulkDeleteDialogOpen}
+        onOpenChange={setIsBulkDeleteDialogOpen}
+        title={`Delete ${selectedScans.size} scan records?`}
+        description="All selected scan records will be permanently removed. This action cannot be undone."
+        confirmLabel="Delete Selected"
+        destructive
+        isPending={isBulkDeleting}
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

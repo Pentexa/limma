@@ -322,3 +322,45 @@ Durum: planned
 Durum: planned
 
 Active scan çıktısına endpoint coverage, insertion point coverage, skipped target nedenleri ve detector bazlı request/error metrikleri eklenmeli. Böylece scan'in “çalıştı” bilgisinin yanında ne kadar yüzey gördüğü de ölçülebilir olur.
+
+## Yeni Mantıksal Bulgular - 2026-06-29
+
+Bu analiz turunda kod tabanında 1 kritik, 3 orta ve 2 düşük öncelikli olmak üzere toplam 6 adet yeni mantık hatası / tasarım açığı tespit edilmiştir.
+
+### 1. [KRİTİK] SafetyFrameworkImpl::grant_consent Parametre Sıralama Hatası (Swapping)
+
+- **Dosya**: [mod.rs](file:///c:/limma/backend/src/infrastructure/safety/mod.rs#L45-L60)
+- **Hata**: `SafetyFrameworkImpl::grant_consent` fonksiyonu, `consent_validator.grant_consent` fonksiyonunu çağırırken parametreleri yanlış sırada geçmektedir.
+  - `grant_consent_handler`'dan gelen `requested_by` (isteyen kullanıcı) parametresini validator'ın `consent_level` parametresine; `scope_level` (L1, L2, L3 izin seviyesi) parametresini ise validator'ın `granted_by` parametresine göndermektedir.
+- **Etki**: Veritabanındaki `consent_records` tablosuna izin seviyesi olarak kullanıcı adı (örn: "admin"), izni veren olarak ise izin seviyesi (örn: "L3") kaydedilir. L3 aktif exploit doğrulama kontrolü (`verify_consent`) sırasında veritabanındaki izin seviyesinin `"L3"` olması beklendiğinden, bu eşleşme başarısız olur ve geçerli bir onay bulunamadı hatası döner. **Tüm L3 onay mekanizması pratikte çalışmaz durumdadır.**
+
+### 2. [ORTA] TimingAnalyzer (Kör SQLi) Ağ Dalgalanması ve False Positive Tasarımı
+
+- **Dosya**: [timing_analyzer.rs](file:///c:/limma/backend/src/infrastructure/blind_detection/timing_analyzer.rs#L74)
+- **Hata**: Zaman tabanlı kör SQL injection tespitinde baseline süresi ile gecikmeli süre `if delayed_ms > baseline_ms * 2` ile karşılaştırılmaktadır.
+- **Etki**: Eğer baseline yanıt süresi çok düşükse (örneğin 2ms - 10ms), ağdaki ufak bir dalgalanma ile yanıtın 5ms veya 21ms sürmesi durumunda bu durum "başarılı gecikme enjeksiyonu" olarak sayılır (oysa ki payload 5 saniyelik `SLEEP(5)` gecikmesi tetiklemelidir). Bu durum, ağ gecikmelerine bağlı olarak çok yüksek oranda yanlış alarma (False Positive) sebebiyet verir. `DelayAnalyzer`'da yapıldığı gibi en azından belirli bir minimum mutlak eşik (örn. en az 1-3 saniye) veya beklenen gecikmenin %80'i gibi bir kontrol eklenmelidir.
+
+### 3. [ORTA] Web Cache Deception Analizinde Statik Cookie ile Yanlış Pozitif Risk
+
+- **Dosya**: [cache_analyzer.rs](file:///c:/limma/backend/src/infrastructure/blind_detection/cache_analyzer.rs#L25-L94)
+- **Hata**: `detect_cache_deception` fonksiyonunda kimlik doğrulamalı istekleri simüle etmek için sabit bir dummy cookie (`sessionid=test_auth_user_12345`) kullanılmaktadır.
+- **Etki**: Hedef web sitesi bu geçersiz cookie'yi reddedip hem kimlik doğrulamalı hem de kimlik doğrulamasız istekleri aynı login sayfasına veya 401/403 hata sayfasına yönlendirdiğinde (ve bu sayfaların HTML gövde boyutu 100 karakterden büyük olduğunda), dedektör iki cevabın da aynı olduğunu görüp (`unauth_body == auth_body`) cache deception açığı raporlayacaktır. Gerçek bir test için, yetkilendirmiş yanıtın gerçekten yetkisiz yanıttan farklı ve başarılı (200 OK) bir kullanıcı profil içeriği döndürdüğü doğrulanmalıdır.
+
+### 4. [ORTA] HTTP Request Smuggling Testinde Reqwest / Hyper Sınırlandırması
+
+- **Dosya**: [smuggling_analyzer.rs](file:///c:/limma/backend/src/infrastructure/blind_detection/smuggling_analyzer.rs#L56-L61)
+- **Hata**: Request Smuggling tespiti için `Content-Length` ve `Transfer-Encoding` başlıklarını çakıştırarak göndermek amacıyla yüksek seviyeli `reqwest` kütüphanesi kullanılmaktadır.
+- **Etki**: `reqwest`/`hyper` gibi modern HTTP kütüphaneleri, RFC standartlarına göre bu başlıkları otomatik olarak temizler, normalize eder ya da isteği hiç göndermeden hata verir. Dolayısıyla bu dedektör standart çalışma koşullarında hedefe çakışan başlıkları iletemez. Bu tür testlerin ham bir TCP soketi (`tokio::net::TcpStream`) üzerinden yapılması gerekir.
+
+### 5. [DÜŞÜK] BrowserCrawler'da Mutex Kilidi Altında Bloklayıcı Ağ İsteği (Performans / Deadlock)
+
+- **Dosya**: [browser_crawler.rs](file:///c:/limma/backend/src/infrastructure/scanner/browser_crawler.rs#L75-L96)
+- **Hata**: Response handler olay dinleyicisi içinde, `cdp_endpoints_response` Mutex'i kilitliyken `fetch_body()` (Chrome'a giden WebSocket tabanlı bloklayıcı CDP çağrısı) çağrılmaktadır.
+- **Etki**: Tarama sırasında aynı anda gerçekleşen diğer ağ istekleri olay dinleyicileri (örn: `NetworkRequestWillBeSent`), aynı Mutex kilidini (`cdp_endpoints_listener`) almak isteyeceğinden, `fetch_body()` yanıt verene kadar tüm tarayıcı olay döngüsü bloke olur. Bu durum ciddi yavaşlamalara ve kilitlenmelere yol açabilir. `fetch_body()` çağrısının Mutex kilitlenmeden önce yapılması gerekir.
+
+### 6. [DÜŞÜK] Active Scan `total_requests` Metrik Eksikliği
+
+- **Dosya**: [active_scan.rs](file:///c:/limma/backend/src/application/use_cases/active_scan.rs#L496)
+- **Hata**: `total_requests` sayacı sadece tamamlanan her bir dedektör görevi başına 1 artırılmaktadır.
+- **Etki**: Tek bir parametre/dedektör görevi arka planda 10-20 farklı payload denemesi ve HTTP isteği yapabilmektedir. Bu nedenle tarama özetinde kaydedilen `total_requests` gerçek HTTP istek sayısını yansıtmamakta ve tarama yükünü çok daha az göstermektedir.
+

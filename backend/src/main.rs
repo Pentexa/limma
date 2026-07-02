@@ -169,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
     let subdomain_discoverer = Arc::new(HttpSubdomainDiscoverer::new());
     let certificate_discoverer = Arc::new(CertificateDiscoverer::new(subdomain_discoverer.clone()));
     let api_discoverer = Arc::new(HttpApiDiscoverer::new());
-    let service_collector = Arc::new(HttpServiceCollector::new());
+    let service_collector = Arc::new(HttpServiceCollector::new(pool.clone()));
     let security_auditor = Arc::new(HttpSecurityAuditor::new().with_pool(pool.clone()));
     let form_mapper = Arc::new(HttpFormMapper::new());
 
@@ -220,12 +220,16 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(limma::infrastructure::exploitation::poc_generator::CompositePocGenerator::new());
     let sandbox_verifier: Arc<dyn limma::infrastructure::exploitation::sandbox::SandboxVerifier> =
         match limma::infrastructure::exploitation::sandbox::docker_sandbox::DockerSandbox::new(30) {
-            Ok(sandbox) => {
+            Ok(sandbox) if sandbox.healthcheck().await.is_ok() => {
                 tracing::info!("[Faz F] Sandbox: DockerSandbox initialized successfully");
                 Arc::new(sandbox)
             }
+            Ok(_) => {
+                tracing::error!("[Faz F] Docker daemon is unreachable; exploit verification is disabled and requests will return an explicit error");
+                Arc::new(limma::infrastructure::exploitation::sandbox::NoopSandboxProvider::new())
+            }
             Err(e) => {
-                tracing::warn!("[Faz F] Failed to init DockerSandbox: {}. Falling back to NoopSandboxProvider.", e);
+                tracing::error!("[Faz F] Failed to initialize DockerSandbox: {}. Exploit verification requests will return an explicit error.", e);
                 Arc::new(limma::infrastructure::exploitation::sandbox::NoopSandboxProvider::new())
             }
         };

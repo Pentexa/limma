@@ -59,8 +59,6 @@ export function DiscoveryScreen() {
     if (e.key === "Enter") handleRun();
   }
 
-  const isPending = (activeTab === "subdomains" && subdomainMut.isPending) || (activeTab === "certificates" && certMut.isPending);
-
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden bg-[#0a0a0c]">
       {/* Top bar */}

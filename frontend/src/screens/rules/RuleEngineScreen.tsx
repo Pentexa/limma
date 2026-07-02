@@ -8,6 +8,8 @@ import {
   ChevronDown, Info, Zap, Target, AlertTriangle, FileCode, Package, Plus, Trash2
 } from "lucide-react";
 import { CreateRuleModal } from "./CreateRuleModal";
+import { toast } from "sonner";
+import { ConfirmationDialog } from "@/shared/ui/confirmation-dialog";
 
 type Tab = "rules" | "feedback" | "stats";
 
@@ -115,6 +117,7 @@ export function RuleEngineScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("rules");
   const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [rulePendingDelete, setRulePendingDelete] = useState<string | null>(null);
 
   const isLoading = engineLoading || fbLoading;
 
@@ -122,15 +125,29 @@ export function RuleEngineScreen() {
     createRule(payload, {
       onSuccess: () => {
         setIsCreateModalOpen(false);
+        toast.success("Custom rule created");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create custom rule");
       }
     });
   };
 
   const handleDeleteRule = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete the custom rule '${id}'?`)) {
-      deleteRule(id);
-    }
+    setRulePendingDelete(id);
+  };
+
+  const handleConfirmDeleteRule = () => {
+    if (!rulePendingDelete) return;
+
+    deleteRule(rulePendingDelete, {
+      onSuccess: () => {
+        setRulePendingDelete(null);
+        toast.success("Custom rule deleted");
+      },
+      onError: (error) => toast.error(error.message || "Failed to delete custom rule"),
+    });
   };
 
   return (
@@ -461,6 +478,20 @@ export function RuleEngineScreen() {
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateRule}
         isSubmitting={isCreating}
+      />
+      <ConfirmationDialog
+        open={rulePendingDelete !== null}
+        onOpenChange={(open) => !open && setRulePendingDelete(null)}
+        title="Delete custom rule?"
+        description={
+          <>
+            The rule <span className="font-mono text-foreground">{rulePendingDelete}</span> will be permanently removed.
+          </>
+        }
+        confirmLabel="Delete Rule"
+        destructive
+        isPending={isDeleting}
+        onConfirm={handleConfirmDeleteRule}
       />
     </div>
   );

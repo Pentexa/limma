@@ -945,6 +945,7 @@ pub async fn blind_scan(
         target_url: payload.target_url,
         target_id: payload.target_id.unwrap_or_else(uuid::Uuid::new_v4),
         detection_types: payload.detection_types,
+        cookie: payload.cookie,
         max_duration_seconds: payload.max_duration_seconds.unwrap_or(120),
     };
 

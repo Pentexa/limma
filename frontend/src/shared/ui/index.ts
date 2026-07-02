@@ -11,6 +11,7 @@ export { EmptyState } from "./empty-state";
 export { SkeletonPanel } from "./skeleton-panel";
 export { LoadingSpinner } from "./loading-spinner";
 export { ErrorBoundary } from "./error-boundary";
+export { ConfirmationDialog } from "./confirmation-dialog";
 
 // Data Display
 export { SeverityBadge, StatusBadge } from "./badges";

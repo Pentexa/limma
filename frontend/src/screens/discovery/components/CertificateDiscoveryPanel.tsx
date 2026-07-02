@@ -4,10 +4,10 @@ import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 import type { ApiDiscoverCertificatesResponse, ApiSubdomainAsset } from "@/shared/types/api";
 import {
-  FileWarning, Shield, AlertTriangle, CheckCircle, Activity,
+  FileWarning, AlertTriangle, CheckCircle, Activity,
   Clock, Filter, Search, ChevronDown, ChevronRight,
   Wifi, WifiOff, ExternalLink, Server, Tag, Fingerprint,
-  BarChart3, Zap, Eye,
+  BarChart3, Eye,
 } from "lucide-react";
 
 interface CertificateDiscoveryPanelProps {

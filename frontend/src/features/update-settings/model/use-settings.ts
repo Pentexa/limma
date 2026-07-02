@@ -27,12 +27,23 @@ export function useScanProfiles() {
 }
 
 /** Update a settings profile */
-export function useUpdateProfile() {
+export function useUpdateSettingsProfile() {
   const queryClient = useQueryClient();
   return useMutation<ApiSettingsProfile, Error, { id: string; data: Partial<ApiSettingsProfile> }>({
     mutationFn: ({ id, data }) => httpClient.put<ApiSettingsProfile>(`/api/settings/profiles/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.profiles() });
+    },
+  });
+}
+
+/** Update a scan profile */
+export function useUpdateScanProfile() {
+  const queryClient = useQueryClient();
+  return useMutation<ApiSettingsProfile, Error, { id: string; data: Partial<ApiSettingsProfile> }>({
+    mutationFn: ({ id, data }) => httpClient.put<ApiSettingsProfile>(`/api/profiles/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.scanProfiles() });
     },
   });
 }

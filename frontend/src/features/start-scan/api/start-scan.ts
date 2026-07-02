@@ -54,6 +54,10 @@ export interface StartScanResponse {
   message?: string;
 }
 
+export interface StartScanOptions {
+  onPassiveScanError?: (error: Error) => void;
+}
+
 /** Start a passive website scan (analysis + stream) */
 export async function startPassiveScan(data: StartScanRequest): Promise<StartScanResponse> {
   const result = await httpClient.post<Record<string, unknown>>("/analyze", {
@@ -71,7 +75,10 @@ export async function startActiveScan(data: StartActiveScanRequest): Promise<Sta
   return httpClient.post<StartScanResponse>("/api/active-scan", data);
 }
 
-export async function startScan(data: StartScanRequest): Promise<StartScanResponse> {
+export async function startScan(
+  data: StartScanRequest,
+  options: StartScanOptions = {}
+): Promise<StartScanResponse> {
   const ALL_VULN_TYPES: ActiveVulnType[] = [
     "reflected_xss", "stored_xss", "dom_xss",
     "sql_injection_error", "sql_injection_union", "sql_injection_blind_time", "sql_injection_blind_boolean",
@@ -83,9 +90,12 @@ export async function startScan(data: StartScanRequest): Promise<StartScanRespon
   ];
 
   // Fire passive scan in background so SSE stream receives events.
-  // We swallow the error silently to prevent Next.js dev overlays from popping up
-  // if the backend is missing the /analyze endpoint or returns an error.
-  startPassiveScan(data).catch(() => {});
+  // Keep active scan startup independent, but surface degraded passive analysis.
+  startPassiveScan(data).catch((error) => {
+    const passiveError = error instanceof Error ? error : new Error("Passive scan failed to start");
+    console.warn("Passive scan failed to start", passiveError);
+    options.onPassiveScanError?.(passiveError);
+  });
 
   return startActiveScan({
     target_url: data.target_url,
