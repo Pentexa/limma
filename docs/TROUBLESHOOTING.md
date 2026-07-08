@@ -1,129 +1,59 @@
 # LIMMA — Troubleshooting Guide
 
+> Sık karşılaşılan hatalar ve çözüm yöntemleri.
+
 ---
 
-## Sık Karşılaşılan Sorunlar
+## 💻 Frontend (Workstation UI) Sorunları
 
-### 1. Panel boyutları sıfırlanıyor
+### 1. Panel boyutları sıfırlanıyor veya bozuluyor
 
-**Belirti:** Sayfa yenilendiğinde panel boyutları varsayılana dönüyor.
+**Belirti:** Sayfa yenilendiğinde (refresh) veya yeniden girildiğinde split pane (ayrılabilir panel) boyutları varsayılana dönüyor veya ekranın dışına taşıyor.
 
 **Çözüm:**
-- `localStorage` temizlenmemiş mi kontrol et: `localStorage.getItem('limma-workspace-layout')`
-- `useLayoutPersist.ts`'deki debounce süresi (300ms) bitmeden sayfa kapatılmışsa kayıt yapılmamış olabilir
-- Reset: `localStorage.removeItem('limma-workspace-layout')` ile varsayılana dön
+- Panel boyutları `localStorage` üzerinde saklanır. `localStorage.getItem('limma-workspace-layout')` kontrolü yapın.
+- Panellerin `overflow-hidden` veya `100dvh` kısıtlamalarından koptuğunu görüyorsanız, Tarayıcı DevTools ile `body` tag'inde scroll olup olmadığını kontrol edin. Tüm scroll bar'lar spesifik `div` elementlerine (örneğin `.overflow-y-auto`) ait olmalıdır.
+- Hızlı sıfırlama (Reset): Tarayıcı konsolunda `localStorage.removeItem('limma-workspace-layout')` çalıştırıp sayfayı yenileyin.
 
 ---
 
-### 2. Tool tab'ı tıklanınca beyaz ekran
+### 2. Tab tıklandığında veya yeni sayfaya geçildiğinde Context kayboluyor
 
-**Belirti:** Tab tıklanıyor ama içerik yüklenmiyor.
+**Belirti:** Dashboard'dan "Scan #123" detayına tıkladınız, ancak sayfa yüklendiğinde başka bir tarama verisi veya boş veri gösteriliyor.
 
 **Çözüm:**
-1. Console'da hata kontrol et — genellikle lazy import hatası
-2. Feature container'ın named export'u olduğundan emin ol:
-   ```tsx
-   // ✅ export function MyContainer()
-   // ❌ export default function MyContainer()
-   ```
-3. `tool-registry.ts`'deki import path'ini kontrol et
+- URL parametrelerinin doğruluğunu kontrol edin. `WorkspaceContext` veriyi URL'den almalıdır (`useParams` veya `useSearchParams`).
+- Bileşen (Component) mount olurken `useEffect` içerisinde eski/yanlış `scan[0]` verisini zorla atayan (fallback) kod parçaları kalmış olabilir. Kod tabanında `scans[0]` veya `scans[0].id` araması yaparak bu geçici kodları temizleyin.
 
 ---
 
-### 3. Inspector panel boş kalıyor
+### 3. SSE Stream (Canlı Akış) Duruyor veya Bağlanmıyor
 
-**Belirti:** Finding tıklanıyor ama Inspector'da "Select an item" mesajı kalıyor.
+**Belirti:** Tarama başlatıldı ancak Job Drawer veya Terminal'de (Live Stream) ilerleme güncellenmiyor.
 
 **Çözüm:**
-- Component'te `useWorkspaceSelectionStore` üzerinden `setSelectedFinding(id)` çağrılıyor mu?
-- Finding ID'si `null` olmadığından emin ol
-- `activeSession`'da `moduleResults.audit.result` var mı kontrol et
+- Tarayıcının Network sekmesini açın. `/api/analyze/stream` veya `/api/investigate/stream` isteklerinin `EventStream` tipinde "Pending" olarak beklediğinden emin olun.
+- İstek anında iptal edildiyse, Backend tarafında loglara (`tracing` logları) bakın. Hatalı URL veya Target (örneğin `scope_enforcer` tarafından reddedilen bir IP) olabilir.
+- Rust loglarında "Stream disconnected" hatası varsa, Tower Timeout (Tower middleware) devrede olabilir. SSE streamleri için timeout süreleri kaldırılmalı veya sınırları genişletilmelidir.
 
 ---
 
-### 4. Scope tree boş görünüyor
+## 🦀 Backend (Rust) Sorunları
 
-**Belirti:** Sol panelde "No Target — Run a scan to populate" mesajı.
+### 1. Exploit Doğrulama Sürekli Başarısız Oluyor
+
+**Belirti:** L3 izni (Consent) olmasına rağmen "Verify Exploit" işlemi başarısız sonuçlanıyor.
 
 **Çözüm:**
-- Bu beklenen davranış — henüz scan yapılmamış demek
-- Scan yapıldıktan sonra `scanSessionStore.activeSession.moduleResults` dolacak ve ağaç otomatik oluşacak
+- `consent_validator` loglarını kontrol edin. `grant_consent` parametre sırası hatası giderilmişti ancak veritabanındaki (veya bellekteki) eski hatalı kayıtlar (Örn: `granted_by: "L3"`, `level: "admin"`) sorun yaratıyor olabilir. Veritabanını temizleyin (`TRUNCATE consent_records`).
+- Docker sandbox çalışıyor mu? Arkaplanda `mock_sandbox` yerine `docker_sandbox` kullanılıyorsa yerel makinenizde Docker daemon'ının çalıştığından ve gerekli imajların (python:3, node:18 vb.) bulunduğundan emin olun.
 
----
+### 2. Veritabanı Migration Hataları
 
-### 5. SSE olayları Runtime panel'e gelmiyor
-
-**Belirti:** Console tab'ında sadece "Workspace shell initialized" görünüyor.
+**Belirti:** Proje başlatılırken `sqlx` panic veriyor veya tablolar bulunamadı (table not found) hatası alınıyor.
 
 **Çözüm:**
-1. Backend çalışıyor mu kontrol et: `cargo run` aktif mi?
-2. `useGlobalSSE` hook'u `WorkspaceShell`'de mount ediliyor mu kontrol et
-3. `activeSession?.targetUrl` var mı? (SSE sadece aktif session varken bağlanır)
-4. Browser DevTools → Network → EventSource bağlantısı var mı?
+- Migration dosyalarını uygulayın: `sqlx migrate run`
+- Eğer geliştirme sırasında tablo şemalarını elle değiştirdiyseniz, en temiz yöntem veritabanını yeniden oluşturmaktır (`sqlx database drop` ve `sqlx database create`).
+- SQLx'in compile-time query check (derleme anında sorgu kontrolü) özelliğinin çalışması için `.env` dosyasında `DATABASE_URL`'in doğru ayarlandığından ve veritabanının ayakta olduğundan emin olun. (`cargo sqlx prepare` komutunu unutmayın).
 
----
-
-### 6. Build hatası: "Module not found"
-
-**Belirti:** `npm run build` sırasında import hatası.
-
-**Çözüm:**
-- `tool-registry.ts`'deki lazy import path'lerini kontrol et
-- Feature klasörü altında `components/<Name>Container.tsx` mevcut mu?
-- Path alias `@/` doğru mu? (`tsconfig.json` → `paths`)
-
----
-
-### 7. Panel resize çalışmıyor
-
-**Belirti:** Drag handle görünüyor ama sürükleyince boyut değişmiyor.
-
-**Çözüm:**
-- `PanelResizer` component'inin `onResize` callback'i alıyor mu?
-- CSS `pointer-events: none` başka bir element tarafından uygulanıyor olabilir
-- `ws-resizing` class'ı body'ye ekleniyor mu (drag sırasında)
-
----
-
-### 8. Aktif tool hatırlanmıyor
-
-**Belirti:** Sayfa yenilenince hep Dashboard açılıyor.
-
-**Çözüm:**
-- `localStorage.getItem('limma-workspace-selection')` kontrol et
-- Store'daki `activeToolId` persist ediliyor mu?
-- `zustand/persist` middleware'inde `partialize` fonksiyonunda `activeToolId` var mı?
-
----
-
-## Debug Araçları
-
-### Store State İnceleme
-```js
-// Browser console'da:
-
-// Workspace selection state
-JSON.parse(localStorage.getItem('limma-workspace-selection'))
-
-// Layout state
-JSON.parse(localStorage.getItem('limma-workspace-layout'))
-
-// Scan sessions
-JSON.parse(localStorage.getItem('limma-scan-sessions'))
-```
-
-### SSE Bağlantı Durumu
-```js
-// Live events store'dan:
-// Runtime Panel → SSE Events tab'ını kontrol et
-// ● CONNECTED veya ○ DISCONNECTED gösterir
-```
-
-### State Reset
-```js
-// Tüm workspace state'i sıfırla:
-localStorage.removeItem('limma-workspace-selection');
-localStorage.removeItem('limma-workspace-layout');
-localStorage.removeItem('limma-scan-sessions');
-location.reload();
-```

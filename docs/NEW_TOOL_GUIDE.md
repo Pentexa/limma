@@ -1,215 +1,54 @@
 # LIMMA — Yeni Tool Ekleme Rehberi
 
 > **Süre:** ~5 dakika  
-> **Ön Koşul:** Temel React/TypeScript bilgisi
+> **Ön Koşul:** Temel React/TypeScript bilgisi ve FSD (Feature-Sliced Design) aşinalığı.
 
 ---
 
 ## 🚀 Hızlı Başlangıç
 
-Yeni bir tool eklemek için **sadece 2 dosya** değiştirmeniz yeterli:
+Yeni bir tool eklemek için FSD mimarisine uygun olarak dizin oluşturmalı ve Tool Registry API'ye kayıt yapmalısınız.
 
-1. **Feature Container** — Tool'un workspace component'i
-2. **Tool Registry** — Registry'e kayıt
+### Adım 1: Feature Container Oluştur
 
----
-
-## Adım 1: Feature Container Oluştur
-
-```
-frontend/src/features/<tool-name>/components/<ToolName>Container.tsx
-```
+Yeni aracınızı `frontend/src/features/<tool-name>` altında oluşturun. Masaüstü iş istasyonu (Workstation) paradigmasına uygun olarak UI'ın kendi içinde scroll edilebilir bir alan (örneğin `<div className="flex-1 overflow-auto">`) içerdiğinden emin olun.
 
 ```tsx
-'use client';
+// frontend/src/features/my-new-tool/components/MyNewToolContainer.tsx
+import React from 'react';
 
-import { useState } from 'react';
-import UrlInput from '@/components/UrlInput';
-import ErrorAlert from '@/components/ErrorAlert';
-import EmptyState from '@/components/EmptyState';
-import { Wrench } from 'lucide-react';
-
-export function MyToolContainer() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleScan = async (url: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // API çağrısı
-      // const result = await myToolApi(url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export const MyNewToolContainer = () => {
   return (
-    <div className="fade-in">
-      <div className="page-header">
-        <h1 className="page-title">My Tool</h1>
-        <p className="page-subtitle">Description</p>
+    <div className="flex flex-col h-full bg-canvas text-primary">
+      <div className="p-4 border-b border-white/5">
+        <h2 className="text-xl font-bold neon-blue">Yeni Aracım</h2>
       </div>
-      <UrlInput onSubmit={handleScan} loading={loading} />
-      {error && <ErrorAlert title="Error" message={error} />}
-      <EmptyState
-        icon={<Wrench size={36} />}
-        title="My Tool"
-        description="Enter a URL to start."
-      />
+      <div className="flex-1 overflow-auto p-4">
+        {/* Aracınızın İçeriği */}
+      </div>
     </div>
   );
-}
-```
-
-## Adım 2: Tool Registry'e Ekle
-
-`frontend/src/lib/tool-registry.ts` dosyasına ekle:
-
-```tsx
-// Lazy import ekle
-const MyToolWorkspace = React.lazy(() =>
-  import('@/features/my-tool/components/MyToolContainer')
-    .then(m => ({ default: m.MyToolContainer }))
-);
-
-// Registry objesine ekle
-export const toolRegistry = {
-  // ... mevcut tool'lar
-  'my-tool': {
-    id: 'my-tool',
-    label: 'My Tool',
-    icon: Wrench,          // lucide-react icon
-    section: 'Tools',      // Tab grubu
-    workspaceComponent: MyToolWorkspace,
-    supportsScopeTree: false,  // Sol panel gerekiyor mu?
-    inspectorTabs: [],         // Sağ panel tab'ları (opsiyonel)
-  },
 };
 ```
 
-**Bu kadar!** Tab bar'da yeni tool otomatik görünür.
+### Adım 2: Tool Registry'e Kayıt
 
----
+Oluşturduğunuz container'ı `frontend/src/lib/tool-registry.ts` dosyasına ekleyerek workspace kabuğuyla (Sidebar, Topbar vb.) entegre edin.
 
-## Gelişmiş Özellikler
+```typescript
+import { ToolDefinition } from './tool-registry.types';
+import { MyNewToolContainer } from '@/features/my-new-tool/components/MyNewToolContainer';
 
-### Scope Tree Desteği
-
-Eğer tool'unuz hedef bazlı çalışıyorsa (scanner, audit vb.), `supportsScopeTree: true` yapın. Sol panel otomatik gösterilir.
-
-### Inspector Tabs
-
-Sağ panelde detay tab'ları eklemek için:
-
-```tsx
-inspectorTabs: [
-  { id: 'details', label: 'Details' },
-  { id: 'payload', label: 'Payload' },
-],
+export const MY_NEW_TOOL: ToolDefinition = {
+  id: 'my-new-tool',
+  label: 'Yeni Aracım',
+  icon: 'MyIconName', // veya uygun bir Lucide ikonu
+  component: MyNewToolContainer,
+  defaultLayout: 'full', // veya 'with-inspector'
+};
 ```
 
-### ViewModel Adapter
-
-Backend response'larını UI-optimize hale getirmek için adapter oluşturun:
-
-```
-frontend/src/lib/adapters/my-tool.adapter.ts
-```
-
-```tsx
-import type { BackendDTO } from '@/lib/types';
-
-export interface MyToolVM {
-  // Flat, UI-optimized fields
-  title: string;
-  severity: string;
-  severityColor: string;
-}
-
-export function adaptMyToolResult(dto: BackendDTO): MyToolVM {
-  return {
-    title: dto.nested.deep.title,
-    severity: dto.risk_level,
-    severityColor: getSeverityColor(dto.risk_level),
-  };
-}
-```
-
-### SSE Integration
-
-RuntimePanel'e otomatik SSE event routing:
-
-```tsx
-import { useLiveEventsStore } from '@/lib/stores/live-events.store';
-
-// Component içinde:
-const addConsoleLine = useLiveEventsStore(s => s.addConsoleLine);
-
-addConsoleLine({
-  timestamp: new Date().toISOString(),
-  level: 'info',
-  message: 'My tool started scanning',
-  source: 'my-tool',
-});
-```
-
----
-
-## Mimari Genel Bakış
-
-```
-┌─────────────────────────────────────────────┐
-│          Tool Registry (tool-registry.ts)    │
-│    ┌──────┬──────┬──────┬──────┬──────┐     │
-│    │ Dash │ Scan │Audit │Expl  │ NEW  │     │
-│    └──┬───┴──┬───┴──┬───┴──┬───┴──┬───┘     │
-│       │      │      │      │      │         │
-│    Lazy  Lazy  Lazy  Lazy  Lazy             │
-│    Load  Load  Load  Load  Load             │
-├─────────────────────────────────────────────┤
-│          Workspace Selection Store           │
-│    (activeToolId, toolContexts, selection)   │
-├─────────────────────────────────────────────┤
-│          Live Events Store                   │
-│    (console, alerts, activity, SSE)          │
-├─────────────────────────────────────────────┤
-│          Adapters (lib/adapters/)             │
-│    Backend DTO → ViewModel transform         │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## Dosya Yapısı
-
-```
-frontend/src/
-├── components/workspace/     # Shell components
-│   ├── WorkspaceShell.tsx    # Main layout
-│   ├── TopTabBar.tsx         # Tool tabs (registry-driven)
-│   ├── ScopeTreePanel.tsx    # Left panel
-│   ├── InspectorPanel.tsx    # Right panel
-│   ├── RuntimePanel.tsx      # Bottom panel (live events)
-│   └── PanelResizer.tsx      # Drag resize
-├── features/<tool>/          # Feature modules
-│   └── components/
-│       └── <Tool>Container.tsx
-├── hooks/
-│   ├── useLayoutPersist.ts   # Panel size persistence
-│   └── useGlobalSSE.ts       # SSE → store routing
-├── lib/
-│   ├── tool-registry.ts      # Central tool registry
-│   ├── stores/
-│   │   ├── workspace-selection.store.ts
-│   │   └── live-events.store.ts
-│   └── adapters/
-│       ├── security-audit.adapter.ts
-│       ├── scanner.adapter.ts
-│       ├── active-scanner.adapter.ts
-│       └── exploitation.adapter.ts
-└── styles/
-    └── workspace.css         # All workspace styling
-```
+### Adım 3: Önemli İpuçları
+- Uygulamanın genel stili **saf siyah arka plan (`#030305`, `#07080B`)** ve **neon mavi (`#00A8FF`)** detaylar şeklindedir. Kendi bileşeninizde de bu Tailwind sınıflarını (`bg-canvas`, `text-neon-blue` vb.) kullanın.
+- Native `alert()` veya `confirm()` fonksiyonları yerine, paylaşımlı `Dialog` veya `sonner` (Toast) bileşenlerini kullanın.
+- Herhangi bir veri getirme (fetching) işleminde her zaman `TanStack Query` (React Query) kullanın ve gerekli durumlarda verileri backend DTO'sundan kendi ViewModel'inize eşlemek (maplemek) için adaptör katmanını kullanın.

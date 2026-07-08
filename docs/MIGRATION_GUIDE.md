@@ -1,107 +1,37 @@
-# LIMMA — Migration Guide: Page → Workspace
+# LIMMA — Migration Guide: Page → Workspace (Workstation Paradigm)
 
-> Bu rehber mevcut sayfa-bazlı feature'ları workspace shell'ine taşıma adımlarını anlatır.
+> Bu rehber mevcut sayfa-bazlı feature'ları yeni Desktop Workstation (Workspace) shell'ine taşıma adımlarını anlatır.
 
 ---
 
 ## Genel Bakış
 
-Mevcut her feature bir Next.js page route'u olarak çalışıyor:
-```
-/scanner → app/scanner/page.tsx → ScannerContainer
-```
+Eskiden Limma'daki her feature bir Next.js page route'u olarak (örneğin `/scanner`) kendi layout ve scroll mantığıyla çalışıyordu.
+Yeni mimaride Limma bir **Desktop Workstation** olarak çalışır.
 
-Workspace shell'de ise **tab switching** ile çalışıyor:
-```
-/ → WorkspaceShell → TopTabBar[Scanner] → React.lazy(ScannerContainer)
-```
-
-**Mevcut page.tsx dosyaları silinmiyor** — hem eski route hem workspace shell aynı container'ı kullanır.
+- Uygulama kökü `100dvh` yüksekliğe oturur ve body seviyesinde scroll bulunmaz (`overflow: hidden`).
+- `LiveStream` gibi kalıcı paneller kaldırılmış, yerine istendiğinde açılıp kapanabilen `JobDrawer` ve detaylar için `Inspector` panelleri getirilmiştir.
+- Componentler arası (örneğin Dashboard ve Scanner arası) veri taşımak için gizli global durumlar veya gereksiz `POST /master-report` API çağrıları yerine temiz bir `WorkspaceContext` kullanılır.
 
 ---
 
-## Migrasyon Adımları
+## Taşıma Adımları (Migration Steps)
 
-### 1. Container'ın Named Export'u Olduğundan Emin Ol
+### 1. UI ve Layout Güncellemesi
 
-```tsx
-// ✅ Doğru: Named export
-export function ScannerContainer() { ... }
+- Sayfayı `h-screen`, `overflow-hidden` container'ları içine yerleştirin.
+- Tablo veya liste listelemeleri yaparken, içeriğin kendi div'i içinde scroll edilebilir (`overflow-y-auto`) olduğundan emin olun.
+- Kullanıcıya ait destructive (silme, aktif exploit başlatma) aksiyonları native `confirm()` veya `alert()` yerine, projenin ortak (shared) `Dialog` veya `sonner` tabanlı onay/toast modülleri ile yapın.
 
-// ❌ Yanlış: Default export
-export default function ScannerContainer() { ... }
-```
+### 2. State ve Veri Yönetimi
 
-### 2. Tool Registry'e Lazy Import Ekle
+- Önceden backend'e global state'den bağımsız atılan `useGlobalFindings` hook'u gibi eski kullanımları bırakın. Her bir özellik kendi Asset veya Scan ID'sini URL veya bağlam (Context) üzerinden alıp `scans.findings(scanId, filters)` sorgu anahtarları (query key) ile çekmelidir.
+- Uzun süren background işlemleri başlatırken (örneğin SSE Stream üzerinden passive scan başlatma), UI'ı bloklayan native uyarılar yerine, arkaplanda işlemin durumunu `Zustand` ile veya `JobDrawer` üzerinden takip edin.
 
-`lib/tool-registry.ts`:
-```tsx
-const ScannerWorkspace = React.lazy(() =>
-  import('@/features/scanner/components/ScannerContainer')
-    .then(m => ({ default: m.ScannerContainer }))
-);
-```
+### 3. Tool Kaydı (Registry)
 
-### 3. Registry'ye Kayıt Et
+Yeni özelliklerin workspace shell'e entegrasyonu için sayfaları kendi başına bırakmak yerine `Tool Registry API` üzerinden kaydedin.
 
-```tsx
-'scanner': {
-  id: 'scanner',
-  label: 'Scanner',
-  icon: Globe,
-  section: 'Recon',
-  workspaceComponent: ScannerWorkspace,
-  supportsScopeTree: true,
-  inspectorTabs: [
-    { id: 'details', label: 'Details' },
-    { id: 'headers', label: 'Headers' },
-  ],
-},
-```
+### 4. Güvenlik Kontrolleri
 
-### 4. (Opsiyonel) Adapter Oluştur
-
-Eğer component backend DTO'larını direkt kullanıyorsa, bir adapter oluştur:
-
-```
-lib/adapters/<tool-name>.adapter.ts
-```
-
-### 5. (Opsiyonel) Selection State Entegrasyonu
-
-Finding tıklanınca Inspector panel'in güncellenmesi için:
-
-```tsx
-import { useWorkspaceSelectionStore } from '@/lib/stores/workspace-selection.store';
-
-const setSelectedFinding = useWorkspaceSelectionStore(s => s.setSelectedFinding);
-
-// Finding tıklandığında:
-onClick={() => setSelectedFinding(finding.id)}
-```
-
----
-
-## Checklist
-
-- [ ] Container named export kontrol
-- [ ] `tool-registry.ts`'e lazy import ekle
-- [ ] Registry objesine kayıt et
-- [ ] `supportsScopeTree` doğru ayarla
-- [ ] `inspectorTabs` tanımla (varsa)
-- [ ] Adapter oluştur (opsiyonel)
-- [ ] Selection state entegrasyonu (opsiyonel)
-- [ ] Build test (`npm run build`)
-
----
-
-## FAQ
-
-**Q: Eski route'lar çalışmaya devam ediyor mu?**  
-A: Evet, mevcut page.tsx dosyaları aynen kalıyor. Hem `/scanner` route'u hem workspace tab'ı aynı container'ı render eder.
-
-**Q: Workspace'te açılan tool'un state'i korunuyor mu?**  
-A: Evet, `workspace-selection.store.ts` aktif tool ID'sini ve per-tool context'i localStorage'a persist eder.
-
-**Q: Tool bazında farklı inspector tab'ları gösterebilir miyim?**  
-A: Evet, `inspectorTabs` array'ine istediğin tab'ları tanımla. Inspector panel otomatik olarak aktif tool'un tab'larını gösterir.
+L3 (Aktif) tarama veya Exploit ekleneceği zaman, frontend'de kullanıcının işlemi anladığına dair `ExecutionLevelDialog` gibi onay mekanizmaları kullanın (Hedef URL'nin elle tekrar yazılması gibi eylemler içeren güvenli bir dialog bileşeni).
