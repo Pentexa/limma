@@ -51,5 +51,37 @@ pub fn get_payloads() -> Vec<PayloadDefinition> {
             severity: SeverityLevel::Medium,
             safe_for_production: true,
         },
+        PayloadDefinition {
+            id: "redirect_07".into(),
+            payload: "https://evil.com/".into(),
+            description: "Direct external URL redirect with trailing slash".into(),
+            expected_indicator: ExpectedIndicator::RedirectLocation("evil.com".into()),
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "redirect_08".into(),
+            payload: "https://target.com.evil.com".into(),
+            description: "Subdomain/Domain confusion redirect".into(),
+            expected_indicator: ExpectedIndicator::RedirectLocation("target.com.evil.com".into()),
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "redirect_09".into(),
+            payload: "https://evil.com%23.target.com".into(),
+            description: "Fragment bypass".into(),
+            expected_indicator: ExpectedIndicator::RedirectLocation("evil.com".into()),
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        },
+        PayloadDefinition {
+            id: "redirect_10".into(),
+            payload: "https://evil.com%3F.target.com".into(),
+            description: "Query bypass".into(),
+            expected_indicator: ExpectedIndicator::RedirectLocation("evil.com".into()),
+            severity: SeverityLevel::Medium,
+            safe_for_production: true,
+        }
     ]
 }
