@@ -1,102 +1,131 @@
 # limma
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)  
+![Rust 60.8%](https://img.shields.io/badge/Rust-60.8%25-brightgreen) ![TypeScript 38.5%](https://img.shields.io/badge/TypeScript-38.5%25-3178c6)
+
 Limma, web güvenliği analizleri ve otomatik denetim için geliştirilmiş bir platformdur. Rust ve TypeScript karışımı bir mimariye sahiptir: yüksek performans ve düşük seviyeli ağ/analiz işleri için Rust (backend), kullanıcı arayüzü ve araç entegrasyonları için TypeScript/Next.js (frontend).
+
+---
+
+## İçindekiler
+
+- [Hakkında](#hakkında)
+- [Özellikler](#özellikler)
+- [Hızlı Başlangıç](#hızlı-başlangıç)
+- [Kurulum & Çalıştırma](#kurulum--çalıştırma)
+- [Konfigürasyon (.env.example)](#konfigürasyon-envexample)
+- [API Önemli Endpointler](#api-önemli-endpointler)
+- [Katkıda Bulunma](#katkıda-bulunma)
+- [Lisans](#lisans)
+
+---
 
 ## Hakkında
 
 - Diller: Rust (%60.8), TypeScript (%38.5)
-- Amaç: Web uygulamalarını, API'leri ve sunucuları otomatik olarak keşfetmek ve güvenlik açılarını analiz etmek; keşfedilen zafiyetler için doğrulama, PoC (proof-of-concept) üretimi, raporlama ve dinamik kural motoru desteği sağlamak.
+- Amaç: Web uygulamalarını, API'leri ve sunucuları otomatik olarak keşfetmek ve güvenlik açıklarını analiz etmek; keşfedilen zafiyetler için doğrulama, PoC (proof-of-concept) üretimi, raporlama ve dinamik kural motoru desteği sağlamak.
 
-## Proje yapısı (kök dizin)
+## Özellikler
 
-- backend/        — Rust ile yazılmış sunucu uygulaması (Axum + Tokio)
-- frontend/       — Next.js (TypeScript) tabanlı kullanıcı arayüzü
-- limma-shared/   — Hem backend hem frontend tarafından kullanılabilecek paylaşılan tipler/modüller (Rust crate)
+- Dinamik kural motoru (YAML/JSON) — çalışma zamanında kuralları yükler ve değerlendirir
+- Aktif ve pasif keşif: Subdomain & API discovery
+- Otomatik PoC üretimi ve (opsiyonel) Docker tabanlı sandbox doğrulama
+- SSE tabanlı akış (analiz ilerleme bildirimleri)
+- PostgreSQL ile dayanıklı durum depolama
 
-## Gereksinimler
+## Hızlı Başlangıç
 
-- Rust (rustup ile toolchain) — backend için
-- Cargo — Rust paket yöneticisi
-- Node.js (16+) ve npm/yarn/pnpm — frontend için
-- PostgreSQL — uygulama durumunu saklamak için (DATABASE_URL ortam değişkeni ile sağlanır)
-- (isteğe bağlı) Docker — sandbox doğrulamaları için
-
-## Başlarken (geliştiriciler için)
-
-Aşağıdaki komutlar repoyu kökünden çalıştırılmak üzere hazırlanmıştır.
-
-1) Depoyu klonlayın
+Aşağıdaki adımlar, yerel geliştirme ortamında projeyi çalıştırmak için yeterlidir.
 
 ```bash
 git clone https://github.com/Pentexa/limma.git
 cd limma
 ```
 
-2) Backend (Rust) — geliştirme / çalıştırma
+### Backend (Rust)
 
-- Ortam değişkenlerini ayarlayın (örnek):
-
-```bash
-export DATABASE_URL="postgres://postgres:password@127.0.0.1:5432/limma"
-# (Windows PowerShell): $env:DATABASE_URL = 'postgres://postgres:password@127.0.0.1:5432/limma'
-```
-
-- Geliştirme sunucusunu çalıştırın:
+Varsayılan olarak backend `0.0.0.0:8900` üzerinde dinler.
 
 ```bash
 cd backend
-# toolchain yüklü değilse: curl https://rustup.rs -sSf | sh
+export DATABASE_URL="postgres://postgres:password@127.0.0.1:5432/limma"
+# toolchain yoksa: curl https://rustup.rs -sSf | sh
 cargo run --bin limma
 ```
 
-- Sunucu varsayılan olarak 0.0.0.0:8900 adresinde dinler. Önemli endpointler:
-  - POST /analyze — Hedef URL üzerinde analiz başlatır
-  - GET  /analyze/stream — Analiz sürecini SSE ile aktarır
-  - POST /master-report — Tam rapor oluşturur
-
-Not: Backend bazı özellikler (PoC sandbox vs.) için Docker ile çalışan bir doğrulama bileşeni arar; Docker bulunmazsa uygulama yedek (noop) doğrulayıcı ile çalışır.
-
-3) Frontend (Next.js / TypeScript)
+### Frontend (Next.js)
 
 ```bash
 cd frontend
 npm install
-npm run dev    # geliştirici modu, http://localhost:3000
-# veya prod benzeri: npm run build && npm start
+npm run dev
+# http://localhost:3000
 ```
 
-4) Workspace olarak tüm Rust projelerini derlemek
+## Kurulum & Çalıştırma
+
+- Tüm Rust crate'lerini derlemek için:
 
 ```bash
-# proje workspace tanımlı; kök dizinden tüm crate'leri derlemek için
 cargo build --workspace --release
 ```
 
-## Testler
-
-- Backend (Rust):
+- Backend çalıştırma (geliştirme):
 
 ```bash
 cd backend
-cargo test
+cargo run --bin limma
 ```
 
-- Frontend (ön uç):
+- Frontend (geliştirme):
 
 ```bash
 cd frontend
-# proje test betiği varsa çalıştırın
-npm test
+npm run dev
 ```
 
-## Ortam & Konfigürasyon
+## Konfigürasyon (.env.example)
 
-- Uygulama ayarları `.env` veya doğrudan ortam değişkenleriyle verilebilir. Özellikle `DATABASE_URL` varsayılan PostgreSQL bağlantısı için gereklidir.
-- Dinamik kural motoru uygulama başladığında `/rules` dizininden YAML/JSON kural dosyalarını arar. Özel kurallar DB'ye eklendiyse uygulama başlangıcında yüklenir.
+Aşağıdaki örnek `.env.example` dosyasını kullanarak yerel değişkenlerinizi ayarlayabilirsiniz. Daha eksiksiz bir konfigürasyon için `backend` içindeki README ve kodu kontrol edin.
 
-## Katkıda bulunma
+```env
+# PostgreSQL connection string
+DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/limma
 
-Katkılar memnuniyetle karşılanır. Yeni özellikler, hata düzeltmeleri ve belgeler için lütfen issue açın veya pull request (PR) gönderin. Kod değişiklikleri gönderirken test eklemeye ve mevcut stil rehberine uymaya çalışın.
+# Backend bind port (opsiyonel)
+PORT=8900
+
+# Sandbox doğrulama için Docker kullanılıyorsa (opsiyonel)
+USE_DOCKER_SANDBOX=true
+```
+
+> Not: `DATABASE_URL` sağlanmazsa backend varsayılan bağlantı stringini kullanır (postgre://postgres:password@127.0.0.1:5432/limma).
+
+## API Önemli Endpointler
+
+- POST /analyze — Hedef URL üzerinde analiz başlatır
+- GET  /analyze/stream — Analiz sürecini SSE ile aktarır
+- POST /master-report — Tam rapor oluşturur
+- POST /discover-apis — API keşfi başlatır
+
+(Bütün endpointler için backend/src içindeki `api/handlers` ve `main.rs` dosyasına bakınız.)
+
+## Görseller
+
+Eğer projeye UI ekran görüntüleri veya mimari diyagramları eklemek isterseniz `docs/` dizinine görüntü ekleyip burada gösterge olarak kullanabilirsiniz.
+
+![placeholder](docs/screenshot-placeholder.png)
+
+## Katkıda Bulunma
+
+Katkılar memnuniyetle karşılanır. Küçük bir rehber:
+
+1. Bir issue açın veya mevcut bir issue'ya atanın.
+2. Yeni bir branch oluşturun: `git checkout -b feat/özellik-adi`
+3. Değişikliklerinizi küçük commit'ler halinde gönderin.
+4. PR açmadan önce testleri çalıştırın ve linter'ı kontrol edin.
+
+Daha detaylı rehber için `CONTRIBUTING.md` dosyasına bakın.
 
 ## Lisans
 
